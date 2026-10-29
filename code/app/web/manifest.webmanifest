@@ -1,0 +1,11 @@
+{
+  "name": "Insight",
+  "short_name": "Insight",
+  "description": "시각장애인 보행 보조 - 실시간 위험 경고와 주변 장면 설명",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3F5F9",
+  "theme_color": "#0A3A82",
+  "lang": "ko",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}
