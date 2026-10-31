@@ -204,7 +204,7 @@ async function start(){
   notice(''); speech.unlock(); S.spokeReady=false;
   try{
     if(S.mode==='phone'){
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ say('폰 카메라는 보안 주소, 즉 https로 접속해야 켜져요.'); notice('https 주소로 접속해 주세요.'); return; }
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=!S.prev; $('#pv').hidden=true;
       sendCmd({type:'set_source', mode:'phone'}); startSending();
