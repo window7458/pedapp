@@ -7,7 +7,8 @@ cryptography                 # --https 자체 서명 인증서
 qrcode                       # 접속 주소 QR (없어도 동작)
 
 # 실제 모델을 돌릴 때 (GPU 서버 권장)
-# ultralytics                # YOLO 추적(E0 / final_10class) + 신호등
+ultralytics                 # YOLO 추적(E0 · final_10class) + 신호등
+lapx                        # ultralytics 추적(ByteTrack)에 필요
 # torch                      # CUDA 맞는 버전으로 (https://pytorch.org)
 # transformers               # hitbox 바닥 분할(Mask2Former), 처음 실행 때 모델 약 1GB 받음
 # pillow

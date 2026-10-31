@@ -219,7 +219,7 @@ async function start(){
     say(denied ? '카메라 권한이 필요해요. 브라우저 설정에서 카메라를 허용해 주세요.' : '카메라를 켤 수 없어요.');
     notice(denied ? '카메라 권한이 필요해요.' : '카메라 오류: '+(e&&e.message||e)); return;
   }
-  S.running=true; setGo(); save();
+  S.running=true; S.t0=performance.now(); S.warnedNoVideo=false; setGo(); save();
   say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
   try{ if(navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen'); }catch(e){}
 }
@@ -244,7 +244,7 @@ function startSending(){
   }, 100);
 }
 /* 영상이 서버에 안 닿는 걸 알려 준다 */
-setInterval(()=>{ if(S.running && S.wsOk && S.mode==='phone' && S.fps===0 && !S.warnedNoVideo){ S.warnedNoVideo=true; say('영상이 서버로 전달되지 않고 있어요.'); }
+setInterval(()=>{ if(S.running && S.wsOk && S.mode==='phone' && S.fps===0 && !S.warnedNoVideo && performance.now()-S.t0>15000){ S.warnedNoVideo=true; say('영상이 서버로 전달되지 않고 있어요.'); }
                   if(S.fps>0) S.warnedNoVideo=false; }, 4000);
 
 /* ── 보호자 호출 · 배터리 ── */
@@ -356,7 +356,7 @@ function draw(){
   const r=ov.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
   if(ov.width!==Math.round(r.width*dpr)){ ov.width=Math.round(r.width*dpr); ov.height=Math.round(r.height*dpr); }
   octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
-  if(S.running && S.prev && S.dets && performance.now()-S.detsAt<700){
+  if(S.running && S.prev && S.dets && performance.now()-S.detsAt<Math.max(700,S.fps>0?2500/S.fps:2500)){
     const v=$('#cam'), im=$('#pv'); const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0, sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
     let k=1, ox=0, oy=0, fw=r.width, fh=r.height;                     // object-fit:cover 로 잘린 만큼 좌표를 맞춘다
     if(sw&&sh){ k=Math.max(r.width/sw, r.height/sh); fw=sw*k; fh=sh*k; ox=(r.width-fw)/2; oy=(r.height-fh)/2; }
