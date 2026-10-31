@@ -3,47 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#1F5FBF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Insight 보행자</title>
 <style>
-/* 임시 스타일 — 디자인은 Figma 시안으로 교체. 기능(id, aria-label, 이벤트)만 유지하면 된다. */
-:root{--bg:#fff;--fg:#000;--accent:#0a3a82;--accent-fg:#fff;--danger:#b00020;--line:#999}
-@media (prefers-color-scheme:dark){:root:not([data-hc="0"]){--bg:#000;--fg:#fff;--accent:#ffd400;--accent-fg:#000;--danger:#ff5a4e;--line:#777;color-scheme:dark}}
-:root[data-hc="1"]{--bg:#000;--fg:#ffd400;--accent:#ffd400;--accent-fg:#000;--danger:#ff5a4e;--line:#ffd400;color-scheme:dark}
+/* Figma 시안(Insight) 적용: 초록 #1F5FBF · 둥근 카드 · 포인트 #7DB2F5. 기능(id, aria-label, 이벤트)은 그대로. */
+:root{--page:#EAF1FA;--bg:#FAFCFF;--card:#fff;--fg:#1B2A41;--muted:#5F7391;--accent:#1F5FBF;--accent-fg:#fff;--soft:#DCE9FA;--danger:#B94B2E;--danger-soft:#FFF4EF;--line:#DDE6F2;--pop:#7DB2F5;--violet:#3F5FA8;--violet-soft:#EEF3FF;--warm:#2E7FD0;--warm-soft:#EAF4FF}
+@media (prefers-color-scheme:dark){:root:not([data-hc="0"]){--page:#0b1220;--bg:#111a2b;--card:#182438;--fg:#E6EEFA;--muted:#9fb3d1;--accent:#6FA8FF;--accent-fg:#06101f;--soft:#1e3556;--danger:#ff9b7d;--danger-soft:#3a1f17;--line:#26364f;--violet:#9bbcff;--violet-soft:#1b2c4a;--warm:#8cc4ff;--warm-soft:#1b3350;color-scheme:dark}}
+:root[data-hc="1"]{--page:#000;--bg:#000;--card:#000;--fg:#ffd400;--muted:#ffd400;--accent:#ffd400;--accent-fg:#000;--soft:#000;--danger:#ff5a4e;--danger-soft:#000;--line:#ffd400;--violet:#ffd400;--violet-soft:#000;--warm:#ffd400;--warm-soft:#000;color-scheme:dark}
 *{box-sizing:border-box}[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--fg);font:20px/1.4 system-ui,"Noto Sans KR","Malgun Gothic",sans-serif;
-  padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
-  min-height:100dvh;display:flex;flex-direction:column;gap:12px}
+html{background:var(--page)}
+body{margin:0 auto;max-width:430px;background:var(--bg);color:var(--fg);font:16px/1.45 Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
+  min-height:100dvh;display:flex;flex-direction:column;gap:14px}
 header{display:flex;justify-content:space-between;align-items:center}
-h1{margin:0;font-size:22px}
-#conn{font-size:16px}
-#stage{position:relative;background:#000;aspect-ratio:3/4;max-height:26vh;border-radius:10px;overflow:hidden}
+.logo{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;letter-spacing:-.04em}
+.logo i{position:relative;display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:var(--accent);color:var(--accent-fg)}
+.logo i::after{content:"";position:absolute;right:-4px;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--pop);border:2px solid var(--bg)}
+h1{margin:0;font-size:19px}
+#conn{font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--soft);color:var(--accent)}
+.hello{margin:6px 4px 0}.hello small{display:block;color:var(--muted);font-weight:600}.hello h2{margin:4px 0 0;font-size:28px;line-height:1.2;letter-spacing:-.055em;font-weight:800}
+#stage{position:relative;background:#182438;aspect-ratio:3/4;max-height:24vh;border-radius:22px;overflow:hidden}
 #stage video,#stage img,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#live{min-height:3.2em;border:2px solid var(--line);border-radius:10px;padding:10px 12px;font-size:24px;font-weight:700}
-#live small{display:block;font-size:14px;font-weight:400;opacity:.7}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
-button{font:inherit;border:3px solid var(--fg);background:var(--bg);color:var(--fg);border-radius:16px;padding:12px;min-height:72px;cursor:pointer}
-button.big{grid-column:1/-1;min-height:26vh;font-size:44px;font-weight:800;background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-button.big.running{background:var(--danger);border-color:var(--danger);color:#fff}
-#mic{grid-column:1/-1;min-height:18vh;font-size:32px;font-weight:800}
-#mic.on{background:var(--accent);color:var(--accent-fg)}
-#sos{border-color:var(--danger);color:var(--danger);font-weight:800}
-details{border:2px solid var(--line);border-radius:10px;padding:8px 12px}
-summary{font-size:18px;cursor:pointer}
-label{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;font-size:18px}
-input[type=range]{width:50%}input[type=text]{width:100%;font:inherit;padding:8px}
-#notice{color:var(--danger);font-weight:700}
-a{color:var(--fg)}
+#live{min-height:3.4em;border:1px solid var(--line);background:var(--card);border-radius:22px;padding:14px 16px;font-size:22px;font-weight:800;letter-spacing:-.03em;box-shadow:0 8px 24px rgba(40,70,110,.06)}
+#live small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;align-content:start}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:24px;padding:14px;min-height:72px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s}
+button:active{transform:scale(.97)}
+button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pop);outline-offset:3px}
+button.big{grid-column:1/-1;justify-self:center;width:min(72%,260px);aspect-ratio:1;border-radius:50%;border:10px solid var(--soft);min-height:0;background:var(--accent);color:var(--accent-fg);font-size:27px;font-weight:800;letter-spacing:-.04em;box-shadow:0 18px 45px rgba(31,95,191,.24);margin:6px 0}
+button.big.running{background:var(--danger-soft);color:var(--danger);border-color:#FFE5DA;box-shadow:0 18px 45px rgba(217,91,56,.18)}
+:root[data-hc="1"] button.big{border-color:#ffd400}
+#mic{min-height:116px;font-size:17px;font-weight:800;text-align:left;background:var(--violet-soft);color:var(--violet);border-color:transparent;letter-spacing:-.04em}
+#mic.on{background:var(--violet);color:#fff}
+#sos{min-height:116px;font-size:17px;font-weight:800;text-align:left;background:var(--warm-soft);color:var(--warm);border-color:transparent;letter-spacing:-.04em}
+#mic{order:1}#sos{order:2}#repeat{order:3;grid-column:1/-1;min-height:64px;font-weight:700;border-radius:22px;text-align:left;padding-left:18px}
+:root[data-hc="1"] #mic,:root[data-hc="1"] #sos,:root[data-hc="1"] #repeat{border:3px solid #ffd400}
+details{border:1px solid var(--line);background:var(--card);border-radius:22px;padding:10px 16px}
+summary{font-size:16px;font-weight:700;cursor:pointer;min-height:44px;display:flex;align-items:center}
+label{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;font-size:15px;border-top:1px solid var(--line)}
+input[type=checkbox]{width:24px;height:24px;accent-color:var(--accent)}
+input[type=range]{width:50%;accent-color:var(--accent)}input[type=text],select{width:100%;font:inherit;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+#notice{color:var(--danger);font-weight:700;background:var(--danger-soft);border-radius:16px;padding:10px 14px;margin:0}
+a{color:var(--accent);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Insight</h1>
+  <div class="logo"><i aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg></i><h1>Insight</h1></div>
   <span id="conn" role="status">연결 중</span>
 </header>
+
+<div class="hello"><small>안녕하세요</small><h2>오늘도 안전하게<br>함께 걸어요.</h2></div>
 
 <p id="notice" role="alert" hidden></p>
 
