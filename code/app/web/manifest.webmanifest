@@ -4,8 +4,8 @@
   "description": "말하고 보는 보행 보조 — 실시간 위험 안내와 보호자 알림",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#27449E",
-  "theme_color": "#27449E",
+  "background_color": "#F3F4FB",
+  "theme_color": "#6474E5",
   "lang": "ko",
   "icons": [
     {

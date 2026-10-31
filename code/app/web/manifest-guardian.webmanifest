@@ -5,8 +5,8 @@
   "start_url": "/guardian",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#27449E",
-  "theme_color": "#27449E",
+  "background_color": "#F3F4FB",
+  "theme_color": "#6474E5",
   "lang": "ko",
   "icons": [
     {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#27449E">
+<meta name="theme-color" content="#F3F4FB">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,6 +13,8 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>SayEye 보호자</title>
 <link rel="stylesheet" href="app.css">
+<script src="mascot.js"></script>
+<script src="onboard.js"></script>
 <style>
 body{-webkit-user-select:auto;user-select:auto}
 .views{position:relative;flex:1;min-height:0;margin-top:6px}
@@ -22,29 +24,32 @@ body{-webkit-user-select:auto;user-select:auto}
 .view>*{flex:none}
 .view.on{opacity:1;transform:none;visibility:visible;pointer-events:auto}
 .view.before{transform:translateX(-24px)}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:26px;background:var(--surface);box-shadow:var(--shadow);position:relative}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:28px;background:var(--glass-strong);border:1px solid var(--glass-line);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:var(--shadow);position:relative}
 .tabs button{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;padding:8px 0 6px;border-radius:20px;font-size:12px;font-weight:700;color:var(--muted);transition:color .3s;min-height:56px}
 .tabs button svg{width:24px;height:24px}.tabs button[aria-selected=true]{color:var(--accent)}
 .tabs .ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px - 8px)/3);border-radius:20px;background:var(--tint);transition:transform .5s var(--ease);z-index:0}
 .badge{position:absolute;top:6px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
-.status{position:relative;overflow:hidden;padding:20px;color:#fff;background:linear-gradient(145deg,#5A82F0,#3D68E0 45%,#27449E)}
-.status.off{background:linear-gradient(145deg,#8793B0,#5F6B8A)}
-.status::after{content:"";position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.12)}
+.status{position:relative;overflow:hidden;padding:22px 20px 20px;color:#fff;border:0;background:linear-gradient(150deg,#A9B8FF,#6474E5 55%,#4F5DCF);box-shadow:0 18px 40px rgba(100,116,229,.35)}
+.status .mascot{position:absolute;right:6px;top:8px;width:104px;height:110px;z-index:1}
+.status>*:not(.mascot){position:relative;z-index:2}
+#pstate,#psub{padding-right:96px}
+.status.off{background:linear-gradient(150deg,#C3C8E2,#8E95BC 60%,#727AA6)}
+.status::after{content:"";position:absolute;right:-50px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.35),transparent 65%)}
 .status .dot{width:10px;height:10px;border-radius:50%;background:#7DF0C0;display:inline-block;margin-right:8px;box-shadow:0 0 0 0 rgba(125,240,192,.6);animation:pulse 1.8s infinite}
 .status.off .dot{background:#FFC2BD;animation:none}
 @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(125,240,192,0)}}
 #pstate{display:block;font-size:23px;font-weight:800;letter-spacing:-.04em;margin-top:6px}#psub{display:block;font-size:13px;opacity:.85;margin-top:2px;min-height:1.3em}
-#snapBtn{margin-top:16px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:0 16px;min-height:44px;font-weight:700;backdrop-filter:blur(8px)}
+#snapBtn{margin-top:16px;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:0 16px;min-height:44px;font-weight:700;backdrop-filter:blur(8px)}
 #snapView{margin-top:14px}#snapView img{width:100%;border-radius:18px;background:#000;display:block}#snapAt{opacity:.85;font-size:12px;display:block;margin-top:6px}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.sum div{padding:16px 8px;text-align:center;border-radius:22px;background:var(--surface);box-shadow:var(--shadow-s);font-size:12px;font-weight:700;color:var(--muted)}
+.sum div{padding:16px 8px;text-align:center;border-radius:24px;background:var(--glass-strong);border:1px solid var(--glass-line);box-shadow:var(--shadow-s);font-size:12px;font-weight:700;color:var(--muted)}
 .sum b{display:block;font-size:28px;letter-spacing:-.04em;color:var(--ink);font-weight:800}
 .sum div:nth-child(1) b{color:var(--danger)}
 .chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
-.chips button{flex:none;padding:0 16px;min-height:40px;border-radius:999px;background:var(--surface);box-shadow:var(--shadow-s);font-weight:700;font-size:14px;color:var(--muted);transition:background .3s,color .3s}
+.chips button{flex:none;padding:0 16px;min-height:40px;border-radius:999px;background:var(--glass-strong);border:1px solid var(--glass-line);box-shadow:var(--shadow-s);font-weight:700;font-size:14px;color:var(--muted);transition:background .3s,color .3s}
 .chips button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
 .day{margin:8px 4px 2px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.02em}
-.ev{display:grid;grid-template-columns:5px 1fr;gap:12px;background:var(--surface);border-radius:22px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-s);animation:in .5s var(--ease)}
+.ev{display:grid;grid-template-columns:5px 1fr;gap:12px;background:var(--glass-strong);border:1px solid var(--glass-line);border-radius:24px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-s);animation:in .5s var(--ease)}
 @keyframes in{from{opacity:0;transform:translateY(10px)}}
 .ev .bar{border-radius:3px;background:var(--muted);opacity:.5}
 .ev.urgent .bar{background:var(--danger);opacity:1}.ev.caution .bar{background:var(--warn);opacity:1}.ev.sos .bar{background:#7B5BD6;opacity:1}
@@ -55,10 +60,10 @@ body{-webkit-user-select:auto;user-select:auto}
 .tag{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--tint);color:var(--accent)}
 .ev.urgent .tag,.ev.offline .tag{background:var(--danger-tint);color:var(--danger)}
 #empty{color:var(--muted);text-align:center;padding:60px 0;font-weight:600}
-#banner{position:fixed;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;max-width:452px;margin:0 auto;z-index:60;padding:14px 16px;border-radius:20px;background:var(--danger);color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:drop .5s var(--ease)}
+#banner{position:fixed;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;max-width:452px;margin:0 auto;z-index:60;padding:14px 16px;border-radius:22px;background:linear-gradient(150deg,var(--warm),var(--danger));color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:drop .5s var(--ease)}
 @keyframes drop{from{transform:translateY(-120%);opacity:0}}
 #gate{margin:auto 0;padding:26px 22px;text-align:center}
-#gate .brand{justify-content:center;margin-bottom:10px;flex:none}#gate .brand svg{width:56px;height:56px}
+#gate .brand{justify-content:center;margin-bottom:10px;flex:none}#gate .brand .mascot{width:96px;height:100px}
 #gate input{width:100%;text-align:center;font-size:26px;letter-spacing:.35em;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:14px 0 12px}
 .set{padding:6px 18px}.set label,.set .row-set{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}.set label:first-child{border-top:0}
 .set select,.set input[type=time]{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
@@ -66,20 +71,16 @@ body{-webkit-user-select:auto;user-select:auto}
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5A82F0"/><stop offset="1" stop-color="#27449E"/></linearGradient></defs></svg>
-<div id="splash" aria-hidden="true"><div class="stack"><div style="position:relative;display:grid;place-items:center"><i class="glow"></i>
-<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path class="eye" pathLength="140" d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" stroke-width="3" transform="translate(-4 0)"/><circle class="iris" cx="28" cy="32" r="7" fill="#fff" stroke="none"/><circle class="pupil" cx="28" cy="32" r="2.8" fill="#27449E" stroke="none"/>
-<path class="w w1" pathLength="30" d="M46 26c3 4 3 8 0 12" stroke-width="2.8"/><path class="w w2" pathLength="30" d="M51 22c5 6 5 14 0 20" stroke-width="2.8"/><path class="w w3" pathLength="30" d="M56 18c7 8 7 20 0 28" stroke-width="2.8"/></svg></div>
-<div class="name" id="splashName"></div><div class="tag">말하고, 보고, 함께 걸어요</div></div></div>
+<div id="splash" aria-hidden="true"><div class="stack"><i data-mascot class="float"></i><div class="name" id="splashName"></div><div class="tag">보호자와 함께 걸어요</div></div></div>
 
 <div class="app">
   <header class="top">
-    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" fill="none" stroke="#fff" stroke-width="3.4" stroke-linejoin="round" transform="translate(-2 0)"/><circle cx="28" cy="32" r="6.5" fill="#fff"/><circle cx="28" cy="32" r="2.6" fill="#27449E"/><path d="M50 24c3 5 3 11 0 16M56 20c5 7 5 17 0 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></svg><span>SayEye <span style="color:var(--muted);font-weight:700">보호자</span></span></div>
+    <div class="brand"><i data-mascot></i><span>SayEye <span style="color:var(--muted);font-weight:700">보호자</span></span></div>
     <span id="dot" class="dot" hidden></span><span id="conn" class="pill" role="status">연결 중</span>
   </header>
 
   <section id="gate" class="card" hidden>
-    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" fill="none" stroke="#fff" stroke-width="3.4" stroke-linejoin="round" transform="translate(-2 0)"/><circle cx="28" cy="32" r="6.5" fill="#fff"/><circle cx="28" cy="32" r="2.6" fill="#27449E"/><path d="M50 24c3 5 3 11 0 16M56 20c5 7 5 17 0 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></svg></div>
+    <div class="brand"><i data-mascot></i></div>
     <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">확인번호를 입력해 주세요</h2>
     <p class="note" style="margin:8px 0 0">보행자 앱을 켠 서버 화면에 표시된 6자리 번호예요.</p>
     <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" aria-label="확인번호">
@@ -91,7 +92,7 @@ body{-webkit-user-select:auto;user-select:auto}
     <div id="banner" role="alert" hidden></div>
     <div class="views" id="views">
       <section class="view on" id="v-home" aria-label="홈">
-        <div class="card status" id="statusCard">
+        <div class="card status" id="statusCard"><i data-mascot class="float" id="gface"></i>
           <span><i class="dot" id="pdot2"></i><small id="pstate2" style="font-weight:700;opacity:.9">보행자</small></span>
           <b id="pstate">보행자 확인 중</b><span id="psub"></span>
           <button id="snapBtn">지금 화면 보기</button>
@@ -238,6 +239,7 @@ function notify(a, merged){
   if(merged && a.count>2 && a.count%3!==0) return;              // 이어지는 같은 알림은 몇 번에 한 번만 울림 (알림 폭탄 방지)
   const text = `${LV[a.level]||''} · ${a.text}`;
   const b=$('#banner'); b.textContent=`${hhmm(a.last_ts||a.ts)} ${text}`; b.hidden=false; clearTimeout(bannerT); bannerT=setTimeout(()=>b.hidden=true, 20000);
+  if(['urgent','sos'].includes(a.level)){ const f=$('#gface'); f.classList.add('warn'); clearTimeout(f._t); f._t=setTimeout(()=>f.classList.remove('warn'), 6000); }
   if(G.o.sound) chime(a.level);
   if(G.o.vib && navigator.vibrate) navigator.vibrate(a.level==='urgent'||a.level==='sos' ? [300,120,300,120,300] : [160]);
   if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
@@ -274,7 +276,7 @@ function go(v){ const n=VIEWS.indexOf(v); if(n<0||n===curV) return;
   if(v==='log'){ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); render(); } }
 document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
 $('#toLog').onclick=()=>go('log');
-new MutationObserver(()=>{ const on=$('#pdot').classList.contains('on'); $('#statusCard').classList.toggle('off',!on); }).observe($('#pdot'),{attributes:true,attributeFilter:['class']});
+new MutationObserver(()=>{ const on=$('#pdot').classList.contains('on'); $('#statusCard').classList.toggle('off',!on); $('#gface').classList.toggle('look',on); }).observe($('#pdot'),{attributes:true,attributeFilter:['class']});
 const _render=render; render=function(){ _render();
   const last=[...G.alerts.values()].filter(a=>a.level!=='online').sort((a,b)=>b.id-a.id)[0]; $('#recent').hidden=!last; if(last){ $('#recentText').textContent=last.text; $('#recentAt').textContent=`${LV[last.level]||''} · ${hhmm(last.last_ts||last.ts)}`; } const unread=[...G.alerts.values()].filter(a=>a.id>G.lastSeen && !['online'].includes(a.level)).length;
   const bd=$('#badge'); bd.textContent=unread>99?'99+':unread; bd.hidden=!unread||curV===1; };
@@ -282,7 +284,18 @@ const _render=render; render=function(){ _render();
 /* ── 시작 화면 ── */
 (()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
   const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
-  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
+  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); intro(); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
+
+/* ── 처음 안내 (한 번만) ── */
+function intro(){
+  try{ if(localStorage.getItem('sayeye-g-onb')) return; }catch(e){}
+  const M=(c)=>`<i data-mascot class="float ${c||''}"></i>`, CH=(c,t)=>`<span class="float-chip ${c}">${t}</span>`;
+  onboard({pages:[
+    {art:M('happy')+CH('r','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>긴급 알림'), title:'보행자의 위험을\n바로 알려 드려요', text:'자동차나 자전거가 다가오면\n보호자 폰에도 알림이 와요'},
+    {art:M('look')+CH('l','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>그 순간 사진')+CH('r b','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>위험 구간 영상'), title:'그 순간을 사진과\n영상으로 남겨요', text:'무슨 일이 있었는지\n언제든 다시 확인할 수 있어요'},
+    {art:M()+CH('l','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>확인번호'), title:'확인번호로 연결해요', text:'서버 화면의 6자리 번호를 넣으면\n우리 가족만 볼 수 있어요'},
+  ], done:()=>{ try{ localStorage.setItem('sayeye-g-onb','1'); }catch(e){} }});
+}
 </script>
 </body>
 </html>
