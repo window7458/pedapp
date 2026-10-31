@@ -32,6 +32,9 @@ import numpy as np
 from core import Event
 from hitbox_core import (CROWD_EV_N, CROWD_EV_S, GROUP_S, ROW_DX_M, ROW_GAP_S, V529Core, row_msg)
 
+# 보행자에게 경고할 대상: 사람과 차량만 (환경변수 HB_WARN_CLASSES 로 바꿀 수 있음, 쉼표 구분)
+WARN_CLASSES = set(os.environ.get("HB_WARN_CLASSES", "person,car,bus,motorcycle,other_vehicle").split(","))
+
 # ───────────────────────── 말하기 (SJ 실행 시스템 dispatcher.clock_pieces 와 같은 문장) ─────────────────────────
 KO = {"person": "사람", "bicycle": "자전거", "scooter": "킥보드", "motorcycle": "오토바이", "car": "자동차", "bus": "버스",
       "other_vehicle": "차량", "obstacle": "장애물", "stairs": "계단", "traffic_light": "신호등", "pole_long": "긴 기둥",
@@ -405,6 +408,8 @@ class HitboxTrigger:
 
         out = []
         for r in sorted(rt, key=lambda r: r["t"]):
+            if r.get("cls") not in WARN_CLASSES:                 # 사람·차량 외(기둥·신호등 등)는 보행자에게 말하지 않음
+                continue
             if r.get("cls") == "person":                         # 붐빌 때 사람 경고 빼기 (v5_13, 지난 2 s 만 봄)
                 self.person_t.append(r["t"])
                 if sum(r["t"] - u <= CROWD_EV_S for u in self.person_t) >= CROWD_EV_N:
