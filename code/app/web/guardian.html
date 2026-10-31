@@ -129,7 +129,7 @@ async function resync(){            // 연결이 끊겼던 동안 놓친 알림�
 function onMsg(m){
   if(m.type==='auth_error'){ G.pin=''; save(); gate(true,true); }
   else if(m.type==='status'){ G.fps=m.fps; G.lastStatusAt=Date.now(); presence(); }
-  else if(m.type==='alert'){ const {type, merged, ...a} = m; G.alerts.set(a.id, a); render(); notify(a, merged); }
+  else if(m.type==='alert'){ const {type, merged, clip_only, ...a} = m; G.alerts.set(a.id, a); render(); if(!clip_only) notify(a, merged); }
 }
 
 /* ── 보행자 상태 ── */
@@ -163,6 +163,7 @@ function render(){
     mid.append(tag, b, s);
     el.append(bar, mid, document.createElement('span'));
     if(a.snap){ const im=document.createElement('img'); im.loading='lazy'; im.alt='그 순간의 화면'; im.src=`/api/alerts/${a.id}.jpg?pin=${encodeURIComponent(G.pin)}`; el.append(im); }
+    if(a.clip){ const v=document.createElement('video'); v.controls=true; v.playsInline=true; v.preload='none'; v.setAttribute('aria-label','위험 구간 영상'); v.style.cssText='width:100%;border-radius:10px;background:#000;margin-top:8px'; v.src=`/api/alerts/${a.id}.mp4?pin=${encodeURIComponent(G.pin)}`; el.append(v); }
     box.append(el);
   }
   $('#empty').hidden = list.length>0;

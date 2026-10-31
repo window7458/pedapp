@@ -9,7 +9,10 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import threading
+from collections import deque
 import time
 from pathlib import Path
 
@@ -21,6 +24,8 @@ KEEP = 500
 SNAP_SIDE = 480
 
 LEVEL_SNAP = {"urgent", "caution", "sos"}          # 사진을 남기는 단계
+LEVEL_CLIP = {"urgent", "caution", "sos"}          # 위험 구간을 영상으로 남기는 단계
+CLIP_PRE_S, CLIP_POST_S, CLIP_MAX_S, CLIP_SIDE = 5.0, 4.0, 30.0, 640
 
 
 def classify(msg: dict) -> str:
@@ -33,6 +38,82 @@ def classify(msg: dict) -> str:
     return "info"
 
 
+class ClipRecorder:
+    """위험이 생긴 구간만 영상으로 남긴다 (평소에는 최근 5초만 메모리에 들고 있다가 버림).
+    경고 5초 전 ~ 4초 후를 mp4(H.264)로 저장 — 나중에 사고 확인이나 보행자 재확인용.
+    같은 위험이 이어지면 끝을 늘린다(최대 30초). 파일: alerts/clips/<알림id>.mp4"""
+
+    def __init__(self, folder: Path, on_done, log=print):
+        self.dir = Path(folder)
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.on_done, self.log = on_done, log
+        self.buf: deque = deque()                 # (t, 작은 프레임)
+        self.jobs: dict[int, dict] = {}
+        self.lock = threading.Lock()
+        self.ok = shutil.which("ffmpeg") is not None
+        if not self.ok:
+            log("[clips] ffmpeg 가 없어 위험 구간 영상을 저장하지 않아요")
+
+    def push(self, im):
+        if not self.ok or im is None:
+            return
+        now = time.time()
+        s = min(1.0, CLIP_SIDE / max(im.shape[:2]))
+        small = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s))) if s < 1 else im.copy()
+        done = []
+        with self.lock:
+            self.buf.append((now, small))
+            while self.buf and now - self.buf[0][0] > CLIP_PRE_S + 1:
+                self.buf.popleft()
+            for aid, j in self.jobs.items():
+                j["frames"].append((now, small))
+                if now >= j["end"]:
+                    done.append(aid)
+            for aid in done:
+                j = self.jobs.pop(aid)
+                threading.Thread(target=self._write, args=(aid, j["frames"]), daemon=True).start()
+
+    def trigger(self, aid: int):
+        if not self.ok:
+            return
+        now = time.time()
+        with self.lock:
+            pre = [f for f in self.buf if now - f[0] <= CLIP_PRE_S]
+            self.jobs[aid] = dict(frames=pre, start=now, end=now + CLIP_POST_S)
+
+    def extend(self, aid: int):
+        with self.lock:
+            j = self.jobs.get(aid)
+            if j:
+                j["end"] = min(time.time() + CLIP_POST_S, j["start"] + CLIP_MAX_S)
+
+    def path(self, aid: int) -> Path:
+        return self.dir / f"{aid}.mp4"
+
+    def _write(self, aid: int, frames):
+        try:
+            if len(frames) < 3:
+                return
+            dur = max(frames[-1][0] - frames[0][0], 0.5)
+            fps = max(2.0, min(15.0, (len(frames) - 1) / dur))
+            h, w = frames[0][1].shape[:2]
+            raw = self.dir / f"{aid}.raw.mp4"
+            vw = cv2.VideoWriter(str(raw), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+            for _, f in frames:
+                vw.write(f if f.shape[:2] == (h, w) else cv2.resize(f, (w, h)))
+            vw.release()
+            r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(raw), "-c:v", "libx264", "-preset", "veryfast",
+                                "-crf", "28", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(self.path(aid))],
+                               capture_output=True, timeout=60)
+            raw.unlink(missing_ok=True)
+            if r.returncode == 0:
+                self.on_done(aid)
+            else:
+                self.log(f"[clips] ffmpeg: {r.stderr.decode(errors='ignore')[:200]}")
+        except Exception as e:
+            self.log(f"[clips] {e!r}")
+
+
 class AlertCenter:
     def __init__(self, folder: Path, broadcast, log=print):
         self.dir, self.snap_dir = Path(folder), Path(folder) / "snap"
@@ -43,6 +124,7 @@ class AlertCenter:
         self.next_id = 1
         self.active, self.zero_since, self.offline_said = False, None, False
         self.low_battery_said = 100
+        self.clips = ClipRecorder(self.dir / "clips", self._clip_done, log)
         self._load()
 
     # ── 저장 ──────────────────────────────────────────
@@ -62,6 +144,11 @@ class AlertCenter:
         for p in self.snap_dir.glob("*.jpg"):
             if p.stem.isdigit() and int(p.stem) not in keep:
                 p.unlink(missing_ok=True)
+        for p in (self.dir / "clips").glob("*.mp4"):
+            if p.stem.isdigit() and int(p.stem) not in keep:
+                p.unlink(missing_ok=True)
+        for a in self.items.values():
+            a["clip"] = (self.dir / "clips" / f"{a['id']}.mp4").exists()
         f.write_text("".join(json.dumps(self.items[i], ensure_ascii=False) + "\n" for i in ids), encoding="utf-8")
 
     def _append(self, a: dict):
@@ -92,6 +179,7 @@ class AlertCenter:
                          if a.get("key") == key and now - a["last_ts"] <= MERGE_S), None)
             if last is not None:                                  # 같은 종류가 이어짐 → 한 건으로 묶음
                 last.update(count=last["count"] + 1, last_ts=now, text=text)
+                self.clips.extend(last["id"])
                 a, merged = last, True
             else:
                 aid = self.next_id
@@ -100,12 +188,25 @@ class AlertCenter:
                          snap=(level in LEVEL_SNAP and self._snapshot(aid, image, box, W)))
                 self.items[aid] = a
                 merged = False
+                if level in LEVEL_CLIP:
+                    self.clips.trigger(aid)
                 for old in sorted(self.items)[:-KEEP]:
                     self.items.pop(old, None)
                     (self.snap_dir / f"{old}.jpg").unlink(missing_ok=True)
+                    self.clips.path(old).unlink(missing_ok=True)
             self._append(a)
         self.broadcast({"type": "alert", "merged": merged, **{k: v for k, v in a.items() if k != "key"}})
         return a
+
+    def _clip_done(self, aid: int):
+        with self.lock:
+            a = self.items.get(aid)
+            if not a:
+                self.clips.path(aid).unlink(missing_ok=True)
+                return
+            a["clip"] = True
+            self._append(a)
+        self.broadcast({"type": "alert", "merged": True, "clip_only": True, **{k: v for k, v in a.items() if k != "key"}})
 
     # ── 파이프라인 · 서버가 부르는 곳 ─────────────────
     def on_warn(self, msg: dict, ev, image):

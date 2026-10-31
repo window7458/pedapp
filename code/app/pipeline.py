@@ -161,6 +161,7 @@ class LivePipeline:
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
         self.source_label = "phone"
         self.last_frame = None              # 보호자 '지금 화면' · 알림 사진용
+        self.on_frame = None                # (image) — 위험 구간 녹화기가 붙는다
         self.on_warn = None                 # (msg, ev, image) — 보호자 알림 센터가 붙는다
         self._warmed = False
         self.thread = threading.Thread(target=self._loop, daemon=True)
@@ -205,6 +206,8 @@ class LivePipeline:
             self.perception.warmup(im)       # 첫 프레임 모델 올리는 시간을 시계 밖으로
             self._warmed = True
         self.last_frame = im
+        if self.on_frame is not None:
+            self.on_frame(im)
         t = self.clock.now()
         self._fidx += 1
         tp = time.perf_counter()

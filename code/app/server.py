@@ -140,6 +140,7 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
                 alerts.on_status(msg)
         pipe = LivePipeline(cfg, emit)
         pipe.on_warn = alerts.on_warn
+        pipe.on_frame = alerts.clips.push
         src = SourceManager(pipe, hub.broadcast)
         state.update(pipe=pipe, src=src, alerts=alerts)
         if source:
@@ -181,6 +182,14 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
         if b is None:
             raise HTTPException(404)
         return Response(b, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/api/alerts/{aid}.mp4")
+    async def api_alert_clip(aid: int, pin: str | None = None):
+        check_pin(pin)
+        p = state["alerts"].clips.path(aid)
+        if not p.exists():
+            raise HTTPException(404)
+        return FileResponse(p, media_type="video/mp4", headers={"Cache-Control": "private, max-age=86400"})
 
     @app.get("/api/latest.jpg")
     async def api_latest(pin: str | None = None):
