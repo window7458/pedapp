@@ -1,11 +1,37 @@
 {
-  "name": "Insight",
-  "short_name": "Insight",
-  "description": "시각장애인 보행 보조 - 실시간 위험 경고와 주변 장면 설명",
+  "name": "SayEye",
+  "short_name": "SayEye",
+  "description": "말하고 보는 보행 보조 — 실시간 위험 안내와 보호자 알림",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#EAF1FA",
-  "theme_color": "#1F5FBF",
+  "background_color": "#27449E",
+  "theme_color": "#27449E",
   "lang": "ko",
-  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "scope": "/",
+  "orientation": "portrait"
 }

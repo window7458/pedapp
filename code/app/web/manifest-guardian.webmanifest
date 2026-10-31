@@ -1,12 +1,37 @@
 {
-  "name": "Insight 보호자",
-  "short_name": "Insight 보호자",
-  "description": "보행자의 위험 상황 알림과 내역",
+  "name": "SayEye 보호자",
+  "short_name": "SayEye 보호자",
+  "description": "SayEye 보행자의 위험 알림과 기록을 확인해요",
   "start_url": "/guardian",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#EAF1FA",
-  "theme_color": "#1F5FBF",
+  "background_color": "#27449E",
+  "theme_color": "#27449E",
   "lang": "ko",
-  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "orientation": "portrait"
 }

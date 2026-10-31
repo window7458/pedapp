@@ -3,107 +3,131 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1F5FBF">
+<meta name="theme-color" content="#27449E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SayEye 보호자">
 <link rel="manifest" href="manifest-guardian.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<title>Insight 보호자</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>SayEye 보호자</title>
+<link rel="stylesheet" href="app.css">
 <style>
-/* Figma 시안(Insight) 적용: 초록 #1F5FBF · 둥근 카드. id와 데이터 흐름은 그대로. */
-:root{--page:#EAF1FA;--bg:#FAFCFF;--card:#fff;--fg:#1B2A41;--muted:#6A7C96;--line:#DDE6F2;--urgent:#C2412A;--caution:#D98200;--info:#8a9ab3;--sos:#7a1fa2;--ok:#3B82F6;--accent:#1F5FBF;--accent-fg:#fff;--soft:#E3EDFB;--pop:#7DB2F5;--urgent-soft:#FFF3ED}
-@media (prefers-color-scheme:dark){:root{--page:#0b1220;--bg:#111a2b;--card:#182438;--fg:#E6EEFA;--muted:#9fb3d1;--line:#26364f;--urgent:#ff9b7d;--caution:#ffb347;--info:#9fb3d1;--sos:#d99cff;--ok:#6FA8FF;--accent:#6FA8FF;--accent-fg:#06101f;--soft:#1e3556;--urgent-soft:#3a1f17;color-scheme:dark}}
-*{box-sizing:border-box}[hidden]{display:none!important}
-html{background:var(--page)}
-body{margin:0 auto;max-width:430px;background:var(--bg);color:var(--fg);font:15px/1.45 Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif;min-height:100dvh;
-  padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) 32px max(20px,env(safe-area-inset-left))}
-.wrap{display:flex;flex-direction:column;gap:14px}
-h1{margin:0;font-size:19px;letter-spacing:-.04em;font-weight:800}
-.card{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:16px;box-shadow:0 12px 34px rgba(40,70,110,.07)}
-button,select,input{font:inherit}
-button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:16px;padding:8px 14px;min-height:44px;cursor:pointer;-webkit-tap-highlight-color:transparent}
-button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pop);outline-offset:3px}
-button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
-input,select{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--bg);color:var(--fg)}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.grow{flex:1;min-width:0}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--info);display:inline-block}
-.dot.on{background:var(--ok)}.dot.off{background:var(--urgent)}
-#conn{font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;background:var(--soft);color:var(--accent)}
-.top{display:flex;align-items:center;gap:10px}
-.top .logo{display:flex;align-items:center;gap:10px}
-.top .logo i{position:relative;display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:var(--accent);color:var(--accent-fg)}
-.top .logo i::after{content:"";position:absolute;right:-4px;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--pop);border:2px solid var(--bg)}
-#banner{background:#8B2E20;color:#fff;border-radius:20px;padding:14px 16px;font-weight:800}
-.chips button{border-radius:999px;min-height:38px;padding:4px 14px;font-weight:600}
-.chips button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-.day{margin:12px 2px 4px;color:var(--muted);font-size:12px;font-weight:700}
-.ev{display:grid;grid-template-columns:6px 1fr auto;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;margin-bottom:10px}
-.ev .bar{border-radius:3px;background:var(--info)}
-.ev.urgent{background:var(--urgent-soft)}
-.ev.urgent .bar{background:var(--urgent)}.ev.caution .bar{background:var(--caution)}.ev.sos .bar{background:var(--sos)}
-.ev.offline .bar{background:var(--urgent)}.ev.online .bar,.ev.battery .bar{background:var(--ok)}
-.ev.unread{border-color:var(--accent);box-shadow:0 0 0 2px var(--soft)}
-.ev b{display:block;letter-spacing:-.02em}.ev small{color:var(--muted)}
-.ev img{grid-column:2/4;width:100%;max-height:260px;object-fit:cover;border-radius:16px;background:#000}
-.tag{font-size:11px;font-weight:800;padding:1px 9px;border-radius:999px;border:1px solid currentColor;margin-right:6px}
-.ev.urgent .tag{color:var(--urgent)}.ev.caution .tag{color:var(--caution)}.ev.sos .tag{color:var(--sos)}
-.sum{display:flex;gap:8px}.sum div{flex:1;text-align:center;color:var(--muted);font-size:12px;font-weight:600}.sum b{font-size:24px;display:block;color:var(--fg);font-weight:800}
-label{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
-input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
-#empty{color:var(--muted);text-align:center;padding:28px 0}
-#snapView img{width:100%;border-radius:18px;background:#000}
-details.card summary{font-weight:700;min-height:44px;display:flex;align-items:center;cursor:pointer}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+body{-webkit-user-select:auto;user-select:auto}
+.views{position:relative;flex:1;min-height:0;margin-top:6px}
+.view{position:absolute;inset:0;overflow-y:auto;padding:6px 2px 16px;display:flex;flex-direction:column;gap:14px;opacity:0;transform:translateX(24px);visibility:hidden;pointer-events:none;
+  transition:opacity .35s var(--ease),transform .45s var(--ease),visibility .45s;scrollbar-width:none}
+.view::-webkit-scrollbar{display:none}
+.view>*{flex:none}
+.view.on{opacity:1;transform:none;visibility:visible;pointer-events:auto}
+.view.before{transform:translateX(-24px)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:26px;background:var(--surface);box-shadow:var(--shadow);position:relative}
+.tabs button{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;padding:8px 0 6px;border-radius:20px;font-size:12px;font-weight:700;color:var(--muted);transition:color .3s;min-height:56px}
+.tabs button svg{width:24px;height:24px}.tabs button[aria-selected=true]{color:var(--accent)}
+.tabs .ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px - 8px)/3);border-radius:20px;background:var(--tint);transition:transform .5s var(--ease);z-index:0}
+.badge{position:absolute;top:6px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
+.status{position:relative;overflow:hidden;padding:20px;color:#fff;background:linear-gradient(145deg,#5A82F0,#3D68E0 45%,#27449E)}
+.status.off{background:linear-gradient(145deg,#8793B0,#5F6B8A)}
+.status::after{content:"";position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.12)}
+.status .dot{width:10px;height:10px;border-radius:50%;background:#7DF0C0;display:inline-block;margin-right:8px;box-shadow:0 0 0 0 rgba(125,240,192,.6);animation:pulse 1.8s infinite}
+.status.off .dot{background:#FFC2BD;animation:none}
+@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(125,240,192,0)}}
+#pstate{display:block;font-size:23px;font-weight:800;letter-spacing:-.04em;margin-top:6px}#psub{display:block;font-size:13px;opacity:.85;margin-top:2px;min-height:1.3em}
+#snapBtn{margin-top:16px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:0 16px;min-height:44px;font-weight:700;backdrop-filter:blur(8px)}
+#snapView{margin-top:14px}#snapView img{width:100%;border-radius:18px;background:#000;display:block}#snapAt{opacity:.85;font-size:12px;display:block;margin-top:6px}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sum div{padding:16px 8px;text-align:center;border-radius:22px;background:var(--surface);box-shadow:var(--shadow-s);font-size:12px;font-weight:700;color:var(--muted)}
+.sum b{display:block;font-size:28px;letter-spacing:-.04em;color:var(--ink);font-weight:800}
+.sum div:nth-child(1) b{color:var(--danger)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.chips button{flex:none;padding:0 16px;min-height:40px;border-radius:999px;background:var(--surface);box-shadow:var(--shadow-s);font-weight:700;font-size:14px;color:var(--muted);transition:background .3s,color .3s}
+.chips button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
+.day{margin:8px 4px 2px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.02em}
+.ev{display:grid;grid-template-columns:5px 1fr;gap:12px;background:var(--surface);border-radius:22px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-s);animation:in .5s var(--ease)}
+@keyframes in{from{opacity:0;transform:translateY(10px)}}
+.ev .bar{border-radius:3px;background:var(--muted);opacity:.5}
+.ev.urgent .bar{background:var(--danger);opacity:1}.ev.caution .bar{background:var(--warn);opacity:1}.ev.sos .bar{background:#7B5BD6;opacity:1}
+.ev.offline .bar{background:var(--danger);opacity:1}.ev.online .bar,.ev.battery .bar{background:var(--ok);opacity:1}
+.ev.unread{box-shadow:0 0 0 2px var(--accent2),var(--shadow-s)}
+.ev b{display:block;letter-spacing:-.02em;font-size:15.5px;margin-top:3px}.ev small{color:var(--muted);font-size:12.5px}
+.ev img,.ev video{grid-column:1/-1;width:100%;max-height:280px;object-fit:cover;border-radius:16px;background:#000}
+.tag{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--tint);color:var(--accent)}
+.ev.urgent .tag,.ev.offline .tag{background:var(--danger-tint);color:var(--danger)}
+#empty{color:var(--muted);text-align:center;padding:60px 0;font-weight:600}
+#banner{position:fixed;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;max-width:452px;margin:0 auto;z-index:60;padding:14px 16px;border-radius:20px;background:var(--danger);color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:drop .5s var(--ease)}
+@keyframes drop{from{transform:translateY(-120%);opacity:0}}
+#gate{margin:auto 0;padding:26px 22px;text-align:center}
+#gate .brand{justify-content:center;margin-bottom:10px;flex:none}#gate .brand svg{width:56px;height:56px}
+#gate input{width:100%;text-align:center;font-size:26px;letter-spacing:.35em;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:14px 0 12px}
+.set{padding:6px 18px}.set label,.set .row-set{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}.set label:first-child{border-top:0}
+.set select,.set input[type=time]{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.note{color:var(--muted);font-size:12.5px;padding:0 6px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top"><div class="logo grow"><i aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg></i><h1>Insight 보호자</h1></div><span id="dot" class="dot" aria-hidden="true"></span><span id="conn">연결 중</span></div>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5A82F0"/><stop offset="1" stop-color="#27449E"/></linearGradient></defs></svg>
+<div id="splash" aria-hidden="true"><div class="stack"><div style="position:relative;display:grid;place-items:center"><i class="glow"></i>
+<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path class="eye" pathLength="140" d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" stroke-width="3" transform="translate(-4 0)"/><circle class="iris" cx="28" cy="32" r="7" fill="#fff" stroke="none"/><circle class="pupil" cx="28" cy="32" r="2.8" fill="#27449E" stroke="none"/>
+<path class="w w1" pathLength="30" d="M46 26c3 4 3 8 0 12" stroke-width="2.8"/><path class="w w2" pathLength="30" d="M51 22c5 6 5 14 0 20" stroke-width="2.8"/><path class="w w3" pathLength="30" d="M56 18c7 8 7 20 0 28" stroke-width="2.8"/></svg></div>
+<div class="name" id="splashName"></div><div class="tag">말하고, 보고, 함께 걸어요</div></div></div>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" fill="none" stroke="#fff" stroke-width="3.4" stroke-linejoin="round" transform="translate(-2 0)"/><circle cx="28" cy="32" r="6.5" fill="#fff"/><circle cx="28" cy="32" r="2.6" fill="#27449E"/><path d="M50 24c3 5 3 11 0 16M56 20c5 7 5 17 0 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></svg><span>SayEye <span style="color:var(--muted);font-weight:700">보호자</span></span></div>
+    <span id="dot" class="dot" hidden></span><span id="conn" class="pill" role="status">연결 중</span>
+  </header>
 
   <section id="gate" class="card" hidden>
-    <p>보행자 앱을 켠 서버 화면에 표시된 <b>확인번호 6자리</b>를 입력해 주세요.</p>
-    <div class="row"><input id="pin" class="grow" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="확인번호" aria-label="확인번호">
-      <button id="pinGo" class="primary">확인</button></div>
-    <p id="pinErr" style="color:var(--urgent)" hidden>확인번호가 달라요.</p>
+    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M6 32c6-10 14-15 24-15s17 5 22 15c-5 10-13 15-22 15S12 42 6 32z" fill="none" stroke="#fff" stroke-width="3.4" stroke-linejoin="round" transform="translate(-2 0)"/><circle cx="28" cy="32" r="6.5" fill="#fff"/><circle cx="28" cy="32" r="2.6" fill="#27449E"/><path d="M50 24c3 5 3 11 0 16M56 20c5 7 5 17 0 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></svg></div>
+    <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">확인번호를 입력해 주세요</h2>
+    <p class="note" style="margin:8px 0 0">보행자 앱을 켠 서버 화면에 표시된 6자리 번호예요.</p>
+    <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" aria-label="확인번호">
+    <button id="pinGo" class="btn primary" style="width:100%">확인</button>
+    <p id="pinErr" style="color:var(--danger);font-weight:700" hidden>확인번호가 달라요.</p>
   </section>
 
-  <div id="app" hidden>
+  <div id="app" hidden style="display:contents">
     <div id="banner" role="alert" hidden></div>
-
-    <section class="card">
-      <div class="row">
-        <span id="pdot" class="dot" aria-hidden="true"></span>
-        <div class="grow"><b id="pstate">보행자 확인 중</b><br><small id="psub" style="color:var(--muted)"></small></div>
-        <button id="snapBtn">지금 화면</button>
-      </div>
-      <div id="snapView" hidden style="margin-top:10px"><img id="snapImg" alt="보행자 폰이 지금 보는 화면"><small id="snapAt" style="color:var(--muted)"></small></div>
-    </section>
-
-    <section class="card sum" aria-label="오늘 요약">
-      <div><b id="nU">0</b>긴급</div><div><b id="nC">0</b>주의</div><div><b id="nS">0</b>호출</div>
-    </section>
-
-    <div class="row chips" id="chips" role="group" aria-label="알림 종류">
-      <button data-f="all" aria-pressed="true">전체</button>
-      <button data-f="urgent" aria-pressed="false">긴급</button>
-      <button data-f="caution" aria-pressed="false">주의</button>
-      <button data-f="sos" aria-pressed="false">호출</button>
-      <button data-f="conn" aria-pressed="false">연결</button>
+    <div class="views" id="views">
+      <section class="view on" id="v-home" aria-label="홈">
+        <div class="card status" id="statusCard">
+          <span><i class="dot" id="pdot2"></i><small id="pstate2" style="font-weight:700;opacity:.9">보행자</small></span>
+          <b id="pstate">보행자 확인 중</b><span id="psub"></span>
+          <button id="snapBtn">지금 화면 보기</button>
+          <div id="snapView" hidden><img id="snapImg" alt="보행자 폰이 지금 보는 화면"><small id="snapAt"></small></div>
+        </div>
+        <div class="sum" aria-label="오늘 요약"><div><b id="nU">0</b>긴급</div><div><b id="nC">0</b>주의</div><div><b id="nS">0</b>호출</div></div>
+        <div class="card" id="recent" style="padding:16px 18px" hidden><small style="color:var(--muted);font-weight:800">가장 최근 알림</small><b id="recentText" style="display:block;font-size:17px;margin-top:4px;letter-spacing:-.03em"></b><small id="recentAt" style="color:var(--muted)"></small>
+          <button class="btn" id="toLog" style="margin-top:12px;width:100%">기록에서 사진·영상 보기</button></div>
+        <p class="note">알림이 오면 화면 위에서 알려 드려요.</p>
+        <i id="pdot" class="dot" hidden></i>
+      </section>
+      <section class="view" id="v-log" aria-label="기록">
+        <div class="chips" id="chips" role="group" aria-label="알림 종류">
+          <button data-f="all" aria-pressed="true">전체</button><button data-f="urgent" aria-pressed="false">긴급</button><button data-f="caution" aria-pressed="false">주의</button><button data-f="sos" aria-pressed="false">호출</button><button data-f="conn" aria-pressed="false">연결</button>
+        </div>
+        <div id="timeline" aria-live="polite"></div>
+        <p id="empty">아직 알림이 없어요.</p>
+      </section>
+      <section class="view" id="v-set" aria-label="설정">
+        <div class="card set">
+          <label><span>받을 알림</span><select id="sens"><option value="urgent">긴급만</option><option value="caution">긴급 + 주의</option><option value="all">전체</option></select></label>
+          <label><span>알림음</span><input type="checkbox" class="sw" id="sound"></label>
+          <label><span>진동</span><input type="checkbox" class="sw" id="vib"></label>
+          <label><span>조용한 시간<small style="display:block;color:var(--muted);font-size:12.5px">긴급·호출만 울려요</small></span><input type="checkbox" class="sw" id="quiet"></label>
+          <div class="row-set"><input type="time" id="qFrom" value="22:00" aria-label="조용한 시간 시작"><span>~</span><input type="time" id="qTo" value="07:00" aria-label="조용한 시간 끝"></div>
+          <label><span>브라우저 알림<small style="display:block;color:var(--muted);font-size:12.5px">탭이 닫히면 오지 않아요</small></span><button id="notif" class="btn">허용하기</button></label>
+        </div>
+        <p class="note">알림 내역은 서버에 저장돼요. 사진·영상에는 보행자 주변이 찍혀 있어서 서버 폴더를 공유하지 마세요.</p>
+      </section>
     </div>
-
-    <div id="timeline" aria-live="polite"></div>
-    <p id="empty">아직 알림이 없어요.</p>
-
-    <details class="card">
-      <summary>알림 설정</summary>
-      <label>받을 알림
-        <select id="sens"><option value="urgent">긴급만</option><option value="caution">긴급 + 주의</option><option value="all">전체 (위치 안내 포함)</option></select></label>
-      <label>알림음<input type="checkbox" id="sound"></label>
-      <label>진동<input type="checkbox" id="vib"></label>
-      <label>조용한 시간 (긴급·호출만 울림)<input type="checkbox" id="quiet"></label>
-      <div class="row"><input type="time" id="qFrom" value="22:00" aria-label="조용한 시간 시작"> ~ <input type="time" id="qTo" value="07:00" aria-label="조용한 시간 끝"></div>
-      <label>브라우저 알림 (이 탭이 닫혀 있으면 오지 않아요)<button id="notif">허용하기</button></label>
-      <p style="color:var(--muted);font-size:13px">알림 내역은 서버에 저장돼요. 사진에는 보행자 주변이 찍혀 있어서, 서버 폴더를 다른 사람과 공유하지 마세요.</p>
-    </details>
+    <nav class="tabs" role="tablist" aria-label="화면 이동">
+      <i class="ind" id="ind"></i>
+      <button role="tab" aria-selected="true" data-v="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg>홈</button>
+      <button role="tab" aria-selected="false" data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>기록<span class="badge" id="badge" hidden>0</span></button>
+      <button role="tab" aria-selected="false" data-v="set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>설정</button>
+    </nav>
   </div>
 </div>
 
@@ -217,7 +241,7 @@ function notify(a, merged){
   if(G.o.sound) chime(a.level);
   if(G.o.vib && navigator.vibrate) navigator.vibrate(a.level==='urgent'||a.level==='sos' ? [300,120,300,120,300] : [160]);
   if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
-    try{ new Notification('Insight 보호자', {body:text, tag:'insight-'+a.level, renotify:true}); }catch(e){} }
+    try{ new Notification('SayEye 보호자', {body:text, tag:'sayeye-'+a.level, renotify:true}); }catch(e){} }
 }
 
 /* ── 지금 화면 ── */
@@ -240,6 +264,25 @@ load(); applyOpts();
 const qpin = new URLSearchParams(location.search).get('pin');         // 서버 화면의 QR 주소(?pin=...)로 들어오면 바로 입장
 if(qpin){ history.replaceState(null,'','/guardian'); enter(qpin); } else if(G.pin){ enter(G.pin); } else gate(true,false);
 window.__guardian = {G, wanted};
+
+/* ── 화면 전환 (탭) : 옆으로 밀리며 겹쳐 사라지고 나타남 ── */
+const VIEWS=['home','log','set']; let curV=0;
+function go(v){ const n=VIEWS.indexOf(v); if(n<0||n===curV) return;
+  VIEWS.forEach((k,i)=>{ const el=document.getElementById('v-'+k); el.classList.toggle('on',i===n); el.classList.toggle('before',i<n); });
+  document.querySelectorAll('.tabs button').forEach((b,i)=>b.setAttribute('aria-selected',i===n));
+  $('#ind').style.transform=`translateX(${n*100}%)`; curV=n;
+  if(v==='log'){ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); render(); } }
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
+$('#toLog').onclick=()=>go('log');
+new MutationObserver(()=>{ const on=$('#pdot').classList.contains('on'); $('#statusCard').classList.toggle('off',!on); }).observe($('#pdot'),{attributes:true,attributeFilter:['class']});
+const _render=render; render=function(){ _render();
+  const last=[...G.alerts.values()].filter(a=>a.level!=='online').sort((a,b)=>b.id-a.id)[0]; $('#recent').hidden=!last; if(last){ $('#recentText').textContent=last.text; $('#recentAt').textContent=`${LV[last.level]||''} · ${hhmm(last.last_ts||last.ts)}`; } const unread=[...G.alerts.values()].filter(a=>a.id>G.lastSeen && !['online'].includes(a.level)).length;
+  const bd=$('#badge'); bd.textContent=unread>99?'99+':unread; bd.hidden=!unread||curV===1; };
+
+/* ── 시작 화면 ── */
+(()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
+  const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
+  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
 </script>
 </body>
 </html>
