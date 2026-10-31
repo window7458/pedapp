@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F3F4FB">
+<meta name="theme-color" content="#E3EDF2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,7 +14,6 @@
 <title>SayEye</title>
 <link rel="stylesheet" href="app.css">
 <script src="mascot.js"></script>
-<script src="onboard.js"></script>
 <style>
 .hello{margin:6px 2px 0}
 .hello small{display:block;font-size:13.5px;font-weight:700;color:var(--accent)}
@@ -30,7 +29,7 @@
 .warn .orbit::after{background:radial-gradient(closest-side,rgba(255,138,91,.55),transparent)}
 .disc{position:absolute;inset:0;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:radial-gradient(circle at 35% 28%,#fff,var(--glass-strong) 60%);border:1px solid var(--glass-line);
   box-shadow:inset 0 -12px 30px rgba(100,116,229,.12),var(--shadow)}
-.disc .mascot{width:62%;height:62%;transition:opacity .4s,transform .5s var(--spring)}
+.disc .mascot{width:58%;height:64%;margin-top:4%;transition:opacity .4s,transform .5s var(--spring)}
 .hasvideo .disc .mascot{opacity:0;transform:scale(.6)}
 #stage{position:absolute;inset:0;background:#0b1220;border-radius:50%;overflow:hidden}
 #stage video,#stage img,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -39,9 +38,7 @@
 .running .chip b{background:var(--ok);animation:pulse 1.6s infinite}
 .warn .chip b{background:var(--danger)}
 @keyframes pulse{50%{box-shadow:0 0 0 6px rgba(59,174,138,.2)}}
-.stagewrap .float-chip.l{left:2px;bottom:16%}.stagewrap .float-chip.r{right:-6px;top:27%}
-.running .stagewrap .float-chip.hint{opacity:0;transition:opacity .4s}
-#notice{position:absolute;top:4px;left:0;right:0;z-index:5;margin:0;padding:12px 16px;border-radius:18px;background:var(--danger-tint);color:var(--danger);font-weight:700;font-size:14px;box-shadow:var(--shadow)}
+.running #notice{position:absolute;top:4px;left:0;right:0;z-index:5;margin:0;padding:12px 16px;border-radius:18px;background:var(--danger-tint);color:var(--danger);font-weight:700;font-size:14px;box-shadow:var(--shadow)}
 #live{display:flex;align-items:center;gap:12px;padding:14px 14px 14px 18px;border-radius:26px;margin-top:8px;transition:background .4s,transform .4s var(--spring)}
 #live .t{flex:1;min-width:0}#liveText{display:block;font-size:19px;font-weight:800;letter-spacing:-.035em;line-height:1.3}
 #liveMeta{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px}#liveMeta:empty{display:none}
@@ -77,7 +74,7 @@ button.big.running .i-play{opacity:0;transform:scale(.4) rotate(45deg)}button.bi
     <button class="iconbtn" id="openSheet" aria-label="설정과 도움말" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
   </header>
 
-  <div class="hello" aria-hidden="true"><small>오늘도 함께 걸어요</small><h1 id="greet">세이가 앞을 봐 드릴게요</h1></div>
+  <div class="hello" aria-hidden="true"><small>오늘도 함께 걸어요</small><h1 id="greet">앞을 대신 봐 드릴게요</h1></div>
 
   <section class="stagewrap" id="heroBox">
     <p id="notice" role="alert" hidden></p>
@@ -86,8 +83,6 @@ button.big.running .i-play{opacity:0;transform:scale(.4) rotate(45deg)}button.bi
         <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div></div>
       <div class="chip pill" aria-hidden="true"><b></b><span id="chipText">준비됐어요</span></div>
     </div>
-    <span class="float-chip l hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>음성으로 안내</span>
-    <span class="float-chip r b hint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>위험 먼저 알림</span>
   </section>
 
   <div id="live" class="card" role="status" aria-live="off"><div class="t"><small id="liveMeta"></small><span id="liveText">시작 버튼을 눌러 주세요.</span></div>
@@ -114,7 +109,7 @@ button.big.running .i-play{opacity:0;transform:scale(.4) rotate(45deg)}button.bi
   <label><span>음성 크기</span><input type="range" id="oVol" min="0.3" max="1" step="0.1"></label>
   <label><span>카메라</span><select id="oSrc"><option value="phone">폰 카메라</option><option value="server">서버 카메라</option></select></label>
   <label id="urlBox" hidden><input type="text" id="url" placeholder="http://192.168.0.20:81/stream" aria-label="서버 카메라 주소"></label>
-  <div class="row-set"><button class="btn primary" id="help" aria-label="사용법 듣기">사용법 듣기</button><button class="btn" id="replayOnb">처음 안내 다시 보기</button><button class="btn" id="closeSheet">닫기</button></div>
+  <div class="row-set"><button class="btn primary" id="help" aria-label="사용법 듣기">사용법 듣기</button><button class="btn" id="closeSheet">닫기</button></div>
   <p style="margin:6px 2px 0;font-size:13px;color:var(--muted)"><a href="/guardian">보호자 화면</a> · <a href="/dev">개발 화면</a></p>
 </div>
 
@@ -242,7 +237,7 @@ function stop(){
 function setGo(){ const b=$('#go'); $('#goTxt').textContent=S.running?'중지':'시작'; b.setAttribute('aria-label', S.running?'중지':'시작'); b.classList.toggle('running', S.running);
   document.body.classList.toggle('running', S.running); document.body.classList.toggle('hasvideo', S.running && S.prev); $('#stage').hidden=!(S.running && S.prev);
   $('#chipText').textContent = S.running ? '주변을 살피는 중' : '준비됐어요';
-  $('#face').classList.toggle('look', S.running); $('#greet').textContent = S.running ? '주변을 살피고 있어요' : '세이가 앞을 봐 드릴게요'; }
+  $('#face').classList.toggle('look', S.running); $('#greet').textContent = S.running ? '주변을 살피고 있어요' : '앞을 대신 봐 드릴게요'; }
 let warnT=null;
 function flashWarn(){ document.body.classList.add('warn'); $('#face').classList.add('warn'); clearTimeout(warnT);
   warnT=setTimeout(()=>{ document.body.classList.remove('warn'); $('#face').classList.remove('warn'); }, 2600); }
@@ -397,31 +392,8 @@ addEventListener('keydown',e=>{ if(e.key==='Escape') openSheet(false); });
 (()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
   const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
   const hide=()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); };
-  addEventListener('load',()=>setTimeout(()=>{ hide(); if(!S.onb) intro(); }, Math.max(0,(reduce?300:2300)-(performance.now()-t0)))); })();
+  addEventListener('load',()=>setTimeout(()=>{ hide(); }, Math.max(0,(reduce?300:2300)-(performance.now()-t0)))); })();
 
-/* ── 처음 안내: 한 장씩 읽어 주고, 다음을 누르면 넘어간다 ── */
-const M = (cls) => `<i data-mascot class="float ${cls||''}"></i>`;
-const CH = (cls, icon, text) => `<span class="float-chip ${cls}">${icon}${text}</span>`;
-const IC = {
-  sound:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
-  car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/></svg>',
-  tap:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5a2 2 0 0 1 4 0v6"/><path d="M13 9a2 2 0 0 1 4 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4a1.8 1.8 0 0 1 3-2l1 1"/></svg>',
-  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z"/></svg>',
-  cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-};
-function intro(){
-  onboard({
-    pages:[
-      {art: M('happy') + CH('l', IC.sound, '음성 안내') , title:'안녕하세요, 저는 세이예요', text:'휴대폰 카메라로 앞을 보고\n위험을 먼저 말해 드려요'},
-      {art: M('look') + CH('r', IC.car, '자동차 접근') + CH('l b', IC.sound, '“멈추세요”'), title:'다가오는 차와 사람을\n알려 드려요', text:'멈추세요, 피하세요처럼\n급한 것부터 먼저 말해요'},
-      {art: M() + CH('r', IC.tap, '한 번 더 누르면 실행'), title:'한 번 누르면 읽어 주고\n두 번 누르면 실행돼요', text:'가운데 큰 버튼이 시작이에요\n버튼 위치는 항상 같아요'},
-      {art: M('happy') + CH('l', IC.heart, '보호자 연결') + CH('r b', IC.cam, '위험 순간 저장'), title:'보호자와 함께 걸어요', text:'위험한 순간은 보호자에게\n사진과 영상으로 전달돼요'},
-    ],
-    speak:(t)=>{ speech.unlock(); speech.push('ui', t); },
-    done:()=>{ S.onb=true; S.seen=true; save(); speech.push('ui','이제 시작할 수 있어요. 가운데 큰 버튼이 시작이에요.'); }
-  });
-}
-$('#replayOnb').addEventListener('click', ()=>{ openSheet(false); setTimeout(intro, 350); });
 </script>
 </body>
 </html>

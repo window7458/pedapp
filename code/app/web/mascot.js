@@ -1,34 +1,34 @@
-/* SayEye 마스코트 "세이" — 말랑한 유리 구름. 표정·색은 CSS 클래스로 바뀐다.
-   mascot(el)        : el 안에 그린다
-   el.classList      : look(두리번) · warn(따뜻한 경고색) · happy(웃음) · float(둥실) */
+/* SayEye 상징 "빛 사람" — 얼굴 없이 은은하게 빛나는 사람 모양. 머리와 발밑은 따뜻한 빛, 몸은 푸른빛.
+   mascot(el)   : el 안에 그린다
+   el.classList : float(숨쉬듯 빛남) · look(안내 중, 빛이 천천히 흐름) · warn(전체가 주황빛으로) */
 (function(){
   let n = 0;
-  const BODY = 'M100 30C128 26 152 42 158 66C182 74 192 104 178 128C178 156 152 176 122 170C104 184 70 182 56 160C30 156 14 128 26 104C16 78 36 50 66 48C76 36 88 31 100 30Z';
-  const INNER = 'M104 52C126 50 144 62 148 82C164 90 168 112 156 128C154 146 136 156 118 152C104 162 82 160 74 146C56 142 48 124 56 110C50 92 64 74 84 72C90 60 96 53 104 52Z';
+  // 머리, 몸(어깨에서 아래로 퍼지는 종 모양), 발밑 빛
+  const BODY = 'M100 98C142 98 162 126 164 158C165 180 170 192 168 198C166 202 160 204 152 204H48C40 204 34 202 32 198C30 192 35 180 36 158C38 126 58 98 100 98Z';
   window.mascot = function(el){
     const k = 'm' + (++n);
     el.classList.add('mascot');
     el.setAttribute('aria-hidden', 'true');
-    el.innerHTML = `<svg viewBox="0 0 200 210">
+    el.innerHTML = `<svg viewBox="0 0 200 220">
   <defs>
-    <radialGradient id="${k}b" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#E4ECFF"/><stop offset=".45" stop-color="#9DB2FA"/><stop offset="1" stop-color="#5D6CDA"/></radialGradient>
-    <radialGradient id="${k}w" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#FFF1DE"/><stop offset=".45" stop-color="#FFB27E"/><stop offset="1" stop-color="#F0624D"/></radialGradient>
-    <linearGradient id="${k}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity=".05"/></linearGradient>
-    <filter id="${k}s" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
-    <filter id="${k}h" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+    <linearGradient id="${k}b" x1="0" y1="0" x2="1" y2="0.3"><stop offset="0" stop-color="#8FD3E0"/><stop offset=".5" stop-color="#8C93D8"/><stop offset="1" stop-color="#C3A6D6"/></linearGradient>
+    <radialGradient id="${k}h" cx="50%" cy="38%" r="60%"><stop offset="0" stop-color="#FFE7A8"/><stop offset=".55" stop-color="#FFB98A"/><stop offset="1" stop-color="#F49A86"/></radialGradient>
+    <radialGradient id="${k}f" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FF9A4D"/><stop offset=".7" stop-color="#FF7A3D" stop-opacity=".85"/><stop offset="1" stop-color="#FF7A3D" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${k}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC58F"/><stop offset=".6" stop-color="#FF8A5B"/><stop offset="1" stop-color="#F0624D"/></linearGradient>
+    <filter id="${k}s" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.2"/></filter>
+    <filter id="${k}g" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="14"/></filter>
   </defs>
-  <ellipse class="ms-shadow" cx="102" cy="194" rx="58" ry="9" fill="#4A55B8" opacity=".22" filter="url(#${k}s)"/>
-  <g class="ms-body">
-    <path d="${BODY}" fill="url(#${k}b)"/>
+  <g class="ms-aura" filter="url(#${k}g)">
+    <circle cx="100" cy="62" r="40" fill="#FFC9A0" opacity=".55"/>
+    <ellipse cx="100" cy="196" rx="70" ry="16" fill="#FF9A6A" opacity=".45"/>
+    <ellipse cx="80" cy="150" rx="44" ry="50" fill="#9ED8E6" opacity=".35"/>
+  </g>
+  <g class="ms-body" filter="url(#${k}s)">
+    <path d="${BODY}" fill="url(#${k}b)" opacity=".92"/>
     <path class="ms-warm" d="${BODY}" fill="url(#${k}w)"/>
-    <path d="${INNER}" fill="url(#${k}g)" opacity=".55"/>
-    <ellipse cx="74" cy="66" rx="20" ry="10" fill="#fff" opacity=".7" filter="url(#${k}h)" transform="rotate(-24 74 66)"/>
-    <g class="ms-face">
-      <g class="ms-eyes"><ellipse class="ms-eye" cx="84" cy="104" rx="7.5" ry="10" fill="#1D2250"/><ellipse class="ms-eye" cx="122" cy="104" rx="7.5" ry="10" fill="#1D2250"/>
-        <circle cx="86.5" cy="100" r="2.4" fill="#fff"/><circle cx="124.5" cy="100" r="2.4" fill="#fff"/></g>
-      <path class="ms-mouth" d="M90 126q13 11 26 0" fill="none" stroke="#1D2250" stroke-width="5" stroke-linecap="round"/>
-      <ellipse cx="68" cy="122" rx="9" ry="5" fill="#FF9E8A" opacity=".35"/><ellipse cx="138" cy="122" rx="9" ry="5" fill="#FF9E8A" opacity=".35"/>
-    </g>
+    <ellipse cx="100" cy="196" rx="64" ry="15" fill="url(#${k}f)"/>
+    <circle cx="100" cy="62" r="33" fill="url(#${k}h)"/>
+    <ellipse cx="90" cy="48" rx="16" ry="9" fill="#FFF6D8" opacity=".55"/>
   </g>
 </svg>`;
     return el;

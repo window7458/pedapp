@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F3F4FB">
+<meta name="theme-color" content="#E3EDF2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,7 +14,6 @@
 <title>SayEye 보호자</title>
 <link rel="stylesheet" href="app.css">
 <script src="mascot.js"></script>
-<script src="onboard.js"></script>
 <style>
 body{-webkit-user-select:auto;user-select:auto}
 .views{position:relative;flex:1;min-height:0;margin-top:6px}
@@ -284,18 +283,8 @@ const _render=render; render=function(){ _render();
 /* ── 시작 화면 ── */
 (()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
   const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
-  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); intro(); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
+  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
 
-/* ── 처음 안내 (한 번만) ── */
-function intro(){
-  try{ if(localStorage.getItem('sayeye-g-onb')) return; }catch(e){}
-  const M=(c)=>`<i data-mascot class="float ${c||''}"></i>`, CH=(c,t)=>`<span class="float-chip ${c}">${t}</span>`;
-  onboard({pages:[
-    {art:M('happy')+CH('r','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>긴급 알림'), title:'보행자의 위험을\n바로 알려 드려요', text:'자동차나 자전거가 다가오면\n보호자 폰에도 알림이 와요'},
-    {art:M('look')+CH('l','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>그 순간 사진')+CH('r b','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>위험 구간 영상'), title:'그 순간을 사진과\n영상으로 남겨요', text:'무슨 일이 있었는지\n언제든 다시 확인할 수 있어요'},
-    {art:M()+CH('l','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>확인번호'), title:'확인번호로 연결해요', text:'서버 화면의 6자리 번호를 넣으면\n우리 가족만 볼 수 있어요'},
-  ], done:()=>{ try{ localStorage.setItem('sayeye-g-onb','1'); }catch(e){} }});
-}
 </script>
 </body>
 </html>
