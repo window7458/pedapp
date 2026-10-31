@@ -1,0 +1,12 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SayEye camera check</title>
+<style>body{font:16px/1.5 system-ui;padding:18px}pre{white-space:pre-wrap;background:#eef;padding:12px;border-radius:12px}button{font:inherit;padding:14px 20px;border-radius:14px;border:0;background:#3D68E0;color:#fff;margin:8px 0}video{width:100%;border-radius:12px;background:#000}</style></head><body>
+<h2>카메라 진단</h2><button id="b">카메라 시험</button><video id="v" playsinline muted></video><pre id="o">...</pre>
+<script>
+const o=document.getElementById('o');const L=(s)=>o.textContent+= '\n'+s;o.textContent='';
+L('주소: '+location.href);L('보안 연결: '+window.isSecureContext);L('UA: '+navigator.userAgent);
+L('top 창인가: '+(window.top===window.self));L('mediaDevices: '+(!!navigator.mediaDevices));
+L('getUserMedia: '+(!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)));
+if(navigator.permissions) navigator.permissions.query({name:'camera'}).then(p=>L('카메라 권한 상태: '+p.state)).catch(e=>L('권한 조회 불가: '+e.name));
+document.getElementById('b').onclick=async()=>{ try{ const s=await navigator.mediaDevices.getUserMedia({video:true}); const v=document.getElementById('v'); v.srcObject=s; await v.play(); L('성공: 카메라가 켜졌어요 '+v.videoWidth+'x'+v.videoHeight);
+  const d=await navigator.mediaDevices.enumerateDevices(); L('카메라 수: '+d.filter(x=>x.kind==='videoinput').length); }catch(e){ L('실패: '+e.name+' - '+e.message); } };
+</script></body></html>
