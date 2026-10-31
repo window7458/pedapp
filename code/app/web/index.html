@@ -204,7 +204,8 @@ async function start(){
   notice(''); speech.unlock(); S.spokeReady=false;
   try{
     if(S.mode==='phone'){
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬·파이어폭스는 카메라를 쓸 수 없어요.'); return; }
+      say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=!S.prev; $('#pv').hidden=true;
       sendCmd({type:'set_source', mode:'phone'}); startSending();
