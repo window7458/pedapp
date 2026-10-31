@@ -19,6 +19,11 @@
 5. 보호자는 `https://<노트북IP>:8443/guardian` + 터미널에 뜬 확인번호.
 6. 진짜 모델은 `final_10class_best.pt` 를 두고 **`run_real.bat`** (GPU 권장, 노트북 CPU는 초당 1프레임 안팎).
 
+## 팀 저장소 코드와 연결된 것
+- 판정: 팀의 v5_29 히트박스(상준·태규 트리거 포함 `code/runtime`, `code/p0`, `code/common.py`)를 그대로 불러 써요.
+- **학습된 가중치(`final_10class_best.pt`, `best_E0.pt`)는 GitHub에 없어요**(용량이라 저장소에서 뺌). A5000 서버나 팀원 PC에서 받아 `code/app`에 두고 `--weights final_10class_best.pt` 로 켜요.
+- 설명 문장(VLM)과 TTS는 A5000 서버가 있을 때만: `--vlm server --vlm-url http://서버:8000/v1`.
+
 ## 실행
 
 ```bash
