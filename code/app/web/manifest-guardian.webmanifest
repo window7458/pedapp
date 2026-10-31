@@ -1,0 +1,12 @@
+{
+  "name": "Insight 보호자",
+  "short_name": "Insight 보호자",
+  "description": "보행자의 위험 상황 알림과 내역",
+  "start_url": "/guardian",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F5F9",
+  "theme_color": "#0A3A82",
+  "lang": "ko",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

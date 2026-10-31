@@ -160,6 +160,8 @@ class LivePipeline:
         self._last_proc = -1e9
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
         self.source_label = "phone"
+        self.last_frame = None              # 보호자 '지금 화면' · 알림 사진용
+        self.on_warn = None                 # (msg, ev, image) — 보호자 알림 센터가 붙는다
         self._warmed = False
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
@@ -202,6 +204,7 @@ class LivePipeline:
         if not self._warmed and hasattr(self.perception, "warmup"):
             self.perception.warmup(im)       # 첫 프레임 모델 올리는 시간을 시계 밖으로
             self._warmed = True
+        self.last_frame = im
         t = self.clock.now()
         self._fidx += 1
         tp = time.perf_counter()
@@ -244,9 +247,15 @@ class LivePipeline:
         self.event_seq += 1
         eid = self.event_seq
         direction = direction_of(ev.box, ev.W) if ev.box is not None else "front"
-        self.emit({"type": "warn", "id": eid, "text": text, "cls": ev.cls, "scenario": ev.scenario,
-                   "direction": direction, "track_id": ev.track_id, "t": round(ev.t, 2),
-                   "prio": ev.extra.get("prio", 1), "level": ev.extra.get("level")})
+        msg = {"type": "warn", "id": eid, "text": text, "cls": ev.cls, "scenario": ev.scenario,
+               "direction": direction, "track_id": ev.track_id, "t": round(ev.t, 2),
+               "prio": ev.extra.get("prio", 1), "level": ev.extra.get("level"), "motion": ev.extra.get("motion")}
+        self.emit(msg)
+        if self.on_warn is not None:
+            try:
+                self.on_warn(msg, ev, fr.image)
+            except Exception as e:
+                self.log(f"[alerts] {e!r}")
         if self.vlm is not None and c.use_vlm and getattr(self.trigger, "wants_vlm", True) and ev.box is not None:
             imgs, times, boxes = build_inputs(self.buffer, fr, ev, c.frames, c.bbox)
             self.vlm.submit(dict(ev=ev, imgs=imgs, times=times, boxes=boxes, eid=eid))

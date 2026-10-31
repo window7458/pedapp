@@ -11,39 +11,49 @@ import argparse
 import asyncio
 import datetime
 import ipaddress
+import hmac
 import json
 import socket
 import sys
 import time
 from pathlib import Path
 
+import cv2
 import uvicorn
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 APP = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP))
 
+from alerts import AlertCenter  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 from sources import SourceManager  # noqa: E402
 
 
+GUARDIAN_TYPES = {"alert", "status"}          # 보호자 화면은 알림과 상태만 받는다 (박스 · 음성 문장은 안 받음)
+
+
 class Hub:
-    """파이프라인 스레드 → 접속한 모든 브라우저로 메시지 전달."""
+    """파이프라인 스레드 → 접속한 브라우저로 메시지 전달. 보행자/개발 화면은 전부, 보호자 화면은 알림·상태만."""
 
     def __init__(self):
-        self.clients: set[asyncio.Queue] = set()
+        self.clients: dict[asyncio.Queue, str] = {}
         self.loop: asyncio.AbstractEventLoop | None = None
 
     def broadcast(self, msg: dict):
         if self.loop is None or not self.clients:
             return
         s = json.dumps(msg, ensure_ascii=False)
-        self.loop.call_soon_threadsafe(self._fanout, s)
+        self.loop.call_soon_threadsafe(self._fanout, s, msg.get("type"))
 
-    def _fanout(self, s: str):
-        for q in list(self.clients):
+    def _fanout(self, s: str, typ):
+        for q, role in list(self.clients.items()):
+            if role == "guardian" and typ not in GUARDIAN_TYPES:
+                continue
+            if role != "guardian" and typ == "alert":
+                continue
             if q.full():
                 try:
                     q.get_nowait()
@@ -96,17 +106,42 @@ def ensure_cert(ips: list[str]) -> tuple[str, str]:
     return str(crt), str(key)
 
 
-def build_app(cfg: Config, source: str | None):
+def load_pin(arg: str | None) -> str:
+    """보호자 확인번호. 지정하지 않으면 한 번 만들어 certs/guardian_pin.txt 에 두고 계속 쓴다."""
+    if arg:
+        return str(arg)
+    f = APP / "certs" / "guardian_pin.txt"
+    f.parent.mkdir(exist_ok=True)
+    if f.exists() and f.read_text().strip():
+        return f.read_text().strip()
+    import secrets
+    pin = "".join(secrets.choice("0123456789") for _ in range(6))
+    f.write_text(pin)
+    return pin
+
+
+def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: Path | None = None):
     hub = Hub()
     app = FastAPI(title="Insight")
     state = {}
 
+    def check_pin(given: str | None):
+        if not given or not hmac.compare_digest(str(given), str(pin)):
+            raise HTTPException(401, "확인번호가 달라요")
+
     @app.on_event("startup")
     async def _start():
         hub.loop = asyncio.get_running_loop()
-        pipe = LivePipeline(cfg, hub.broadcast)
+        alerts = AlertCenter(alerts_dir or (APP / "alerts"), hub.broadcast)
+
+        def emit(msg):
+            hub.broadcast(msg)
+            if msg.get("type") == "status":
+                alerts.on_status(msg)
+        pipe = LivePipeline(cfg, emit)
+        pipe.on_warn = alerts.on_warn
         src = SourceManager(pipe, hub.broadcast)
-        state.update(pipe=pipe, src=src)
+        state.update(pipe=pipe, src=src, alerts=alerts)
         if source:
             src.use_url(source)
 
@@ -134,11 +169,40 @@ def build_app(cfg: Config, source: str | None):
                 await asyncio.sleep(0.06)
         return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
 
+    @app.get("/api/alerts")
+    async def api_alerts(pin: str | None = None, since: int = 0):
+        check_pin(pin)
+        return {"alerts": state["alerts"].list(since), "active": state["alerts"].active}
+
+    @app.get("/api/alerts/{aid}.jpg")
+    async def api_alert_snap(aid: int, pin: str | None = None):
+        check_pin(pin)
+        b = state["alerts"].snap(aid)
+        if b is None:
+            raise HTTPException(404)
+        return Response(b, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/api/latest.jpg")
+    async def api_latest(pin: str | None = None):
+        check_pin(pin)
+        im = state["pipe"].last_frame
+        if im is None:
+            raise HTTPException(404, "아직 영상이 없어요")
+        s_ = min(1.0, 640 / max(im.shape[:2]))
+        small = cv2.resize(im, (round(im.shape[1] * s_), round(im.shape[0] * s_))) if s_ < 1 else im
+        ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        return Response(buf.tobytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
+        role = ws.query_params.get("role", "pedestrian")
         await ws.accept()
+        if role == "guardian" and not (ws.query_params.get("pin") and hmac.compare_digest(ws.query_params["pin"], str(pin))):
+            await ws.send_text(json.dumps({"type": "auth_error"}))
+            await ws.close(code=4401)
+            return
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
-        hub.clients.add(q)
+        hub.clients[q] = role
         p, s = state["pipe"], state["src"]
         await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
                                        "vlm": p.vlm_name, "scene": p.scene_name,
@@ -169,15 +233,27 @@ def build_app(cfg: Config, source: str | None):
                             await asyncio.to_thread(s.use_url, cmd["url"])
                     elif cmd.get("type") == "set_scene":
                         p.set_scene(bool(cmd.get("on", True)))
+                    elif cmd.get("type") == "sos" and role != "guardian":
+                        state["alerts"].on_sos(p.last_frame)
+                    elif cmd.get("type") == "client_event" and role != "guardian":
+                        state["alerts"].on_client_event(cmd)
         except Exception:
             pass
         finally:
             task.cancel()
-            hub.clients.discard(q)
+            hub.clients.pop(q, None)
 
     @app.get("/")
     async def index():
         return FileResponse(APP / "web" / "index.html")
+
+    @app.get("/guardian")
+    async def guardian():
+        return FileResponse(APP / "web" / "guardian.html")
+
+    @app.get("/dev")
+    async def dev():
+        return FileResponse(APP / "web" / "dev.html")
 
     app.mount("/", StaticFiles(directory=APP / "web"), name="web")
     return app
@@ -204,6 +280,7 @@ def main():
     ap.add_argument("--scene-model", default=None)
     ap.add_argument("--scene-interval", type=float, default=5.0, help="특별 상황을 묻는 최소 간격(초)")
     ap.add_argument("--max-fps", type=float, default=15.0)
+    ap.add_argument("--guardian-pin", default=None, help="보호자 화면 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
     a = ap.parse_args()
     if a.cam_h:
         import os
@@ -221,9 +298,11 @@ def main():
         kw = dict(ssl_certfile=crt, ssl_keyfile=key)
         scheme = "https"
     urls = [f"{scheme}://{ip}:{port}" for ip in ips] or [f"{scheme}://localhost:{port}"]
-    print("\n폰 브라우저로 접속:")
+    pin = load_pin(a.guardian_pin)
+    print("\n보행자 폰 브라우저로 접속:")
     for u in urls:
         print("  ", u)
+    print(f"\n보호자 화면: {urls[0]}/guardian   확인번호: {pin}")
     if a.https:
         print("   (처음 한 번 '안전하지 않음' 경고가 뜨면 '고급 → 계속'을 누르세요)")
     try:
@@ -235,7 +314,7 @@ def main():
         pass
     print(f"\n인식={a.perception} · Trigger={a.trigger} · VLM={a.vlm} · 특별 상황={a.scene}"
           + (f" · 서버 카메라={a.source}" if a.source else "") + "\n")
-    uvicorn.run(build_app(cfg, a.source), host=a.host, port=port, log_level="warning", **kw)
+    uvicorn.run(build_app(cfg, a.source, pin), host=a.host, port=port, log_level="warning", **kw)
 
 
 if __name__ == "__main__":
