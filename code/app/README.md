@@ -11,7 +11,7 @@
 ```
 
 ## 빠른 시작 (처음 쓰는 사람)
-1. 이 저장소를 받고 `code/app` 폴더에서 `pip install -r requirements.txt` (파이썬 3.10+).
+1. 이 저장소를 받고 `code/app` 폴더에서 `pip install -r requirements.txt` (파이썬 3.10+). 진짜 모델은 추가로 `pip install -r requirements-model.txt`.
 2. 먼저 **`run_demo.bat`**(맥/리눅스는 `run_demo.sh`) — 모델 없이 화면과 흐름만 확인해요.
 3. 터미널에 뜬 `https://<노트북IP>:8443` 을 **같은 와이파이의 폰 브라우저**로 열기 → "안전하지 않음" 경고는 *고급 → 계속* (자체 서명 인증서).
 4. 폰에서 **홈 화면에 추가**하면 앱처럼 열려요 (안드로이드 크롬: ⋮ → 앱 설치 / 아이폰 사파리: 공유 → 홈 화면에 추가).

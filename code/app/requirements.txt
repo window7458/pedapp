@@ -1,21 +1,7 @@
-# Insight 앱 서버 — 기본 (가짜 인식으로 UI · 흐름 시험까지)
+# SayEye server - basic (fake detection: UI and flow test)
 fastapi>=0.110
-uvicorn[standard]>=0.29      # 웹소켓 포함
+uvicorn[standard]>=0.29
 numpy
 opencv-python
-cryptography                 # --https 자체 서명 인증서
-qrcode                       # 접속 주소 QR (없어도 동작)
-
-# 실제 모델을 돌릴 때 (GPU 서버 권장)
-ultralytics                 # YOLO 추적(E0 · final_10class) + 신호등
-lapx                        # ultralytics 추적(ByteTrack)에 필요
-# torch                      # CUDA 맞는 버전으로 (https://pytorch.org)
-# transformers               # hitbox 바닥 분할(Mask2Former), 처음 실행 때 모델 약 1GB 받음
-# pillow
-
-# 테스트 (tests/ws_inprocess.py)
-# httpx
-
-# 특별 장면 묘사 백엔드 (쓰는 것만)
-# anthropic                  # --scene anthropic  (환경변수 ANTHROPIC_API_KEY)
-# openai                     # --scene openai     (vLLM 등 OpenAI 호환 서버)
+cryptography
+qrcode

@@ -1,0 +1,9 @@
+# Real model (GPU server recommended). Install after requirements.txt:
+#   pip install -r requirements-model.txt
+# torch: install the CUDA build that matches your GPU first (https://pytorch.org)
+ultralytics
+lapx
+pillow
+# transformers   # hitbox floor segmentation (Mask2Former), downloads ~1GB on first run
+# anthropic      # --scene anthropic
+# openai         # --scene openai
