@@ -41,17 +41,18 @@ from scene import SceneDescriber, make_backend  # noqa: E402
 
 @dataclass
 class Config:
-    perception: str = "none"            # none | demo | yolo
-    weights: str = "E0"                 # 가중치 키(E0 · F10 · A5) 또는 .pt 파일 경로
+    perception: object = "yolo"         # yolo | none (테스트는 가짜 인식기 객체를 직접 넣는다)
+    weights: str = "auto"               # auto(weights/ 폴더에서 찾기) 또는 .pt 파일 경로
     device: str = "cpu"
     conf: float | None = None           # YOLO 신뢰도. 비우면 트리거가 정함 (hitbox 는 0.2, 그 밖은 0.25)
-    trigger: str = "b0"                 # b0 | hitbox | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
-    vlm: str = "pt"                     # none | pt | mock | server
+    trigger: str = "hitbox"             # hitbox(v5_29) | b0 | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
+    vlm: str = "server"                 # server(vLLM Qwen2.5-VL) | none | mock(테스트)
+    vlm_min_prio: int = 2               # hitbox 경고 중 이 긴급도 이상(피하세요·멈추세요)만 VLM 설명을 붙인다
     mock_latency: float = 1.0
     vlm_url: str = "http://localhost:8000/v1"
     vlm_model: str = "qwen2_5-vl-7b"
     vlm_prompt: str = "h2"
-    scene: str = "none"                 # none | mock | openai | anthropic
+    scene: str = "openai"               # openai(같은 vLLM 서버) | anthropic | none | mock(테스트)
     scene_url: str | None = None
     scene_model: str | None = None
     scene_interval: float = 5.0
@@ -59,24 +60,85 @@ class Config:
     dispatch: DispatchConfig = field(default_factory=DispatchConfig)
 
 
-class DemoPerception:
-    """모델 없이 UI · 경고 흐름을 시험하는 가짜 인식: 오른쪽에서 자동차 하나가 계속 커진다 (5 s 주기)."""
-    name = "demo"
+WEIGHT_DIRS = [APP / "weights", CODE / "weights", CODE.parent / "weights"]
+WEIGHT_PREF = ["final_10class_best.pt", "best_v2.pt", "best.pt"]
+NAME_FIX = {"traffic light": "traffic_light", "truck": "other_vehicle", "e_scooter": "scooter", "kickboard": "scooter"}
 
-    def __init__(self):
-        self.k0 = None
+
+def find_weights(spec: str | None) -> Path | None:
+    """--weights 가 파일이면 그대로, 'auto'(기본)면 weights/ 폴더에서 찾는다 (final_10class_best.pt 우선)."""
+    if spec and spec != "auto":
+        p = Path(spec)
+        if p.exists():
+            return p
+        try:
+            from common import WEIGHTS
+            if spec in WEIGHTS and Path(WEIGHTS[spec]).exists():
+                return Path(WEIGHTS[spec])
+        except Exception:
+            pass
+        return None
+    for d in WEIGHT_DIRS:
+        for n in WEIGHT_PREF:
+            if (d / n).exists():
+                return d / n
+    for d in WEIGHT_DIRS:
+        if d.is_dir():
+            pts = sorted(d.glob("*.pt"), key=lambda p: ("seg" not in p.name, p.name))
+            pts = [p for p in pts if not p.name.startswith(("yolo11n-cls", "signal"))]
+            if pts:
+                return pts[0]
+    return None
+
+
+def foot_point(poly, box) -> tuple[float, float]:
+    """마스크 최하단 접지점 (최하단 2 % 높이 띠의 x 평균). 마스크 없으면 bbox 하단 중앙. (SJ code/dump_tracks.py 와 같음)"""
+    if poly is None or len(poly) < 3:
+        return (box[0] + box[2]) / 2, box[3]
+    ys = poly[:, 1]
+    vmax = ys.max()
+    band = poly[ys >= vmax - 0.02 * max(1.0, box[3] - box[1])]
+    return float(band[:, 0].mean()), float(vmax)
+
+
+def cv2_area(poly) -> float:
+    return float(cv2.contourArea(np.asarray(poly, np.float32)))
+
+
+class AppYoloTracker:
+    """팀 YOLO11s-seg(10클래스) + ByteTrack. 클래스 이름은 가중치 안의 이름을 그대로 쓴다
+    (runtime.perception.YoloTracker 는 클래스 순서를 고정해 둬서, 순서가 다른 가중치면 이름이 틀어진다)."""
+    name = "yolo"
+
+    def __init__(self, path: Path, device="cpu", imgsz=640, conf=0.25):
+        from ultralytics import YOLO
+        self.m = YOLO(str(path))
+        self.path, self.device, self.imgsz, self.conf = Path(path), device, imgsz, conf
+        self.names = {int(k): NAME_FIX.get(v, v) for k, v in self.m.names.items()}
+
+    def warmup(self, image, n=3):
+        for _ in range(n):
+            self.m.predict(image, imgsz=self.imgsz, conf=self.conf, device=self.device, verbose=False)
 
     def __call__(self, fidx, image):
         H, W = image.shape[:2]
-        if self.k0 is None:
-            self.k0 = fidx
-        k = (fidx - self.k0) % 75
-        w = (0.10 + 0.004 * k) * W
-        h = w * 0.7
-        cx, cy = 0.72 * W, 0.62 * H
-        box = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-        tid = 1 + (fidx - self.k0) // 75
-        return [Det(int(tid), "car", 0.9, box, (cx, box[3]), 0, w * h)]
+        r = self.m.track(image, persist=True, tracker="bytetrack.yaml", imgsz=self.imgsz, conf=self.conf,
+                         device=self.device, verbose=False)[0]
+        if r.boxes is None or r.boxes.id is None:
+            return []
+        xyxy = r.boxes.xyxy.cpu().numpy()
+        ids = r.boxes.id.cpu().numpy().astype(int)
+        cls = r.boxes.cls.cpu().numpy().astype(int)
+        conf = r.boxes.conf.cpu().numpy()
+        polys = r.masks.xy if r.masks is not None else [None] * len(ids)
+        out = []
+        for b, tid, c, p, poly in zip(xyxy, ids, cls, conf, polys):
+            fu, fv = foot_point(poly, b)
+            edge = int(b[0] <= 2 or b[1] <= 2 or b[2] >= W - 2 or b[3] >= H - 2)
+            area = float(cv2_area(poly)) if poly is not None and len(poly) >= 3 else 0.0
+            out.append(Det(int(tid), self.names.get(int(c), str(c)), round(float(p), 3),
+                           tuple(round(float(v), 1) for v in b), (round(fu, 1), round(fv, 1)), edge, round(area, 1)))
+        return out
 
 
 class NoPerception:
@@ -94,19 +156,19 @@ class NoTrigger:
 
 
 def make_perception(cfg: Config):
+    if not isinstance(cfg.perception, str):          # 테스트가 가짜 인식기를 직접 넣을 때
+        return cfg.perception
     if cfg.perception == "none":
         return NoPerception()
-    if cfg.perception == "demo":
-        return DemoPerception()
     if cfg.perception == "yolo":
-        from pathlib import Path as _P
-        from common import WEIGHTS
-        if cfg.weights not in WEIGHTS and _P(cfg.weights).exists():       # --weights /경로/final_10class_best.pt
-            WEIGHTS[cfg.weights] = _P(cfg.weights)
-        from perception import YoloTracker
-        conf = cfg.conf if cfg.conf is not None else (0.2 if cfg.trigger.startswith("hitbox") else 0.25)
-        return YoloTracker(cfg.weights, cfg.device, conf=conf)
-    raise ValueError(f"unknown perception {cfg.perception} (none | demo | yolo)")
+        w = find_weights(cfg.weights)
+        if w is None:
+            raise FileNotFoundError(
+                "가중치(.pt)를 찾지 못했어요. code/app/weights/ 폴더에 final_10class_best.pt 를 넣거나 --weights 로 경로를 주세요.")
+        conf = cfg.conf if cfg.conf is not None else (0.2 if str(cfg.trigger).startswith("hitbox") else 0.25)
+        cfg.weights = str(w)
+        return AppYoloTracker(w, cfg.device, conf=conf)
+    raise ValueError(f"unknown perception {cfg.perception} (yolo | none)")
 
 
 def make_trigger(cfg: Config):
@@ -153,6 +215,7 @@ class LivePipeline:
         self.scene_name = self.scene.name
 
         self.preview_enabled = False
+        self.live_viewers = 0                # 보호자 실시간 영상을 보는 사람 수
         self.preview_jpeg: bytes | None = None
         self._latest, self._evt = None, threading.Event()
         self._stop = threading.Event()
@@ -221,15 +284,18 @@ class LivePipeline:
             self._on_event(fr, ev)
         self._lag.append(self.clock.now() - t)
         self._stamps.append(time.perf_counter())
-        if self.preview_enabled and self._fidx % 2 == 0:
-            self._make_preview(im)
+        if (self.preview_enabled or self.live_viewers > 0) and self._fidx % 2 == 0:
+            self._make_preview(im, dets)
         self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
                    "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                           round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
 
-    def _make_preview(self, im):
+    def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))
-        small = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s))) if s < 1 else im
+        small = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s))) if s < 1 else im.copy()
+        for d in dets:                                   # 보호자 실시간 영상에도 인식 박스를 그린다
+            x1, y1, x2, y2 = (int(v * s) for v in d.box)
+            cv2.rectangle(small, (x1, y1), (x2, y2), (255, 120, 40), 2)
         ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 72])
         if ok:
             self.preview_jpeg = buf.tobytes()
@@ -259,7 +325,8 @@ class LivePipeline:
                 self.on_warn(msg, ev, fr.image)
             except Exception as e:
                 self.log(f"[alerts] {e!r}")
-        if self.vlm is not None and c.use_vlm and getattr(self.trigger, "wants_vlm", True) and ev.box is not None:
+        wants = getattr(self.trigger, "wants_vlm", True) or msg["prio"] >= self.cfg.vlm_min_prio
+        if self.vlm is not None and c.use_vlm and wants and ev.box is not None:
             imgs, times, boxes = build_inputs(self.buffer, fr, ev, c.frames, c.bbox)
             self.vlm.submit(dict(ev=ev, imgs=imgs, times=times, boxes=boxes, eid=eid))
 
@@ -270,6 +337,11 @@ class LivePipeline:
             self.log(f"[vlm] no output: {res.get('error') or res.get('raw')}")
             return
         o = hybrid(out, ev) if c.use_hybrid else out
+        act = ev.extra.get("action")                 # 히트박스가 정한 행동이 있으면 그대로 따른다 (경고와 설명이 엇갈리지 않게)
+        if act in ("stop", "veer_left", "veer_right"):
+            o["action"] = act
+        elif act is not None and o.get("action") in ("stop", "veer_left", "veer_right"):
+            o["action"] = "caution"
         if c.skip_no_hazard and not o.get("hazard", True):
             return
         self.emit({"type": "desc", "id": job.get("eid"), "text": sentence(o), "cls": ev.cls,

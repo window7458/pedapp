@@ -25,6 +25,7 @@ SNAP_SIDE = 480
 
 LEVEL_SNAP = {"urgent", "caution", "sos"}          # 사진을 남기는 단계
 LEVEL_CLIP = {"urgent", "caution", "sos"}          # 위험 구간을 영상으로 남기는 단계
+CLIP_CLASSES = {"person", "car", "bus", "motorcycle", "other_vehicle", "bicycle", "scooter", "sos"}   # 영상은 사람 · 탈것(+보행자 호출)만
 CLIP_PRE_S, CLIP_POST_S, CLIP_MAX_S, CLIP_SIDE = 5.0, 4.0, 30.0, 640
 
 
@@ -125,6 +126,8 @@ class AlertCenter:
         self.active, self.zero_since, self.offline_said = False, None, False
         self.low_battery_said = 100
         self.clips = ClipRecorder(self.dir / "clips", self._clip_done, log)
+        self.loc: dict | None = None             # 보행자 폰이 보낸 최근 위치 {lat, lon, acc, ts}
+        self.on_new = None                       # (alert, merged) — 푸시 알림이 붙는다
         self._load()
 
     # ── 저장 ──────────────────────────────────────────
@@ -179,6 +182,8 @@ class AlertCenter:
                          if a.get("key") == key and now - a["last_ts"] <= MERGE_S), None)
             if last is not None:                                  # 같은 종류가 이어짐 → 한 건으로 묶음
                 last.update(count=last["count"] + 1, last_ts=now, text=text)
+                if self.loc:
+                    last["loc"] = self.loc
                 self.clips.extend(last["id"])
                 a, merged = last, True
             else:
@@ -186,16 +191,24 @@ class AlertCenter:
                 self.next_id += 1
                 a = dict(id=aid, ts=now, last_ts=now, level=level, text=text, cls=cls, count=1, key=key,
                          snap=(level in LEVEL_SNAP and self._snapshot(aid, image, box, W)))
+                if self.loc and now - self.loc.get("ts", 0) < 120:          # 2분 안의 위치만 붙인다
+                    a["loc"] = self.loc
                 self.items[aid] = a
                 merged = False
-                if level in LEVEL_CLIP:
+                if level in LEVEL_CLIP and cls in CLIP_CLASSES:
                     self.clips.trigger(aid)
                 for old in sorted(self.items)[:-KEEP]:
                     self.items.pop(old, None)
                     (self.snap_dir / f"{old}.jpg").unlink(missing_ok=True)
                     self.clips.path(old).unlink(missing_ok=True)
             self._append(a)
-        self.broadcast({"type": "alert", "merged": merged, **{k: v for k, v in a.items() if k != "key"}})
+        out = {k: v for k, v in a.items() if k != "key"}
+        self.broadcast({"type": "alert", "merged": merged, **out})
+        if self.on_new is not None:
+            try:
+                self.on_new(out, merged)
+            except Exception as e:
+                self.log(f"[push] {e!r}")
         return a
 
     def _clip_done(self, aid: int):
@@ -213,6 +226,14 @@ class AlertCenter:
         level = classify(msg)
         cls = (ev.cls if ev is not None else msg.get("cls")) or ""
         self.add(level, msg["text"], cls, image, getattr(ev, "box", None), getattr(ev, "W", None))
+
+    def on_location(self, m: dict):
+        try:
+            lat, lon = float(m["lat"]), float(m["lon"])
+        except (KeyError, TypeError, ValueError):
+            return
+        self.loc = dict(lat=round(lat, 6), lon=round(lon, 6), acc=round(float(m.get("acc") or 0), 1), ts=time.time())
+        self.broadcast({"type": "loc", **self.loc})
 
     def on_sos(self, image):
         self.add("sos", "보행자가 도움을 요청했어요.", "sos", image, merge_key=("sos",))

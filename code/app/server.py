@@ -1,9 +1,10 @@
-"""Insight 앱 서버 — 노트북에서 돌리고, 폰은 브라우저로 접속한다.
+"""SayEye 서버 — 노트북(또는 GPU 서버)에서 돌리고, 보행자 · 보호자는 폰 브라우저로 접속한다.
 
-    python server.py --https --perception demo --vlm mock --scene mock      # 모델 없이 UI · 흐름 시험
-    python server.py --https --perception yolo --device 0 --vlm server --scene openai   # 서버(A5000) 실제 모델
+    python server.py --device 0                 # weights/ 의 팀 가중치 + v5_29 히트박스 + VLM(localhost:8000)
+    python server.py --device cpu --vlm none    # GPU 없는 노트북: VLM 설명 없이 경고만
 
-폰이 카메라를 쓰려면 HTTPS가 필요하다 (브라우저 규칙). --https 면 자체 서명 인증서를 만들어 쓴다.
+카메라는 두 가지: 보행자 폰 카메라, 라즈베리파이 카메라(pi_camera.py). 폰 카메라는 HTTPS 주소가 필요하다
+(Cloudflare 터널 주소를 쓰거나 --https).
 """
 from __future__ import annotations
 
@@ -28,11 +29,12 @@ APP = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
+from push import Push  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 from sources import SourceManager  # noqa: E402
 
 
-GUARDIAN_TYPES = {"alert", "status"}          # 보호자 화면은 알림과 상태만 받는다 (박스 · 음성 문장은 안 받음)
+GUARDIAN_TYPES = {"alert", "status", "loc", "camera"}   # 보호자 화면은 알림 · 상태 · 위치만 받는다 (박스 · 음성 문장은 안 받음)
 
 
 class Hub:
@@ -52,7 +54,9 @@ class Hub:
         for q, role in list(self.clients.items()):
             if role == "guardian" and typ not in GUARDIAN_TYPES:
                 continue
-            if role != "guardian" and typ == "alert":
+            if role != "guardian" and typ in ("alert", "loc"):
+                continue
+            if role == "camera":
                 continue
             if q.full():
                 try:
@@ -120,10 +124,10 @@ def load_pin(arg: str | None) -> str:
     return pin
 
 
-def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: Path | None = None):
+def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alerts_dir: Path | None = None):
     hub = Hub()
-    app = FastAPI(title="Insight")
-    state = {}
+    app = FastAPI(title="SayEye")
+    state = {"cams": 0}
 
     def check_pin(given: str | None):
         if not given or not hmac.compare_digest(str(given), str(pin)):
@@ -133,6 +137,8 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
     async def _start():
         hub.loop = asyncio.get_running_loop()
         alerts = AlertCenter(alerts_dir or (APP / "alerts"), hub.broadcast)
+        push = Push(APP / "certs", alerts.dir)
+        alerts.on_new = push.on_alert
 
         def emit(msg):
             hub.broadcast(msg)
@@ -142,7 +148,7 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
         pipe.on_warn = alerts.on_warn
         pipe.on_frame = alerts.clips.push
         src = SourceManager(pipe, hub.broadcast)
-        state.update(pipe=pipe, src=src, alerts=alerts)
+        state.update(pipe=pipe, src=src, alerts=alerts, push=push)
         if source:
             src.use_url(source)
 
@@ -169,6 +175,55 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
                            + str(len(jpg)).encode() + b"\r\n\r\n" + jpg + b"\r\n")
                 await asyncio.sleep(0.06)
         return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+    @app.get("/api/live.mjpg")
+    async def live(pin: str | None = None):
+        """보호자 실시간 영상 (인식 박스 포함, 약 7 fps). 보는 동안만 서버가 미리보기를 만든다."""
+        check_pin(pin)
+        pipe = state["pipe"]
+
+        async def gen():
+            pipe.live_viewers += 1
+            last = None
+            try:
+                while True:
+                    jpg = pipe.preview_jpeg
+                    if jpg is not None and jpg is not last:
+                        last = jpg
+                        yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                               + str(len(jpg)).encode() + b"\r\n\r\n" + jpg + b"\r\n")
+                    await asyncio.sleep(0.14)
+            finally:
+                pipe.live_viewers = max(0, pipe.live_viewers - 1)
+        return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame",
+                                 headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/location")
+    async def api_location(pin: str | None = None):
+        check_pin(pin)
+        return {"loc": state["alerts"].loc}
+
+    @app.get("/api/push/key")
+    async def push_key():
+        p = state["push"]
+        return {"ok": p.ok, "key": p.public if p.ok else None}
+
+    @app.post("/api/push/subscribe")
+    async def push_sub(request: Request, pin: str | None = None):
+        check_pin(pin)
+        j = await request.json()
+        try:
+            state["push"].subscribe(j.get("sub") or {}, j.get("sens", "caution"))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.post("/api/push/unsubscribe")
+    async def push_unsub(request: Request, pin: str | None = None):
+        check_pin(pin)
+        j = await request.json()
+        state["push"].unsubscribe(j.get("endpoint", ""))
+        return {"ok": True}
 
     @app.get("/api/alerts")
     async def api_alerts(pin: str | None = None, since: int = 0):
@@ -206,16 +261,20 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
     async def ws_endpoint(ws: WebSocket):
         role = ws.query_params.get("role", "pedestrian")
         await ws.accept()
-        if role == "guardian" and not (ws.query_params.get("pin") and hmac.compare_digest(ws.query_params["pin"], str(pin))):
+        if role in ("guardian", "camera") and not (ws.query_params.get("pin") and hmac.compare_digest(ws.query_params["pin"], str(pin))):
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         hub.clients[q] = role
         p, s = state["pipe"], state["src"]
+        if role == "camera":
+            state["cams"] += 1
+            hub.broadcast({"type": "camera", "connected": state["cams"]})
         await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
-                                       "vlm": p.vlm_name, "scene": p.scene_name,
-                                       "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?")},
+                                       "vlm": p.vlm_name, "scene": p.scene_name, "pi": state["cams"],
+                                       "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
+                                       "weights": Path(str(p.cfg.weights)).name},
                                       ensure_ascii=False))
 
         async def sender():
@@ -229,7 +288,10 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
                 if m["type"] == "websocket.disconnect":
                     break
                 if m.get("bytes") is not None:
-                    s.on_phone_frame(m["bytes"])
+                    if role == "camera":
+                        s.on_camera_frame(m["bytes"])
+                    elif role != "guardian":
+                        s.on_phone_frame(m["bytes"])
                 elif m.get("text"):
                     try:
                         cmd = json.loads(m["text"])
@@ -238,6 +300,8 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
                     if cmd.get("type") == "set_source":
                         if cmd.get("mode") == "phone":
                             await asyncio.to_thread(s.use_phone)
+                        elif cmd.get("mode") == "pi":
+                            await asyncio.to_thread(s.use_pi)
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
                     elif cmd.get("type") == "set_scene":
@@ -246,11 +310,16 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
                         state["alerts"].on_sos(p.last_frame)
                     elif cmd.get("type") == "client_event" and role != "guardian":
                         state["alerts"].on_client_event(cmd)
+                    elif cmd.get("type") == "gps" and role == "pedestrian":
+                        state["alerts"].on_location(cmd)
         except Exception:
             pass
         finally:
             task.cancel()
             hub.clients.pop(q, None)
+            if role == "camera":
+                state["cams"] = max(0, state["cams"] - 1)
+                hub.broadcast({"type": "camera", "connected": state["cams"]})
 
     @app.get("/")
     async def index():
@@ -268,37 +337,52 @@ def build_app(cfg: Config, source: str | None, pin: str = "000000", alerts_dir: 
     return app
 
 
+def vlm_alive(url: str) -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/models", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Insight 앱 서버")
+    ap = argparse.ArgumentParser(description="SayEye 서버")
     ap.add_argument("--host", default="0.0.0.0")
-    ap.add_argument("--port", type=int, default=None, help="기본: --https면 8443, 아니면 8000")
-    ap.add_argument("--https", action="store_true", help="자체 서명 HTTPS (폰 카메라에 필요)")
-    ap.add_argument("--source", default=None, help="서버가 여는 카메라: http://IP:81/stream · rtsp://… · udp://@:8554 · 0")
-    ap.add_argument("--perception", default="none", choices=["none", "demo", "yolo"])
-    ap.add_argument("--weights", default="E0", help="E0 · F10 · A5 또는 .pt 파일 경로 (hitbox 는 final_10class_best.pt 권장)")
-    ap.add_argument("--device", default="cpu")
-    ap.add_argument("--trigger", default="b0", help="b0 | hitbox(v5_29 히트박스) | none | 모듈:클래스")
-    ap.add_argument("--conf", type=float, default=None, help="YOLO 신뢰도 (기본: hitbox 0.2, 그 밖 0.25)")
-    ap.add_argument("--cam-h", type=float, default=None, help="hitbox: 카메라 높이(m). 원본 기본 1.70. 폰을 가슴 앞에 들면 1.3~1.5")
-    ap.add_argument("--vlm", default="pt", choices=["none", "pt", "mock", "server"])
-    ap.add_argument("--mock-latency", type=float, default=1.0)
-    ap.add_argument("--vlm-url", default="http://localhost:8000/v1")
+    ap.add_argument("--port", type=int, default=None, help="기본: --https면 8443, 아니면 8080")
+    ap.add_argument("--https", action="store_true", help="자체 서명 HTTPS (터널 없이 같은 와이파이에서 폰 카메라를 쓸 때)")
+    ap.add_argument("--weights", default="auto", help="auto(weights/ 폴더에서 찾기) 또는 .pt 경로")
+    ap.add_argument("--device", default="cpu", help="cpu 또는 GPU 번호(0)")
+    ap.add_argument("--trigger", default="hitbox", help="hitbox(v5_29) | b0")
+    ap.add_argument("--conf", type=float, default=None, help="YOLO 신뢰도 (기본 hitbox 0.2)")
+    ap.add_argument("--cam-h", type=float, default=None, help="카메라 높이(m). 폰을 가슴 앞에 들면 1.3~1.5, 기본 1.70")
+    ap.add_argument("--vlm", default="server", choices=["server", "none"], help="server: vLLM(Qwen2.5-VL) 설명 · 특별 상황")
+    ap.add_argument("--vlm-url", default="http://localhost:8000/v1", help="SJ 브랜치 code/p0/serve_vllm.py 가 띄운 주소")
     ap.add_argument("--vlm-model", default="qwen2_5-vl-7b")
-    ap.add_argument("--scene", default="none", choices=["none", "mock", "openai", "anthropic"])
-    ap.add_argument("--scene-url", default=None, help="openai 호환 서버 주소 (기본 http://localhost:8000/v1)")
-    ap.add_argument("--scene-model", default=None)
     ap.add_argument("--scene-interval", type=float, default=5.0, help="특별 상황을 묻는 최소 간격(초)")
     ap.add_argument("--max-fps", type=float, default=15.0)
-    ap.add_argument("--guardian-pin", default=None, help="보호자 화면 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
+    ap.add_argument("--guardian-pin", default=None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
     a = ap.parse_args()
     if a.cam_h:
         import os
         os.environ["CAM_H"] = str(a.cam_h)         # hitbox_core 가 import 될 때 읽는다
 
-    cfg = Config(perception=a.perception, weights=a.weights, device=a.device, conf=a.conf, trigger=a.trigger, vlm=a.vlm,
-                 mock_latency=a.mock_latency, vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=a.scene,
-                 scene_url=a.scene_url, scene_model=a.scene_model, scene_interval=a.scene_interval, max_fps=a.max_fps)
-    port = a.port or (8443 if a.https else 8000)
+    from pipeline import find_weights
+    w = find_weights(a.weights)
+    if w is None:
+        print("\n[오류] 팀 가중치(.pt)를 찾지 못했어요.\n"
+              f"  {APP / 'weights'} 폴더에 final_10class_best.pt 를 넣고 다시 실행하세요.\n"
+              "  (또는 --weights 경로/파일.pt)\n")
+        sys.exit(1)
+    vlm, scene = a.vlm, ("openai" if a.vlm == "server" else "none")
+    if a.vlm == "server" and not vlm_alive(a.vlm_url):
+        print(f"[알림] VLM 서버({a.vlm_url})가 응답하지 않아요 → 상황 설명 · 특별 상황 없이 경고만 냅니다.\n"
+              "       GPU 서버에서 SJ 브랜치의 code/p0/serve_vllm.py 를 먼저 띄우면 켜져요.")
+        vlm, scene = "none", "none"
+    cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger, vlm=vlm,
+                 vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=scene, scene_url=a.vlm_url,
+                 scene_interval=a.scene_interval, max_fps=a.max_fps)
+    port = a.port or (8443 if a.https else 8080)
     ips = lan_ips()
     kw = {}
     scheme = "http"
@@ -308,22 +392,16 @@ def main():
         scheme = "https"
     urls = [f"{scheme}://{ip}:{port}" for ip in ips] or [f"{scheme}://localhost:{port}"]
     pin = load_pin(a.guardian_pin)
-    print("\n보행자 폰 브라우저로 접속:")
+    print("\n보행자 화면 (폰 브라우저):")
     for u in urls:
         print("  ", u)
-    print(f"\n보호자 화면: {urls[0]}/guardian   확인번호: {pin}")
-    if a.https:
-        print("   (처음 한 번 '안전하지 않음' 경고가 뜨면 '고급 → 계속'을 누르세요)")
-    try:
-        import qrcode
-        qr = qrcode.QRCode(border=1)
-        qr.add_data(urls[0])
-        qr.print_ascii(invert=True)
-    except Exception:
-        pass
-    print(f"\n인식={a.perception} · Trigger={a.trigger} · VLM={a.vlm} · 특별 상황={a.scene}"
-          + (f" · 서버 카메라={a.source}" if a.source else "") + "\n")
-    uvicorn.run(build_app(cfg, a.source, pin), host=a.host, port=port, log_level="warning", **kw)
+    print(f"보호자 화면: {urls[0]}/guardian   확인번호: {pin}")
+    print(f"개발자 화면: {urls[0]}/dev")
+    print(f"라즈베리파이: python pi_camera.py --server {urls[0]} --pin {pin}")
+    if not a.https:
+        print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → cloudflared tunnel --url " + f"http://localhost:{port}")
+    print(f"\n가중치={w.name} · 트리거={a.trigger} · VLM={'켜짐' if vlm == 'server' else '꺼짐'} · 장치={a.device}\n")
+    uvicorn.run(build_app(cfg, None, pin), host=a.host, port=port, log_level="warning", **kw)
 
 
 if __name__ == "__main__":

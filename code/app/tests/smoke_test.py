@@ -1,118 +1,117 @@
-"""서버 스모크 테스트 (모델 · 카메라 없이): 가짜 인식 + mock VLM + mock 장면 설명으로 흐름 전체를 확인한다.
-
-    python tests/smoke_test.py            # 폰 카메라 경로 (웹소켓으로 합성 프레임 전송)
-    python tests/smoke_test.py --mjpeg    # 서버 카메라 경로 (XIAO와 같은 MJPEG 주소를 합성 프레임으로 흉내)
+"""서버 실제 실행 스모크 테스트: 진짜 YOLO 가중치로 서버를 띄우고
+  · 라즈베리파이 역할(/ws?role=camera)로 영상을 보내 → 보행자 화면이 박스(dets)를 받는지
+  · 폰 역할로 바꿔 영상을 보내도 되는지
+  · 보호자: 위치(gps) 받기, 실시간 영상(/api/live.mjpg), 푸시 키
+를 확인한다.  python tests/smoke_test.py --weights /경로/모델.pt   (기본: weights/ 폴더 또는 /tmp/yolo/yolov8n.pt)
 """
 import argparse
 import asyncio
 import json
+import os
 import subprocess
 import sys
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.request
 from pathlib import Path
 
 import cv2
 import numpy as np
-import websockets
 
 APP = Path(__file__).resolve().parents[1]
-PORT, MJ_PORT = 8011, 8012
-rng = np.random.default_rng(0)
-BASE = cv2.GaussianBlur(rng.integers(0, 255, (720, 960), dtype=np.uint8), (0, 0), 2)
-BASE = cv2.cvtColor(BASE, cv2.COLOR_GRAY2BGR)
+PORT = 8791
+PIN = "135790"
 
 
-def frame(i):
-    dx, dy = int(6 * np.sin(i / 7)), int(4 * np.cos(i / 9))
-    M = np.float32([[1, 0, dx], [0, 1, dy]])
-    im = cv2.warpAffine(BASE, M, (960, 720))
-    return cv2.resize(im, (640, 480))
+def frames(img_path: Path):
+    im = cv2.imread(str(img_path)) if img_path.exists() else None
+    if im is None:
+        im = np.full((640, 480, 3), 128, np.uint8)
+    H, W = im.shape[:2]
+    i = 0
+    while True:
+        s = 1.0 + 0.003 * (i % 50)
+        M = np.array([[s, 0, (1 - s) * W / 2], [0, s, (1 - s) * H / 2]], np.float32)
+        ok, b = cv2.imencode(".jpg", cv2.warpAffine(im, M, (W, H), borderMode=cv2.BORDER_REFLECT), [cv2.IMWRITE_JPEG_QUALITY, 75])
+        yield b.tobytes()
+        i += 1
 
 
-def jpg(i):
-    return cv2.imencode(".jpg", frame(i), [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes()
+async def run(seconds: float, img: Path):
+    import websockets
+    seen, classes = {}, set()
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws", max_size=None) as ped, \
+            websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=camera&pin={PIN}", max_size=None) as cam, \
+            websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=guardian&pin={PIN}", max_size=None) as gd:
+        hello = json.loads(await ped.recv())
+        print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights", "vlm", "pi")})
+        await cam.recv(); await gd.recv()
+        await ped.send(json.dumps({"type": "set_source", "mode": "pi"}))
+        await ped.send(json.dumps({"type": "gps", "lat": 37.4502, "lon": 126.6535, "acc": 8}))
+        gen = frames(img)
+        t0 = time.time()
 
-
-class MJPEG(BaseHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-        self.end_headers()
-        i = 0
-        try:
-            while True:
-                b = jpg(i)
-                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(b) + b + b"\r\n")
-                i += 1
-                time.sleep(1 / 12)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-
-
-async def run(mjpeg: bool, seconds: float):
-    seen, first = {}, {}
-    t0 = time.time()
-    async with websockets.connect(f"ws://localhost:{PORT}/ws", max_size=None) as ws:
-        if mjpeg:
-            await ws.send(json.dumps({"type": "set_source", "mode": "url", "url": f"http://localhost:{MJ_PORT}/stream"}))
-        else:
-            await ws.send(json.dumps({"type": "set_source", "mode": "phone"}))
-
-        async def sender():
-            i = 0
+        async def pump(ws, who):
             while time.time() - t0 < seconds:
-                if not mjpeg:
-                    await ws.send(jpg(i))
-                    i += 1
-                await asyncio.sleep(1 / 12)
+                try:
+                    m = json.loads(await asyncio.wait_for(ws.recv(), 0.5))
+                except asyncio.TimeoutError:
+                    continue
+                key = f"{who}:{m['type']}"
+                seen[key] = seen.get(key, 0) + 1
+                if m["type"] == "dets":
+                    classes.update(d[1] for d in m["d"])
 
-        task = asyncio.create_task(sender())
-        while time.time() - t0 < seconds:
-            try:
-                m = json.loads(await asyncio.wait_for(ws.recv(), 1.0))
-            except asyncio.TimeoutError:
-                continue
-            ty = m["type"]
-            seen[ty] = seen.get(ty, 0) + 1
-            if ty not in first:
-                first[ty] = (round(time.time() - t0, 1), m)
-        await task
-    return seen, first
+        async def send():
+            half = t0 + seconds / 2
+            switched = False
+            while time.time() - t0 < seconds:
+                if not switched and time.time() > half:               # 절반은 파이, 절반은 폰
+                    await ped.send(json.dumps({"type": "set_source", "mode": "phone"}))
+                    switched = True
+                await (ped if switched else cam).send(next(gen))
+                await asyncio.sleep(0.12)
+        await asyncio.gather(pump(ped, "ped"), pump(gd, "guardian"), send(), pump(cam, "cam"))
+    return seen, classes
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mjpeg", action="store_true")
-    ap.add_argument("--seconds", type=float, default=16)
+    ap.add_argument("--weights", default=None)
+    ap.add_argument("--seconds", type=float, default=20)
+    ap.add_argument("--image", default="/tmp/yolo/bus.jpg")
     a = ap.parse_args()
-    if a.mjpeg:
-        srv = ThreadingHTTPServer(("127.0.0.1", MJ_PORT), MJPEG)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-    p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--perception", "demo",
-                          "--vlm", "mock", "--mock-latency", "0.5", "--scene", "mock", "--scene-interval", "2"],
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP)
+    w = a.weights or ("/tmp/yolo/yolov8n.pt" if not any((APP / "weights").glob("*.pt")) else "auto")
+    env = dict(os.environ, HB_SURFACE="0")
+    p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w, "--vlm", "none",
+                          "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
     try:
-        time.sleep(4)
-        seen, first = asyncio.run(run(a.mjpeg, a.seconds))
+        for _ in range(60):
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/health", timeout=1)
+                break
+            except Exception:
+                time.sleep(1)
+        seen, classes = asyncio.run(run(a.seconds, Path(a.image)))
+        print("받은 메시지:", seen, "· 인식:", sorted(classes), flush=True)
+        key = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/push/key").read())
+        loc = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/location?pin={PIN}").read())
+        r = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/live.mjpg?pin={PIN}", timeout=5)
+        chunk = r.fp.read1(200) if hasattr(r.fp, "read1") else r.read(200)
+        r.close()
     finally:
         p.terminate()
         try:
             out = p.communicate(timeout=5)[0]
         except Exception:
             out = ""
-    print("수신 메시지:", seen)
-    for k in ("hello", "warn", "desc", "scene", "source", "status"):
-        if k in first:
-            print(f"  첫 {k} @ {first[k][0]}s:", json.dumps(first[k][1], ensure_ascii=False)[:230])
-    ok = all(k in seen for k in ("dets", "warn", "desc", "scene", "status"))
-    print("결과:", "통과" if ok else "실패 (빠진 메시지 있음)")
+    print("받은 메시지:", seen)
+    print("인식한 물체:", sorted(classes))
+    print("푸시 키:", key["ok"], "· 위치:", loc["loc"], "· 실시간 영상 첫 조각:", chunk[:40])
+    ok = (seen.get("ped:dets", 0) > 5 and seen.get("guardian:loc", 0) >= 1 and seen.get("guardian:status", 0) > 3
+          and key["ok"] and loc["loc"] and b"--frame" in chunk and "ped:loc" not in seen and "ped:alert" not in seen)
+    print("결과:", "통과" if ok else "실패")
     if not ok:
-        print("--- 서버 출력 ---\n", out[-2500:])
+        print("--- 서버 출력 ---\n", out[-3000:])
     sys.exit(0 if ok else 1)
 
 

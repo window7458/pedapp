@@ -12,10 +12,11 @@ APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
 from fastapi.testclient import TestClient  # noqa: E402
 
+from fakes import FakePerception  # noqa: E402
 from pipeline import Config  # noqa: E402
 from server import build_app  # noqa: E402
 
-cfg = Config(perception="demo", trigger="hitbox", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 got = {}

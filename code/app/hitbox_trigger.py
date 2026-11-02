@@ -32,8 +32,9 @@ import numpy as np
 from core import Event
 from hitbox_core import (CROWD_EV_N, CROWD_EV_S, GROUP_S, ROW_DX_M, ROW_GAP_S, V529Core, row_msg)
 
-# 보행자에게 경고할 대상: 사람과 탈것(자동차·버스·오토바이·자전거·킥보드)만 (환경변수 HB_WARN_CLASSES 로 바꿀 수 있음, 쉼표 구분)
-WARN_CLASSES = set(os.environ.get("HB_WARN_CLASSES", "person,car,bus,motorcycle,other_vehicle,bicycle,scooter").split(","))
+# 보행자에게 말하지 않을 대상. 기본은 계단만 뺀다 (팀 결정: 계단·단차는 위험 요소에서 제외).
+# 사람 · 탈것 · 장애물(기둥 · 볼라드 · 벽 …) · 신호 바뀜은 모두 경고한다. 환경변수 HB_WARN_EXCLUDE 로 바꿀 수 있음 (쉼표 구분).
+WARN_EXCLUDE = set(filter(None, os.environ.get("HB_WARN_EXCLUDE", "stairs").split(",")))
 
 # ───────────────────────── 말하기 (SJ 실행 시스템 dispatcher.clock_pieces 와 같은 문장) ─────────────────────────
 KO = {"person": "사람", "bicycle": "자전거", "scooter": "킥보드", "motorcycle": "오토바이", "car": "자동차", "bus": "버스",
@@ -272,7 +273,7 @@ class LightWorker(_Worker):
         if self.model is None:
             from ultralytics import YOLO
             m = YOLO(str(self.weights))
-            ids = [k for k, v in m.names.items() if v == "traffic_light"]
+            ids = [k for k, v in m.names.items() if v.replace(" ", "_") == "traffic_light"]
             if not ids:
                 raise RuntimeError("이 가중치에 traffic_light 클래스가 없음")
             self.model, self.light_id, self.ready = m, ids[0], True
@@ -408,7 +409,7 @@ class HitboxTrigger:
 
         out = []
         for r in sorted(rt, key=lambda r: r["t"]):
-            if r.get("cls") not in WARN_CLASSES:                 # 사람·차량 외(기둥·신호등 등)는 보행자에게 말하지 않음
+            if r.get("cls") in WARN_EXCLUDE:                     # 계단은 말하지 않음
                 continue
             if r.get("cls") == "person":                         # 붐빌 때 사람 경고 빼기 (v5_13, 지난 2 s 만 봄)
                 self.person_t.append(r["t"])

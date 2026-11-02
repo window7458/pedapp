@@ -1,4 +1,8 @@
-"""영상 소스 — 폰 카메라(웹소켓으로 받은 JPEG) 또는 서버가 직접 여는 카메라 주소.
+"""영상 소스 — 폰 카메라 또는 라즈베리파이 카메라 (둘 다 웹소켓으로 JPEG 를 밀어 보낸다).
+
+  phone : 보행자 폰 브라우저가 /ws 로 보냄
+  pi    : 라즈베리파이에서 pi_camera.py 가 /ws?role=camera 로 보냄 (같은 와이파이가 아니어도 서버 주소만 닿으면 됨)
+  url   : (개발용) 서버가 직접 여는 카메라 주소
 
 서버 카메라로 쓸 수 있는 것
   http://<IP>:81/stream        XIAO ESP32S3 Sense (공식 CameraWebServer 예제의 MJPEG)
@@ -36,6 +40,21 @@ class SourceManager:
         im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if im is not None:
             self.pipe.submit(im)
+
+    # 라즈베리파이 ───────────────────────────────────
+    def on_camera_frame(self, data: bytes):
+        if self.mode != "pi":
+            return
+        im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        if im is not None:
+            self.pipe.submit(im)
+
+    def use_pi(self):
+        self._halt()
+        self.mode, self.url = "pi", None
+        self.pipe.preview_enabled = True             # 폰 화면에서 파이 카메라 영상을 보여 주려고
+        self.pipe.set_source_label("raspberrypi")
+        self.emit({"type": "source", "mode": "pi", "state": "ok"})
 
     def use_phone(self):
         self._halt()

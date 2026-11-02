@@ -15,10 +15,11 @@ os.environ["HB_SURFACE"] = "0"
 APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
 
+from fakes import FakePerception  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 
 msgs = []
-cfg = Config(perception="demo", trigger="hitbox", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
 pipe = LivePipeline(cfg, msgs.append, log=print)
 rng = np.random.default_rng(1)
 base = cv2.GaussianBlur(rng.integers(0, 255, (960, 540, 3), dtype=np.uint8), (0, 0), 3)
