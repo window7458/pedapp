@@ -77,6 +77,9 @@ def find_weights(spec: str | None) -> Path | None:
                 return Path(WEIGHTS[spec])
         except Exception:
             pass
+        import re
+        if re.fullmatch(r"yolo(v8|11|12)?[nsmlx](-seg)?\.pt", spec):    # 공식 일반 모델 이름이면 ultralytics 가 받아 온다 (시험용)
+            return Path(spec)
         return None
     for d in WEIGHT_DIRS:
         for n in WEIGHT_PREF:
