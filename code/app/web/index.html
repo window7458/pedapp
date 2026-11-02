@@ -3,129 +3,136 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#E3EDF2">
+<meta name="theme-color" content="#F5F8FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="SayEye">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>SayEye</title>
 <link rel="stylesheet" href="app.css">
-<script src="mascot.js"></script>
 <style>
-.hello{margin:6px 2px 0}
-.hello small{display:block;font-size:13.5px;font-weight:700;color:var(--accent)}
-.hello h1{margin:2px 0 0;font-size:24px;line-height:1.3;font-weight:800;letter-spacing:-.045em}
-.stagewrap{position:relative;flex:1;min-height:0;display:grid;place-items:center}
-.orbit{--sz:min(70vw,300px,38dvh);position:relative;width:var(--sz);height:var(--sz);border-radius:50%;display:grid;place-items:center}
-.orbit::before{content:"";position:absolute;inset:-14px;border-radius:50%;background:conic-gradient(from 200deg,#CFE0FF,var(--accent2),var(--accent),#B9A6FF,#CFE0FF);
-  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 9px));mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 9px));opacity:.85;transition:opacity .5s}
-.orbit::after{content:"";position:absolute;inset:-34px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent2) 45%,transparent),transparent);filter:blur(14px);z-index:-1;transition:background .5s}
-.running .orbit::before{animation:spin 6s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.warn .orbit::before{background:conic-gradient(from 200deg,#FFE1C9,#FFB27E,var(--warm),var(--danger),#FFE1C9)}
-.warn .orbit::after{background:radial-gradient(closest-side,rgba(255,138,91,.55),transparent)}
-.disc{position:absolute;inset:0;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:radial-gradient(circle at 35% 28%,#fff,var(--glass-strong) 60%);border:1px solid var(--glass-line);
-  box-shadow:inset 0 -12px 30px rgba(100,116,229,.12),var(--shadow)}
-.disc .mascot{width:58%;height:64%;margin-top:4%;transition:opacity .4s,transform .5s var(--spring)}
-.hasvideo .disc .mascot{opacity:0;transform:scale(.6)}
-#stage{position:absolute;inset:0;background:#0b1220;border-radius:50%;overflow:hidden}
+.agent{cursor:pointer}
+#stage{position:absolute;right:18px;top:64px;width:96px;height:128px;border-radius:16px;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
 #stage video,#stage img,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.chip{position:absolute;top:-6px;left:50%;transform:translate(-50%,-50%);z-index:3}
-.chip b{width:8px;height:8px;border-radius:50%;background:#9AA1C8}
-.running .chip b{background:var(--ok);animation:pulse 1.6s infinite}
-.warn .chip b{background:var(--danger)}
-@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(59,174,138,.2)}}
-.running #notice{position:absolute;top:4px;left:0;right:0;z-index:5;margin:0;padding:12px 16px;border-radius:18px;background:var(--danger-tint);color:var(--danger);font-weight:700;font-size:14px;box-shadow:var(--shadow)}
-#live{display:flex;align-items:center;gap:12px;padding:14px 14px 14px 18px;border-radius:26px;margin-top:8px;transition:background .4s,transform .4s var(--spring)}
-#live .t{flex:1;min-width:0}#liveText{display:block;font-size:19px;font-weight:800;letter-spacing:-.035em;line-height:1.3}
-#liveMeta{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px}#liveMeta:empty{display:none}
-#live.warn{background:color-mix(in srgb,var(--danger-tint) 88%,transparent);transform:scale(1.02)}#live.warn #liveMeta{color:var(--danger)}
-#repeat{flex:none;width:50px;height:50px;border-radius:18px;background:var(--tint);color:var(--accent);display:grid;place-items:center}
-#repeat svg{width:22px;height:22px}
-.dock{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:6px;margin-top:26px;padding:12px 10px 10px;border-radius:32px}
-.side{display:grid;justify-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted)}
-.side button{width:62px;height:62px;border-radius:22px;display:grid;place-items:center;background:var(--tint);color:var(--accent);transition:transform .25s var(--spring),background .3s,color .3s}
-.side button:active{transform:scale(.9)}.side svg{width:27px;height:27px}
-:root[data-hc="1"] .side button{border:3px solid #FFD400}
-#mic.on{background:var(--accent);color:var(--on-accent);animation:listen 1.2s ease-in-out infinite}
-@keyframes listen{50%{box-shadow:0 0 0 12px color-mix(in srgb,var(--accent) 22%,transparent)}}
-#sos{color:var(--danger);background:var(--danger-tint)}
-.center{display:grid;justify-items:center;margin-top:-46px}
-button.big{position:relative;width:104px;height:104px;border-radius:50%;background:linear-gradient(150deg,#A9B8FF,var(--accent) 55%,#4F5DCF);color:#fff;display:grid;place-items:center;
-  border:5px solid var(--glass-strong);box-shadow:0 16px 34px rgba(100,116,229,.42),inset 0 2px 0 rgba(255,255,255,.45);transition:transform .3s var(--spring),box-shadow .4s,background .4s}
-button.big:active{transform:scale(.93)}
-button.big svg{width:40px;height:40px;grid-area:1/1;transition:opacity .25s,transform .45s var(--spring)}
-button.big .i-stop{opacity:0;transform:scale(.4) rotate(-45deg)}
-button.big.running{background:linear-gradient(150deg,#FFC7A8,var(--warm) 50%,var(--danger));box-shadow:0 16px 34px rgba(232,85,63,.38),inset 0 2px 0 rgba(255,255,255,.4)}
-button.big.running .i-play{opacity:0;transform:scale(.4) rotate(45deg)}button.big.running .i-stop{opacity:1;transform:none}
-:root[data-hc="1"] button.big{background:#FFD400;color:#000;box-shadow:none;border-color:#000}
-.gotxt{display:block;text-align:center;margin-top:6px;font-weight:800;font-size:14px;letter-spacing:-.03em}
+.hasvideo .say{padding-right:104px}
+#notice{position:relative;margin:10px 6px 0 0;padding:12px 14px;border-radius:16px;background:#FFF1F0;color:#C8283A;font-weight:700;font-size:14px;z-index:5}
+.lower{position:relative;z-index:4;display:flex;flex-direction:column;gap:14px;padding:0 18px}
+.start{position:relative;height:clamp(104px,15vh,128px);border-radius:24px;background:var(--sky);color:#fff;overflow:hidden;display:flex;align-items:center;padding:0 22px;text-align:left;
+  transition:background .5s var(--ease),transform .25s var(--ease);box-shadow:0 10px 24px rgba(60,90,220,.22)}
+.start:active{transform:scale(.98)}
+.start .pill{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.06em;background:rgba(255,255,255,.24);padding:5px 11px;border-radius:99px}
+.start h2{font-size:34px;font-weight:900;letter-spacing:-.04em;margin:8px 0 0;line-height:1}
+.start small{display:block;font-size:13px;font-weight:600;opacity:.92;margin-top:8px}
+.start .art{position:absolute;right:-4px;bottom:0;width:190px;height:100%;pointer-events:none}
+.running .start{background:var(--blue)}
+.caut .start{background:linear-gradient(120deg,#F5A623,#E08A00)}
+.warn .start{background:linear-gradient(120deg,#F0503C,#C8283A)}
+.armed .start,.armed.tile{box-shadow:0 0 0 4px rgba(43,91,255,.35)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tiles .tile{height:clamp(130px,24vh,216px)}
+#sos{color:#C8283A}
+:root[data-hc="1"] .start{background:#000;border:3px solid #FFD400;color:#FFD400}
+@media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .tile{color:#fff}}
 </style>
 </head>
 <body>
-<div id="splash" aria-hidden="true"><div class="stack"><i data-mascot class="float"></i><div class="name" id="splashName"></div><div class="tag">말하고, 보고, 함께 걸어요</div></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <symbol id="i-rep" viewBox="0 0 48 48"><path d="M8 24a16 16 0 1 0 5-11.6L8 17" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v9h9" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 18v12l9-6z" fill="#2B5BFF"/></symbol>
+ <symbol id="i-sos" viewBox="0 0 48 48"><circle cx="24" cy="16" r="7" fill="none" stroke="#89A3F7" stroke-width="3"/><path d="M10 41c1-8 7-13 14-13s13 5 14 13" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round"/><circle cx="37" cy="12" r="6" fill="#E5484D"/><path d="M37 9v3.5M37 15h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></symbol>
+ <symbol id="i-cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></g></symbol>
+ <!-- 시작 카드 그림: 흰 지팡이를 짚고 걷는 사람 픽토그램 + 언덕 -->
+ <symbol id="i-art" viewBox="0 0 190 128" preserveAspectRatio="xMaxYMax meet">
+  <circle cx="44" cy="34" r="11" fill="#fff" opacity=".28"/><circle cx="58" cy="30" r="14" fill="#fff" opacity=".28"/><circle cx="152" cy="26" r="9" fill="#fff" opacity=".28"/>
+  <path d="M0 98c34-18 70-18 104-6s58 8 86-6v42H0z" fill="#fff" opacity=".18"/><path d="M0 112c46-12 92-8 130-2 24 4 42 2 60-4v22H0z" fill="#fff" opacity=".3"/>
+  <g transform="translate(106 18)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+   <circle cx="20" cy="8" r="7.5" fill="#fff" stroke="none"/>
+   <path d="M19 20 L15 46" stroke-width="11"/>
+   <path d="M19 23 L10 40" stroke-width="6"/>
+   <path d="M20 24 L28 35 L35 38" stroke-width="6"/>
+   <path d="M15 46 L26 63 L29 82" stroke-width="8"/>
+   <path d="M15 46 L10 65 L2 80" stroke-width="8"/>
+   <path d="M35 38 L52 84" stroke-width="3.2"/>
+   <path d="M48.3 74 L52 84" stroke="#E5484D" stroke-width="3.4"/>
+  </g>
+ </symbol>
+</defs></svg>
+
 <div class="app" id="app">
-  <header class="top">
-    <div class="brand"><i data-mascot></i><span>SayEye</span></div>
-    <span id="conn" class="pill" role="status">연결 중</span>
-    <button class="iconbtn" id="openSheet" aria-label="설정과 도움말" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
-  </header>
-
-  <div class="hello" aria-hidden="true"><small>오늘도 함께 걸어요</small><h1 id="greet">앞을 대신 봐 드릴게요</h1></div>
-
-  <section class="stagewrap" id="heroBox">
+  <div class="agent" id="agent" role="button" tabindex="0" aria-label="방금 안내 다시 듣기"><div class="fx"><i class="a"></i><i class="b"></i><i class="c"></i></div></div>
+  <section class="upper">
+    <header class="top">
+      <b>SayEye</b>
+      <span id="conn" class="st" role="status"><i></i>연결 중</span>
+      <button class="gear" id="openSheet" aria-label="설정과 도움말" aria-haspopup="dialog"><svg><use href="#i-cog"/></svg></button>
+    </header>
+    <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div>
     <p id="notice" role="alert" hidden></p>
-    <div class="orbit">
-      <div class="disc"><i data-mascot class="float" id="face"></i>
-        <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div></div>
-      <div class="chip pill" aria-hidden="true"><b></b><span id="chipText">준비됐어요</span></div>
+    <div class="say" id="say" aria-live="off"><small id="sayLab">SayEye</small><h1 id="sayH">안녕하세요,<br>준비됐어요</h1><p id="sayP">"시작"이라고 말하거나 아래 버튼을 두 번 누르세요</p></div>
+    <div class="ear" id="ear" aria-hidden="true"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span><b id="earText">듣기 준비 중</b><span class="again">위쪽 누르면 다시 듣기</span></div>
+  </section>
+  <section class="lower">
+    <button class="start" id="go" aria-label="시작"><div><span class="pill" id="goPill">START</span><h2 id="goTxt">시작</h2><small id="goSub">두 번 누르면 안내가 시작돼요</small></div><svg class="art"><use href="#i-art"/></svg></button>
+    <div class="tiles">
+      <button class="tile" id="repeat" aria-label="방금 안내 다시 듣기"><svg><use href="#i-rep"/></svg>다시 듣기</button>
+      <button class="tile" id="sos" aria-label="보호자에게 도움 요청"><svg><use href="#i-sos"/></svg>보호자 호출</button>
     </div>
   </section>
-
-  <div id="live" class="card" role="status" aria-live="off"><div class="t"><small id="liveMeta"></small><span id="liveText">시작 버튼을 눌러 주세요.</span></div>
-    <button id="repeat" aria-label="방금 안내 다시 듣기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button></div>
-
-  <nav class="dock glass" aria-label="주요 버튼">
-    <div class="side"><button id="mic" aria-label="음성 명령. 누르고 말씀하세요"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><span>음성 명령</span></div>
-    <div class="center"><button id="go" class="big" aria-label="시작"><svg class="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.5-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg><svg class="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="3"/></svg></button><span class="gotxt" id="goTxt">시작</span></div>
-    <div class="side"><button id="sos" aria-label="보호자에게 도움 요청"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9z"/></svg></button><span>보호자 호출</span></div>
-  </nav>
 </div>
 
 <div class="sheet-bg" id="sheetBg"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="설정과 도움말" tabindex="-1">
   <div class="grab" aria-hidden="true"></div>
   <h2>설정</h2>
+  <label><span>카메라</span><select id="oSrc"><option value="phone">폰 카메라</option><option value="pi">라즈베리파이 카메라</option></select></label>
+  <label><span>항상 듣기<small>버튼 없이 "시작", "그만", "다시 말해줘", "도와줘"를 알아들어요</small></span><input type="checkbox" class="sw" id="oListen"></label>
+  <label><span>위치 공유<small>보호자 화면 지도에 지금 위치를 보여 줘요</small></span><input type="checkbox" class="sw" id="oGps"></label>
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
   <label><span>효과음</span><input type="checkbox" class="sw" id="oBeep"></label>
   <label><span>진동</span><input type="checkbox" class="sw" id="oVib"></label>
-  <label><span>장면 설명<small>불꽃놀이·벚꽃길 같은 특별한 장면</small></span><input type="checkbox" class="sw" id="oScene"></label>
+  <label><span>상황 · 장면 설명<small>위험 물체 설명, 불꽃놀이 · 벚꽃길 같은 장면</small></span><input type="checkbox" class="sw" id="oScene"></label>
   <label><span>고대비 (검정/노랑)</span><input type="checkbox" class="sw" id="oHc"></label>
   <label><span>화면에 카메라 보이기</span><input type="checkbox" class="sw" id="oPrev"></label>
   <label><span>음성 속도</span><input type="range" id="oRate" min="0.7" max="1.6" step="0.1"></label>
   <label><span>음성 크기</span><input type="range" id="oVol" min="0.3" max="1" step="0.1"></label>
-  <label><span>카메라</span><select id="oSrc"><option value="phone">폰 카메라</option><option value="server">서버 카메라</option></select></label>
-  <label id="urlBox" hidden><input type="text" id="url" placeholder="http://192.168.0.20:81/stream" aria-label="서버 카메라 주소"></label>
-  <div class="row-set"><button class="btn primary" id="help" aria-label="사용법 듣기">사용법 듣기</button><button class="btn" id="closeSheet">닫기</button></div>
-  <p style="margin:6px 2px 0;font-size:13px;color:var(--muted)"><a href="/guardian">보호자 화면</a> · <a href="/dev">개발 화면</a></p>
+  <div class="row-set"><button class="btn primary" id="help">사용법 듣기</button><button class="btn" id="closeSheet">닫기</button></div>
+  <div class="row-set"><a class="btn" href="/dev">개발자 화면</a><a class="btn" href="/guardian">보호자 화면</a></div>
+  <p id="sysInfo" style="margin:8px 2px 0;font-size:12.5px;color:var(--sub)"></p>
 </div>
 
+<script src="splash.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
-const KO = {person:'사람',bicycle:'자전거',scooter:'킥보드',motorcycle:'오토바이',car:'자동차',bus:'버스',other_vehicle:'차량',obstacle:'장애물',stairs:'계단',traffic_light:'신호등'};
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true,
-           hc:false, prev:true, dets:null, detsAt:0, wake:null, defaultUrl:'', seen:false, ready:false, lastWarns:[], wsOk:false, lastMsgAt:0,
-           spokeReady:false};
+           hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
+           spokeReady:false, pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
-function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('insight2')||'{}')); }catch(e){} }
-function save(){ try{ localStorage.setItem('insight2', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,mode:S.mode,seen:S.seen,onb:S.onb,url:$('#url').value})); }catch(e){} }
+function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; }
+function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
+  mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
-function live(text, meta){ $('#liveText').textContent=text; $('#liveMeta').textContent=meta||''; $('#live').classList.toggle('warn', meta==='경고'); }
 
-/* ── 소리: 효과음 + 음성 (경고가 설명·장면을 끊고, 급한 경고가 덜 급한 경고를 끊는다) ── */
+/* ── 화면 문구 (위쪽 에이전트 영역) ── */
+const esc = (t) => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function say3(lab, h, p){ $('#sayLab').textContent=lab; $('#sayH').innerHTML=h; $('#sayP').textContent=p||''; $('#sayP').hidden=!p; }
+function minutes(){ return Math.max(1, Math.round((performance.now()-S.t0)/60000)); }
+function calmView(){
+  if(document.body.classList.contains('warn')||document.body.classList.contains('caut')) return;
+  if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을<br>살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
+  else say3('SayEye', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
+}
+function flash(level, text){             // level: warn(멈추세요) | caut(피하세요)
+  const parts = text.split(/(?<=[.?!])\s+/), act = parts.length>1 ? parts.slice(1).join(' ') : '';
+  document.body.classList.remove('warn','caut'); void document.body.offsetWidth; document.body.classList.add(level);
+  const head = esc((act || parts[0]).replace(/\.$/,'')).replace(/으로 /,'으로<br>');
+  say3(level==='warn'?'위험':'주의', head, act ? parts[0] : '');
+  setGo(); clearTimeout(S.flashT);
+  S.flashT=setTimeout(()=>{ document.body.classList.remove('warn','caut'); setGo(); calmView(); }, level==='warn'?4000:3200);
+}
+
+/* ── 소리: 효과음 + 음성 (경고가 설명을 끊고, 급한 경고가 덜 급한 경고를 끊는다) ── */
 let actx=null;
 function beep(kind){
   if(!S.beep) return;
@@ -160,9 +167,10 @@ const speech = (() => {
     if(cur) return;
     const now=performance.now();
     q = q.filter(i => now-i.at <= TTL[i.kind]);
-    if(!q.length) return;
+    if(!q.length){ ears.resume(); return; }
     q.sort((a,b) => PRI[a.kind]-PRI[b.kind] || (b.prio||1)-(a.prio||1) || a.at-b.at);
     const it=q.shift(); cur=it;
+    ears.pause();                                   // 내 목소리를 명령으로 알아듣지 않게, 말하는 동안은 듣기를 멈춘다
     const u=new SpeechSynthesisUtterance(it.text); u.lang='ko-KR'; if(voice) u.voice=voice; u.rate=S.rate; u.volume=S.vol;
     const done=()=>{ if(cur===it){ cur=null; setTimeout(pump,60); } };
     u.onend=done; u.onerror=done;
@@ -170,103 +178,47 @@ const speech = (() => {
   }
   function unlock(){ if(!synth) return; try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u); }catch(e){} }
   function stop(){ q=[]; cur=null; if(synth) synth.cancel(); }
-  return {push, unlock, stop};
+  return {push, unlock, stop, busy:()=>!!cur};
 })();
-const say = (text, kind='ui', prio) => { live(text); speech.push(kind, text, prio); };
+const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
-/* ── 연결 ── */
-function connect(){
-  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
-  ws.binaryType='arraybuffer'; S.ws=ws;
-  ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; $('#conn').textContent='연결됨'; $('#conn').classList.remove('off'); sendCmd({type:'set_scene', on:S.scene});
-                      if(was && S.running) say('서버와 다시 연결됐어요.'); };
-  ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.', 'ui'); S.wsOk=false; $('#conn').textContent='연결 끊김'; $('#conn').classList.add('off'); setTimeout(connect, 1500); };
-  ws.onmessage = (e) => { S.lastMsgAt=performance.now(); try{ handle(JSON.parse(e.data)); }catch(err){} };
-}
-function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); }
-
-function handle(m){
-  switch(m.type){
-    case 'hello': S.defaultUrl = m.default_url||''; if(S.defaultUrl && !$('#url').value) $('#url').value=S.defaultUrl; break;
-    case 'dets': S.dets=m; S.detsAt=performance.now(); if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
-    case 'warn':
-      if(listening) try{ rec.abort(); }catch(e){}
-      S.lastWarns.unshift(m.text); S.lastWarns.length=Math.min(S.lastWarns.length,5);
-      beep(m.prio||1); vibrate(m.prio||1);
-      live(m.text, '경고'); speech.push('warn', m.text, m.prio); flashWarn();
-      break;
-    case 'desc': live(m.text,'설명'); speech.push('desc', m.text); break;
-    case 'scene': if(S.scene){ live(m.text, m.label||'특별한 장면'); speech.push('scene', m.text); } break;
-    case 'source': if(m.state==='error'){ notice(m.error); say('서버 카메라에 연결하지 못했어요.'); } else if(m.state==='ok') notice(''); break;
-    case 'status': S.fps=m.fps; break;
-  }
-}
-
-/* ── 카메라 ── */
-async function start(){
-  notice(''); speech.unlock(); S.spokeReady=false;
-  try{
-    if(S.mode==='phone'){
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬·파이어폭스는 카메라를 쓸 수 없어요.'); return; }
-      say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
-      S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
-      const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=!S.prev; $('#pv').hidden=true;
-      sendCmd({type:'set_source', mode:'phone'}); startSending();
-    }else{
-      const url=$('#url').value.trim();
-      if(!url){ say('서버 카메라 주소가 비어 있어요. 설정에서 입력해 주세요.'); return; }
-      sendCmd({type:'set_source', mode:'url', url});
-      const im=$('#pv'); im.src='/preview.mjpg?'+Date.now(); im.hidden=!S.prev; $('#cam').hidden=true;
-    }
-  }catch(e){
-    const denied = e && e.name==='NotAllowedError';
-    say(denied ? '카메라 권한이 필요해요. 브라우저 설정에서 카메라를 허용해 주세요.' : '카메라를 켤 수 없어요.');
-    notice(denied ? '카메라 권한이 필요해요.' : '카메라 오류: '+(e&&e.message||e)); return;
-  }
-  S.running=true; S.t0=performance.now(); S.warnedNoVideo=false; setGo(); save();
-  say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
-  try{ if(navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen'); }catch(e){}
-}
-function stop(){
-  S.running=false; clearInterval(S.timer);
-  if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
-  $('#cam').hidden=true; $('#pv').hidden=true; $('#pv').removeAttribute('src'); setGo();
-  try{ if(S.wake){ S.wake.release(); S.wake=null; } }catch(e){}
-  say('안내를 중지했어요.');
-}
-function setGo(){ const b=$('#go'); $('#goTxt').textContent=S.running?'중지':'시작'; b.setAttribute('aria-label', S.running?'중지':'시작'); b.classList.toggle('running', S.running);
-  document.body.classList.toggle('running', S.running); document.body.classList.toggle('hasvideo', S.running && S.prev); $('#stage').hidden=!(S.running && S.prev);
-  $('#chipText').textContent = S.running ? '주변을 살피는 중' : '준비됐어요';
-  $('#face').classList.toggle('look', S.running); $('#greet').textContent = S.running ? '주변을 살피고 있어요' : '앞을 대신 봐 드릴게요'; }
-let warnT=null;
-function flashWarn(){ document.body.classList.add('warn'); $('#face').classList.add('warn'); clearTimeout(warnT);
-  warnT=setTimeout(()=>{ document.body.classList.remove('warn'); $('#face').classList.remove('warn'); }, 2600); }
-function startSending(){
-  const c=document.createElement('canvas'), ctx=c.getContext('2d'); let busy=false; const v=$('#cam');
-  S.timer=setInterval(()=>{
-    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
-    const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
-    const s=Math.min(1, 960/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
-    ctx.drawImage(v,0,0,c.width,c.height); busy=true;
-    c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{ if(S.ws && S.ws.readyState===1) S.ws.send(buf); }); }, 'image/jpeg', 0.6);
-  }, 100);
-}
-/* 영상이 서버에 안 닿는 걸 알려 준다 */
-setInterval(()=>{ if(S.running && S.wsOk && S.mode==='phone' && S.fps===0 && !S.warnedNoVideo && performance.now()-S.t0>15000){ S.warnedNoVideo=true; say('영상이 서버로 전달되지 않고 있어요.'); }
-                  if(S.fps>0) S.warnedNoVideo=false; }, 4000);
-
-/* ── 보호자 호출 · 배터리 ── */
-function sos(){ sendCmd({type:'sos'}); beep(3); vibrate(3); say('보호자에게 도움을 요청했어요.'); }
-if(navigator.getBattery) navigator.getBattery().then(b=>{
-  let said=100; const chk=()=>{ const pct=Math.round(b.level*100);
-    if(!b.charging && pct<=20 && pct<said-9){ said=pct; sendCmd({type:'client_event', kind:'battery', pct}); if(S.running) say(`배터리가 ${pct}퍼센트 남았어요.`); } };
-  b.addEventListener('levelchange', chk); chk(); }).catch(()=>{});
-
-/* ── 음성 명령 (누르고 말하기) ── */
+/* ── 항상 듣기: 버튼 없이 음성 명령 (말하는 중엔 잠시 멈춤) ── */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-let rec=null, listening=false;
+const ears = (() => {
+  let rec=null, on=false, paused=false, retry=null, denied=false;
+  function label(t, live){ $('#earText').textContent=t; $('#ear').classList.toggle('listening', !!live); }
+  function start(){
+    if(!SR){ label('이 브라우저는 음성 명령을 못 써요'); return; }
+    if(!S.listen || denied){ label(denied?'마이크 권한이 필요해요':'항상 듣기 꺼짐'); return; }
+    if(on || paused) return;
+    rec = new SR(); rec.lang='ko-KR'; rec.continuous=true; rec.interimResults=false; rec.maxAlternatives=3;
+    rec.onresult = (e) => {
+      for(let i=e.resultIndex;i<e.results.length;i++){ if(!e.results[i].isFinal) continue;
+        handleSpeech([...e.results[i]].map(a=>a.transcript)); }
+    };
+    rec.onerror = (e) => { if(e.error==='not-allowed'||e.error==='service-not-allowed'){ denied=true; label('마이크 권한이 필요해요'); } };
+    rec.onend = () => { on=false; if(!paused && S.listen && !denied){ clearTimeout(retry); retry=setTimeout(start, 400); } else if(!S.listen) label('항상 듣기 꺼짐'); };
+    try{ rec.start(); on=true; label('듣고 있어요', true); }catch(e){ on=false; }
+  }
+  function pause(){ paused=true; if(on){ try{ rec.abort(); }catch(e){} on=false; } if(S.listen && !denied && SR) label('말하는 중'); }
+  function resume(){ if(!paused) return; paused=false; clearTimeout(retry); retry=setTimeout(start, 250); }
+  function stop(){ paused=false; clearTimeout(retry); if(on){ try{ rec.abort(); }catch(e){} on=false; } label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐'); }
+  return {start, pause, resume, stop};
+})();
+function handleSpeech(alts){
+  for(const t of alts){
+    const raw=(t||'').replace(/\s+/g,'');
+    const wake=/세이|쎄이|say/i.test(raw);
+    if(!wake && raw.length>10) continue;            // 지나가는 대화를 명령으로 오해하지 않게: 짧은 말이거나 "세이아이"로 부를 때만
+    const cmd=parseCommand(raw.replace(/세이아이|쎄이아이|세이|sayeye|say/ig,''));
+    if(cmd){ beep('listen'); runCommand(cmd); return cmd; }
+    if(wake){ say('네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.'); return 'wake'; }
+  }
+  return null;
+}
 function parseCommand(text){
   const t = (text||'').replace(/\s+/g,'').toLowerCase();
+  if(!t) return null;
   if(/(설명|장면|묘사).*(꺼|끄|그만|중지|멈)/.test(t)) return 'scene_off';
   if(/(설명|장면|묘사).*(켜|시작|해줘)/.test(t)) return 'scene_on';
   if(/(터치|안내모드|손가락).*(꺼|끄)/.test(t)) return 'guide_off';
@@ -279,8 +231,8 @@ function parseCommand(text){
   if(/(소리|볼륨).*(작|줄|낮)/.test(t)) return 'vol_down';
   if(/빠르|빨리/.test(t)) return 'faster';
   if(/느리|천천/.test(t)) return 'slower';
-  if(/중지|정지|멈춰|그만|종료|끝내|꺼줘|꺼/.test(t)) return 'stop';
-  if(/시작|출발|켜|가자|실행/.test(t)) return 'start';
+  if(/중지|정지|멈춰|그만|종료|끝내|꺼줘/.test(t)) return 'stop';
+  if(/시작|출발|가자|실행|켜줘/.test(t)) return 'start';
   return null;
 }
 function runCommand(cmd){
@@ -290,110 +242,197 @@ function runCommand(cmd){
     case 'repeat': repeatLast(); break;
     case 'sos': sos(); break;
     case 'help': speakHelp(); break;
-    case 'scene_on': S.scene=true; $('#oScene').checked=true; sendCmd({type:'set_scene',on:true}); save(); say('장면 설명을 켰어요.'); break;
-    case 'scene_off': S.scene=false; $('#oScene').checked=false; sendCmd({type:'set_scene',on:false}); save(); say('장면 설명을 껐어요.'); break;
-    case 'guide_on': S.guide=true; $('#oGuide').checked=true; save(); say('터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.'); break;
-    case 'guide_off': S.guide=false; $('#oGuide').checked=false; save(); say('터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.'); break;
+    case 'scene_on': S.scene=true; $('#oScene').checked=true; sendCmd({type:'set_scene',on:true}); save(); say('설명을 켰어요.'); break;
+    case 'scene_off': S.scene=false; $('#oScene').checked=false; sendCmd({type:'set_scene',on:false}); save(); say('설명을 껐어요.'); break;
+    case 'guide_on': S.guide=true; $('#oGuide').checked=true; save(); setGo(); say('터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.'); break;
+    case 'guide_off': S.guide=false; $('#oGuide').checked=false; save(); setGo(); say('터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.'); break;
     case 'vol_up': S.vol=Math.min(1,S.vol+.2); $('#oVol').value=S.vol; save(); say('소리를 키웠어요.'); break;
     case 'vol_down': S.vol=Math.max(.3,S.vol-.2); $('#oVol').value=S.vol; save(); say('소리를 줄였어요.'); break;
     case 'faster': S.rate=Math.min(1.6,S.rate+.2); $('#oRate').value=S.rate; save(); say('말을 빠르게 할게요.'); break;
     case 'slower': S.rate=Math.max(.7,S.rate-.2); $('#oRate').value=S.rate; save(); say('말을 천천히 할게요.'); break;
-    default: say('잘 못 들었어요. 도움말이라고 말해 보세요.');
   }
 }
-function listen(){
-  if(!SR){ say('이 브라우저는 음성 명령을 지원하지 않아요. 버튼을 사용해 주세요.'); return; }
-  if(listening){ try{ rec.stop(); }catch(e){} return; }
-  speech.unlock(); beep('listen');
-  rec = new SR(); rec.lang='ko-KR'; rec.interimResults=false; rec.maxAlternatives=3;
-  let got=false;
-  rec.onresult = (e)=>{ got=true; let cmd=null, heard='';
-    for(const alt of e.results[0]){ heard = heard||alt.transcript; cmd = parseCommand(alt.transcript); if(cmd){ heard=alt.transcript; break; } }
-    live(`"${heard}"`, '음성 명령'); runCommand(cmd); };
-  rec.onerror = (e)=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed') say('마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.'); else if(e.error==='no-speech') say('말씀이 들리지 않았어요.'); };
-  rec.onend = ()=>{ listening=false; $('#mic').classList.remove('on'); clearTimeout(rec._t); };
-  try{ rec.start(); listening=true; $('#mic').classList.add('on'); live('듣고 있어요. 말씀하세요.'); rec._t=setTimeout(()=>{ try{ rec.stop(); }catch(e){} }, 7000); }catch(e){ listening=false; }
+
+/* ── 서버 연결 ── */
+function connect(){
+  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
+  ws.binaryType='arraybuffer'; S.ws=ws;
+  ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true); sendCmd({type:'set_scene', on:S.scene});
+                      if(S.running) sendCmd({type:'set_source', mode:S.mode});
+                      if(was && S.running) say('서버와 다시 연결됐어요.'); };
+  ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false); setTimeout(connect, 1500); };
+  ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
-function repeatLast(){
-  if(!S.lastWarns.length){ say('아직 들려드린 안내가 없어요.'); return; }
-  say(S.lastWarns[0]);
-}
-function speakHelp(){
-  say('세이아이 사용법이에요. 화면 아래 가운데 큰 버튼은 시작과 중지예요. 왼쪽 버튼은 음성 명령이에요. 누르고 시작, 중지, 다시 들려줘, 도와줘, 소리 키워, 천천히, 설명 꺼줘 같은 말을 해 보세요. 도와줘라고 하거나 오른쪽 보호자 호출 버튼을 두 번 누르면 보호자에게 알림이 가요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
+function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : (S.everOk?'연결 끊김':'연결 중'); }
+function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); }
+
+function handle(m){
+  switch(m.type){
+    case 'hello': S.pi=m.pi||0; $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger} · 설명 ${m.vlm==='none'?'꺼짐':'켜짐'}`; break;
+    case 'camera': S.pi=m.connected||0; if(S.running && S.mode==='pi') say(S.pi ? '라즈베리파이 카메라가 연결됐어요.' : '라즈베리파이 카메라 연결이 끊겼어요.'); if(S.pi) notice(''); break;
+    case 'dets': S.dets=m; S.detsAt=performance.now(); if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
+    case 'warn': {
+      const prio=m.prio||1;
+      S.lastWarns.unshift(m.text); S.lastWarns.length=Math.min(S.lastWarns.length,5);
+      beep(prio); vibrate(prio); speech.push('warn', m.text, prio);
+      S.latest=m.text;
+      if(prio>=3) flash('warn', m.text); else if(prio===2) flash('caut', m.text); else calmView();
+      break; }
+    case 'desc': if(S.scene){ S.latest=m.text; speech.push('desc', m.text); calmView(); } break;
+    case 'scene': if(S.scene){ S.latest=m.text; speech.push('scene', m.text);
+                    if(!document.body.classList.contains('warn') && !document.body.classList.contains('caut')) say3(m.label||'특별한 장면', '주변을<br>살피고 있어요', m.text); } break;
+    case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok' && S.mode!=='pi') notice(''); break;
+    case 'status': S.fps=m.fps; break;
+  }
 }
 
-/* ── 터치 안내: 한 번 누르면 이름과 기능을 읽고, 4초 안에 같은 버튼을 한 번 더 누르면 실행 ── */
-const GUIDE = {
-  go:    ()=>S.running ? ['중지','안내를 멈춥니다.'] : ['시작','카메라로 주변을 보고 위험을 알려드립니다.'],
-  mic:   ()=>['음성 명령','누르고 말씀하세요. 시작, 중지, 다시 들려줘, 도와줘 같은 말을 알아들어요.'],
-  repeat:()=>['다시 듣기','방금 들려드린 안내를 한 번 더 읽어 드립니다.'],
-  sos:   ()=>['보호자 호출','보호자에게 도움 요청 알림을 보냅니다.'],
-};
-const ACT = {go:()=>S.running?stop():start(), mic:listen, repeat:repeatLast, sos:sos};
-const DIRECT = new Set(['mic','repeat']);          // 위험하지 않은 버튼은 한 번에 실행
+/* ── 카메라 ── */
+async function start(){
+  notice(''); speech.unlock(); S.spokeReady=false;
+  try{
+    if(S.mode==='phone'){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬 · 파이어폭스는 카메라를 쓸 수 없어요.'); return; }
+        say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
+      S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+      const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=false; $('#pv').hidden=true;
+      sendCmd({type:'set_source', mode:'phone'}); startSending();
+    }else{
+      sendCmd({type:'set_source', mode:'pi'});
+      if(!S.pi){ say('라즈베리파이 카메라가 아직 연결되지 않았어요. 파이에서 카메라 프로그램을 켜 주세요.'); notice('라즈베리파이 카메라가 연결되지 않았어요. 파이에서 pi_camera.py 를 실행해 주세요.'); }
+      const im=$('#pv'); im.src='/preview.mjpg?'+Date.now(); im.hidden=false; $('#cam').hidden=true;
+    }
+  }catch(e){
+    const denied = e && e.name==='NotAllowedError';
+    say(denied ? '카메라 권한이 필요해요. 브라우저 설정에서 카메라를 허용해 주세요.' : '카메라를 켤 수 없어요.');
+    notice(denied ? '카메라 권한이 필요해요.' : '카메라 오류: '+(e&&e.message||e)); return;
+  }
+  S.running=true; S.t0=performance.now(); S.latest=''; S.warnedNoVideo=false; setGo(); calmView(); save();
+  say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
+  try{ if(navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen'); }catch(e){}
+  startGeo();
+}
+function stop(){
+  S.running=false; clearInterval(S.timer);
+  if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
+  $('#cam').hidden=true; $('#pv').hidden=true; $('#pv').removeAttribute('src');
+  document.body.classList.remove('warn','caut'); setGo(); calmView();
+  try{ if(S.wake){ S.wake.release(); S.wake=null; } }catch(e){}
+  stopGeo();
+  say('안내를 중지했어요.');
+}
+function setGo(){
+  const b=$('#go'), body=document.body, lv=body.classList.contains('warn')?'DANGER':body.classList.contains('caut')?'CAUTION':'WATCHING';
+  $('#goPill').textContent = S.running ? lv : 'START';
+  $('#goTxt').textContent = S.running ? '중지' : '시작';
+  $('#goSub').textContent = S.guide ? (S.running ? '두 번 누르면 안내를 멈춰요' : '두 번 누르면 안내가 시작돼요') : (S.running ? '누르면 안내를 멈춰요' : '누르면 안내가 시작돼요');
+  b.setAttribute('aria-label', S.running?'중지':'시작');
+  body.classList.toggle('running', S.running);
+  const vid = S.running && S.prev; body.classList.toggle('hasvideo', vid); $('#stage').hidden=!vid;
+  setConn(S.wsOk);
+}
+function startSending(){
+  const c=document.createElement('canvas'), ctx=c.getContext('2d'); let busy=false; const v=$('#cam');
+  S.timer=setInterval(()=>{
+    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
+    const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
+    const s=Math.min(1, 960/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
+    ctx.drawImage(v,0,0,c.width,c.height); busy=true;
+    c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{ if(S.ws && S.ws.readyState===1) S.ws.send(buf); }); }, 'image/jpeg', 0.6);
+  }, 100);
+}
+setInterval(()=>{ if(S.running && S.wsOk && S.fps===0 && !S.warnedNoVideo && performance.now()-S.t0>15000){ S.warnedNoVideo=true; say('영상이 서버로 전달되지 않고 있어요.'); }
+                  if(S.fps>0) S.warnedNoVideo=false; if(S.running) calmView(); }, 5000);
+
+/* ── 위치: 안내 중에만, 5초에 한 번 보호자에게 ── */
+function startGeo(){
+  if(!S.gps || !navigator.geolocation || S.geo!=null) return;
+  S.geo = navigator.geolocation.watchPosition(p=>{
+    const now=Date.now(); if(now-S.lastGeo<5000) return; S.lastGeo=now;
+    sendCmd({type:'gps', lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy});
+  }, ()=>{}, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
+function stopGeo(){ if(S.geo!=null){ navigator.geolocation.clearWatch(S.geo); S.geo=null; } }
+
+/* ── 보호자 호출 · 배터리 ── */
+function sos(){ sendCmd({type:'sos'}); beep(3); vibrate(3); say('보호자에게 도움을 요청했어요.'); }
+if(navigator.getBattery) navigator.getBattery().then(b=>{
+  let said=100; const chk=()=>{ const pct=Math.round(b.level*100);
+    if(!b.charging && pct<=20 && pct<said-9){ said=pct; sendCmd({type:'client_event', kind:'battery', pct}); if(S.running) say(`배터리가 ${pct}퍼센트 남았어요.`); } };
+  b.addEventListener('levelchange', chk); chk(); }).catch(()=>{});
+
+function repeatLast(){ speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
+function speakHelp(){
+  say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
+}
+
+/* ── 터치 안내: 한 번 누르면 이름을 읽고, 4초 안에 같은 버튼을 한 번 더 누르면 실행 ── */
+const GUIDE = { go:()=>S.running ? ['중지','안내를 멈춥니다.'] : ['시작','카메라로 주변을 보고 위험을 알려드립니다.'],
+                sos:()=>['보호자 호출','보호자에게 도움 요청 알림을 보냅니다.'] };
+const ACT = {go:()=>S.running?stop():start(), sos:sos, repeat:repeatLast};
+const DIRECT = new Set(['repeat']);
 let lastTap={id:null,t:0};
 for(const id of Object.keys(ACT)){
-  $('#'+id).addEventListener('click', ()=>{
-    if(!S.seen) firstTouch();
+  $('#'+id).addEventListener('click', (e)=>{
+    e.stopPropagation(); firstTouch();
     if(!S.guide || DIRECT.has(id)){ ACT[id](); return; }
     const now=performance.now(), [name,desc]=GUIDE[id]();
+    document.querySelectorAll('.armed').forEach(x=>x.classList.remove('armed'));
     if(lastTap.id===id && now-lastTap.t<4000){ lastTap={id:null,t:0}; ACT[id](); }
-    else{ lastTap={id,t:now}; speech.unlock(); say(`${name}. ${desc} 실행하려면 같은 버튼을 한 번 더 누르세요.`); }
+    else{ lastTap={id,t:now}; (id==='go'?$('.lower'):$('#'+id)).classList.add('armed'); setTimeout(()=>document.querySelectorAll('.armed').forEach(x=>x.classList.remove('armed')),4000);
+          speech.unlock(); say(`${name}. ${desc} 실행하려면 같은 버튼을 한 번 더 누르세요.`); }
   });
 }
-function firstTouch(){
-  S.seen=true; save(); speech.unlock();
-}
+$('#agent').addEventListener('click', ()=>{ firstTouch(); repeatLast(); });
+$('.upper').addEventListener('click', (e)=>{ if(e.target.closest('button,a,select,input,#stage')) return; firstTouch(); repeatLast(); });
+$('#agent').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); repeatLast(); } });
+function firstTouch(){ if(!S.seen){ S.seen=true; save(); } speech.unlock(); ears.start(); }
+document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
 
 /* ── 설정 ── */
 function applySettings(){
   $('#oGuide').checked=S.guide; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oScene').checked=S.scene; $('#oHc').checked=S.hc;
-  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#urlBox').hidden=S.mode!=='server';
+  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
   document.documentElement.dataset.hc = S.hc?'1':'';
   setGo();
 }
-const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key]=conv(e.target.type==='checkbox'?e.target.checked:e.target.value); save(); applySettings(); if(key==='scene') sendCmd({type:'set_scene',on:S.scene}); }); };
+const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key]=conv(e.target.type==='checkbox'?e.target.checked:e.target.value); save(); applySettings();
+  if(key==='scene') sendCmd({type:'set_scene',on:S.scene});
+  if(key==='listen'){ S.listen ? ears.start() : ears.stop(); }
+  if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
 bind('oGuide','guide'); bind('oBeep','beep'); bind('oVib','vib'); bind('oScene','scene'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
-$('#oSrc').addEventListener('input',e=>{ S.mode=e.target.value; save(); applySettings(); if(S.running){ stop(); } });
-$('#url').addEventListener('change', save);
+bind('oListen','listen'); bind('oGps','gps');
+$('#oSrc').addEventListener('input',e=>{ if(S.running) stop(); S.mode=e.target.value; save(); applySettings();
+  say(S.mode==='pi' ? '카메라를 라즈베리파이로 바꿨어요.' : '카메라를 폰 카메라로 바꿨어요.'); });
 $('#help').addEventListener('click', ()=>{ speech.unlock(); speakHelp(); });
 
-/* ── 박스 (보조 화면) ── */
+/* ── 미리보기 위 인식 박스 ── */
 const ov=$('#ov'), octx=ov.getContext('2d');
 function draw(){
   const r=ov.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-  if(ov.width!==Math.round(r.width*dpr)){ ov.width=Math.round(r.width*dpr); ov.height=Math.round(r.height*dpr); }
+  if(r.width && ov.width!==Math.round(r.width*dpr)){ ov.width=Math.round(r.width*dpr); ov.height=Math.round(r.height*dpr); }
   octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
   if(S.running && S.prev && S.dets && performance.now()-S.detsAt<Math.max(700,S.fps>0?2500/S.fps:2500)){
     const v=$('#cam'), im=$('#pv'); const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0, sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
-    let k=1, ox=0, oy=0, fw=r.width, fh=r.height;                     // object-fit:cover 로 잘린 만큼 좌표를 맞춘다
+    let k=1, ox=0, oy=0, fw=r.width, fh=r.height;
     if(sw&&sh){ k=Math.max(r.width/sw, r.height/sh); fw=sw*k; fh=sh*k; ox=(r.width-fw)/2; oy=(r.height-fh)/2; }
-    octx.lineWidth=2.5; octx.strokeStyle='rgba(255,255,255,.95)'; octx.font='600 13px system-ui'; octx.fillStyle='#fff'; octx.shadowColor='rgba(0,0,0,.5)'; octx.shadowBlur=4;
-    for(const [id,cls,x1,y1,x2,y2] of S.dets.d){ octx.beginPath(); octx.roundRect(ox+x1*fw,oy+y1*fh,(x2-x1)*fw,(y2-y1)*fh,8); octx.stroke(); octx.fillText(KO[cls]||cls, ox+x1*fw+6, oy+y1*fh+16); }
-    octx.shadowBlur=0;
+    octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,.95)';
+    for(const [id,cls,x1,y1,x2,y2] of S.dets.d){ octx.beginPath(); octx.roundRect(ox+x1*fw,oy+y1*fh,(x2-x1)*fw,(y2-y1)*fh,5); octx.stroke(); }
   }
   requestAnimationFrame(draw);
 }
 
-load(); applySettings(); connect(); requestAnimationFrame(draw);
-window.__insight = {parseCommand, S};
+load(); applySettings(); calmView(); connect(); requestAnimationFrame(draw);
+window.__insight = {parseCommand, S, handleSpeech, flash, handle};
 
 /* ── 설정 시트 ── */
 const sheet=$('#sheet'), sheetBg=$('#sheetBg'); let sheetFrom=null;
 function openSheet(on){ sheet.classList.toggle('open',on); sheetBg.classList.toggle('open',on); sheet.setAttribute('aria-hidden',!on);
   if(on){ sheetFrom=document.activeElement; setTimeout(()=>sheet.focus(),50); say('설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.'); } else if(sheetFrom){ sheetFrom.focus(); } }
-$('#openSheet').onclick=()=>openSheet(true); $('#closeSheet').onclick=()=>openSheet(false); sheetBg.onclick=()=>openSheet(false);
+$('#openSheet').onclick=(e)=>{ e.stopPropagation(); openSheet(true); }; $('#closeSheet').onclick=()=>openSheet(false); sheetBg.onclick=()=>openSheet(false);
 addEventListener('keydown',e=>{ if(e.key==='Escape') openSheet(false); });
 (()=>{ let y0=null; sheet.addEventListener('touchstart',e=>{ if(sheet.scrollTop<=0) y0=e.touches[0].clientY; },{passive:true});
   sheet.addEventListener('touchmove',e=>{ if(y0!==null){ const d=e.touches[0].clientY-y0; if(d>0){ sheet.style.transition='none'; sheet.style.transform=`translateY(${d}px)`; } } },{passive:true});
   sheet.addEventListener('touchend',e=>{ if(y0===null) return; const d=e.changedTouches[0].clientY-y0; sheet.style.transition=''; sheet.style.transform=''; y0=null; if(d>90) openSheet(false); }); })();
-
-/* ── 시작 화면: 글자가 한 자씩 올라오고 눈이 그려진 뒤 부드럽게 사라짐 ── */
-(()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
-  const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
-  const hide=()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); };
-  addEventListener('load',()=>setTimeout(()=>{ hide(); }, Math.max(0,(reduce?300:2300)-(performance.now()-t0)))); })();
-
 </script>
 </body>
 </html>

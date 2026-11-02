@@ -1,0 +1,2 @@
+# GPU server extras: hitbox floor segmentation (Mask2Former, downloads ~1GB on first run)
+transformers

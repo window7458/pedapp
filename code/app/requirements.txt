@@ -1,7 +1,11 @@
-# SayEye server - basic (fake detection: UI and flow test)
+# SayEye server (install PyTorch first; GPU: the CUDA build from https://pytorch.org)
 fastapi>=0.110
 uvicorn[standard]>=0.29
 numpy
 opencv-python
 cryptography
-qrcode
+ultralytics
+lapx
+pillow
+openai
+pywebpush

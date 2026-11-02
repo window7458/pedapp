@@ -3,123 +3,123 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#E3EDF2">
+<meta name="theme-color" content="#F5F8FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SayEye 보호자">
 <link rel="manifest" href="manifest-guardian.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>SayEye 보호자</title>
 <link rel="stylesheet" href="app.css">
-<script src="mascot.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 body{-webkit-user-select:auto;user-select:auto}
-.views{position:relative;flex:1;min-height:0;margin-top:6px}
-.view{position:absolute;inset:0;overflow-y:auto;padding:6px 2px 16px;display:flex;flex-direction:column;gap:14px;opacity:0;transform:translateX(24px);visibility:hidden;pointer-events:none;
+.agent{height:min(52vh,460px)}
+.gtop{padding:0 18px 0 24px;position:relative;z-index:3}
+.gsay{padding:0 24px;position:relative;z-index:3;margin-top:clamp(8px,2.5vh,24px)}
+.gsay small{display:block;font-size:14px;font-weight:700;color:var(--blue)}
+.gsay h1{font-size:clamp(28px,8.6vw,36px);line-height:1.18;font-weight:800;letter-spacing:-.045em;margin:6px 0 0}
+.gsay p{font-size:16px;line-height:1.45;font-weight:500;color:#3A4566;margin:8px 0 0}
+.warn .gsay small,.warn .gsay h1,.warn .gsay p,.warn .top b,.warn .top .st{color:#fff}
+.off .gsay small{color:#6A7591}
+.acts{display:flex;gap:10px;padding:16px 24px 0;position:relative;z-index:3}
+.acts .btn{flex:1;background:rgba(255,255,255,.8);color:#1E3FD8;min-height:52px}
+.warn .acts .btn{background:rgba(255,255,255,.2);color:#fff}
+.views{position:absolute;left:0;right:0;top:calc(min(52vh,460px) - 70px);bottom:84px;z-index:4}
+.view{position:absolute;inset:0;overflow-y:auto;padding:4px 18px 18px;display:flex;flex-direction:column;gap:14px;opacity:0;transform:translateX(24px);visibility:hidden;pointer-events:none;
   transition:opacity .35s var(--ease),transform .45s var(--ease),visibility .45s;scrollbar-width:none}
-.view::-webkit-scrollbar{display:none}
-.view>*{flex:none}
-.view.on{opacity:1;transform:none;visibility:visible;pointer-events:auto}
-.view.before{transform:translateX(-24px)}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:28px;background:var(--glass-strong);border:1px solid var(--glass-line);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:var(--shadow);position:relative}
-.tabs button{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;padding:8px 0 6px;border-radius:20px;font-size:12px;font-weight:700;color:var(--muted);transition:color .3s;min-height:56px}
-.tabs button svg{width:24px;height:24px}.tabs button[aria-selected=true]{color:var(--accent)}
-.tabs .ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px - 8px)/3);border-radius:20px;background:var(--tint);transition:transform .5s var(--ease);z-index:0}
-.badge{position:absolute;top:6px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
-.status{position:relative;overflow:hidden;padding:22px 20px 20px;color:#fff;border:0;background:linear-gradient(150deg,#A9B8FF,#6474E5 55%,#4F5DCF);box-shadow:0 18px 40px rgba(100,116,229,.35)}
-.status .mascot{position:absolute;right:6px;top:8px;width:104px;height:110px;z-index:1}
-.status>*:not(.mascot){position:relative;z-index:2}
-#pstate,#psub{padding-right:96px}
-.status.off{background:linear-gradient(150deg,#C3C8E2,#8E95BC 60%,#727AA6)}
-.status::after{content:"";position:absolute;right:-50px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.35),transparent 65%)}
-.status .dot{width:10px;height:10px;border-radius:50%;background:#7DF0C0;display:inline-block;margin-right:8px;box-shadow:0 0 0 0 rgba(125,240,192,.6);animation:pulse 1.8s infinite}
-.status.off .dot{background:#FFC2BD;animation:none}
-@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(125,240,192,0)}}
-#pstate{display:block;font-size:23px;font-weight:800;letter-spacing:-.04em;margin-top:6px}#psub{display:block;font-size:13px;opacity:.85;margin-top:2px;min-height:1.3em}
-#snapBtn{margin-top:16px;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:0 16px;min-height:44px;font-weight:700;backdrop-filter:blur(8px)}
-#snapView{margin-top:14px}#snapView img{width:100%;border-radius:18px;background:#000;display:block}#snapAt{opacity:.85;font-size:12px;display:block;margin-top:6px}
+.view::-webkit-scrollbar{display:none}.view>*{flex:none}
+.view.on{opacity:1;transform:none;visibility:visible;pointer-events:auto}.view.before{transform:translateX(-24px)}
+#v-log,#v-set{top:-170px;padding-top:0}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.sum div{padding:16px 8px;text-align:center;border-radius:24px;background:var(--glass-strong);border:1px solid var(--glass-line);box-shadow:var(--shadow-s);font-size:12px;font-weight:700;color:var(--muted)}
-.sum b{display:block;font-size:28px;letter-spacing:-.04em;color:var(--ink);font-weight:800}
-.sum div:nth-child(1) b{color:var(--danger)}
-.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
-.chips button{flex:none;padding:0 16px;min-height:40px;border-radius:999px;background:var(--glass-strong);border:1px solid var(--glass-line);box-shadow:var(--shadow-s);font-weight:700;font-size:14px;color:var(--muted);transition:background .3s,color .3s}
-.chips button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
-.day{margin:8px 4px 2px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.02em}
-.ev{display:grid;grid-template-columns:5px 1fr;gap:12px;background:var(--glass-strong);border:1px solid var(--glass-line);border-radius:24px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-s);animation:in .5s var(--ease)}
+.sum div{height:92px;border-radius:20px;background:var(--card);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--sub)}
+.sum b{font-size:30px;color:var(--ink);font-weight:900}.sum .u b{color:#E5484D}.sum .c b{color:#D68A00}
+.mapc{padding:14px}.mapc .h{display:flex;justify-content:space-between;align-items:center;font-weight:800;margin:0 2px 10px}.mapc small{color:var(--sub);font-weight:600}
+#map{height:190px;border-radius:16px;overflow:hidden;background:var(--pale)}
+#mapEmpty{height:190px;border-radius:16px;background:var(--pale);display:grid;place-items:center;color:var(--sub);font-weight:600;font-size:14px;text-align:center;padding:0 20px}
+.sec{display:flex;justify-content:space-between;align-items:center;font-weight:800;padding:2px 4px 0}.sec button{color:var(--blue);font-weight:800;font-size:14px}
+.ev{display:grid;grid-template-columns:6px 1fr;gap:12px;background:var(--card);border-radius:20px;padding:14px;box-shadow:var(--shadow);animation:in .5s var(--ease)}
 @keyframes in{from{opacity:0;transform:translateY(10px)}}
-.ev .bar{border-radius:3px;background:var(--muted);opacity:.5}
-.ev.urgent .bar{background:var(--danger);opacity:1}.ev.caution .bar{background:var(--warn);opacity:1}.ev.sos .bar{background:#7B5BD6;opacity:1}
-.ev.offline .bar{background:var(--danger);opacity:1}.ev.online .bar,.ev.battery .bar{background:var(--ok);opacity:1}
-.ev.unread{box-shadow:0 0 0 2px var(--accent2),var(--shadow-s)}
-.ev b{display:block;letter-spacing:-.02em;font-size:15.5px;margin-top:3px}.ev small{color:var(--muted);font-size:12.5px}
-.ev img,.ev video{grid-column:1/-1;width:100%;max-height:280px;object-fit:cover;border-radius:16px;background:#000}
-.tag{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--tint);color:var(--accent)}
-.ev.urgent .tag,.ev.offline .tag{background:var(--danger-tint);color:var(--danger)}
-#empty{color:var(--muted);text-align:center;padding:60px 0;font-weight:600}
-#banner{position:fixed;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;max-width:452px;margin:0 auto;z-index:60;padding:14px 16px;border-radius:22px;background:linear-gradient(150deg,var(--warm),var(--danger));color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:drop .5s var(--ease)}
-@keyframes drop{from{transform:translateY(-120%);opacity:0}}
-#gate{margin:auto 0;padding:26px 22px;text-align:center}
-#gate .brand{justify-content:center;margin-bottom:10px;flex:none}#gate .brand .mascot{width:96px;height:100px}
-#gate input{width:100%;text-align:center;font-size:26px;letter-spacing:.35em;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:14px 0 12px}
+.ev .bar{border-radius:3px;background:var(--line)}
+.ev.urgent .bar,.ev.offline .bar{background:#E5484D}.ev.caution .bar{background:#F5A623}.ev.sos .bar{background:#7B5BD6}.ev.online .bar,.ev.battery .bar{background:var(--ok)}
+.ev.unread{box-shadow:0 0 0 2px var(--blue),var(--shadow)}
+.ev b{display:block;letter-spacing:-.02em;font-size:15.5px;margin-top:3px}.ev small{color:var(--sub);font-size:12.5px}
+.ev img,.ev video{grid-column:1/-1;width:100%;max-height:280px;object-fit:cover;border-radius:14px;background:#000;margin-top:4px}
+.tag{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--pale);color:var(--blue)}
+.ev.urgent .tag,.ev.offline .tag{background:#FFECEC;color:#C8283A}.ev.caution .tag{background:#FFF4DC;color:#8A5300}
+.where{margin-left:8px;font-size:12px;font-weight:800;color:var(--blue)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.chips button{flex:none;padding:0 16px;min-height:40px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);font-weight:700;font-size:14px;color:var(--sub)}
+.chips button[aria-pressed=true]{background:var(--blue);color:#fff}
+.day{margin:6px 4px 0;color:var(--sub);font-size:12px;font-weight:800}
+#empty{color:var(--sub);text-align:center;padding:50px 0;font-weight:600}
 .set{padding:6px 18px}.set label,.set .row-set{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}.set label:first-child{border-top:0}
-.set select,.set input[type=time]{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-.note{color:var(--muted);font-size:12.5px;padding:0 6px}
+.set select,.set input[type=time]{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--pale);color:var(--ink)}
+.set small{display:block;color:var(--sub);font-size:12.5px}
+.note{color:var(--sub);font-size:12.5px;padding:0 6px}
+.tabs{position:absolute;left:14px;right:14px;bottom:max(14px,env(safe-area-inset-bottom));z-index:6;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:26px;background:var(--card);box-shadow:var(--shadow)}
+.tabs button{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;padding:8px 0 6px;border-radius:20px;font-size:12px;font-weight:700;color:var(--sub);min-height:54px}
+.tabs button svg{width:24px;height:24px}.tabs button[aria-selected=true]{color:var(--blue)}
+.tabs .ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px - 8px)/3);border-radius:20px;background:var(--pale);transition:transform .5s var(--ease);z-index:0}
+.badge{position:absolute;top:6px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:9px;background:#E5484D;color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
+#banner{position:fixed;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;max-width:452px;margin:0 auto;z-index:60;padding:14px 16px;border-radius:20px;background:linear-gradient(120deg,#F0503C,#C8283A);color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:drop .5s var(--ease)}
+@keyframes drop{from{transform:translateY(-120%);opacity:0}}
+#gate{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:center;padding:24px;max-width:480px;margin:0 auto}
+#gate .card{padding:26px 22px;text-align:center}
+#gate input{width:100%;text-align:center;font-size:26px;letter-spacing:.35em;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--pale);color:var(--ink);margin:14px 0 12px}
+#live{position:fixed;inset:0;z-index:70;background:#05081A;display:flex;flex-direction:column}
+#live img{flex:1;min-height:0;width:100%;object-fit:contain}
+#live .bar2{display:flex;justify-content:space-between;align-items:center;padding:max(14px,env(safe-area-inset-top)) 18px 12px;color:#fff;font-weight:800}
+#live .bar2 .btn{background:rgba(255,255,255,.15);color:#fff}
+#liveMsg{color:#C9D2EE;text-align:center;padding:10px 18px max(18px,env(safe-area-inset-bottom));font-size:14px}
 </style>
 </head>
 <body>
-<div id="splash" aria-hidden="true"><div class="stack"><i data-mascot class="float"></i><div class="name" id="splashName"></div><div class="tag">보호자와 함께 걸어요</div></div></div>
-
 <div class="app">
-  <header class="top">
-    <div class="brand"><i data-mascot></i><span>SayEye <span style="color:var(--muted);font-weight:700">보호자</span></span></div>
-    <span id="dot" class="dot" hidden></span><span id="conn" class="pill" role="status">연결 중</span>
-  </header>
+  <div class="agent" id="agent"><div class="fx"><i class="a"></i><i class="b"></i><i class="c"></i></div></div>
+  <header class="top gtop"><b>SayEye 보호자</b><span id="conn" class="st" role="status"><i></i>연결 중</span></header>
 
-  <section id="gate" class="card" hidden>
-    <div class="brand"><i data-mascot></i></div>
-    <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">확인번호를 입력해 주세요</h2>
-    <p class="note" style="margin:8px 0 0">보행자 앱을 켠 서버 화면에 표시된 6자리 번호예요.</p>
-    <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" aria-label="확인번호">
-    <button id="pinGo" class="btn primary" style="width:100%">확인</button>
-    <p id="pinErr" style="color:var(--danger);font-weight:700" hidden>확인번호가 달라요.</p>
+  <section id="gate" hidden>
+    <div class="card">
+      <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">확인번호를 입력해 주세요</h2>
+      <p class="note" style="margin:8px 0 0">서버를 켤 때 화면에 나온 6자리 번호예요.</p>
+      <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" aria-label="확인번호">
+      <button id="pinGo" class="btn primary full">확인</button>
+      <p id="pinErr" style="color:#C8283A;font-weight:700" hidden>확인번호가 달라요.</p>
+    </div>
   </section>
 
-  <div id="app" hidden style="display:contents">
+  <div id="main" hidden>
     <div id="banner" role="alert" hidden></div>
+    <div class="gsay" id="gsay"><small id="psub">보행자</small><h1 id="pstate">보호자님,<br>보행자를 확인하는 중이에요</h1><p id="precent"></p></div>
+    <div class="acts"><button class="btn" id="liveBtn">실시간 영상</button><button class="btn" id="mapBtn">위치 보기</button></div>
     <div class="views" id="views">
       <section class="view on" id="v-home" aria-label="홈">
-        <div class="card status" id="statusCard"><i data-mascot class="float" id="gface"></i>
-          <span><i class="dot" id="pdot2"></i><small id="pstate2" style="font-weight:700;opacity:.9">보행자</small></span>
-          <b id="pstate">보행자 확인 중</b><span id="psub"></span>
-          <button id="snapBtn">지금 화면 보기</button>
-          <div id="snapView" hidden><img id="snapImg" alt="보행자 폰이 지금 보는 화면"><small id="snapAt"></small></div>
-        </div>
-        <div class="sum" aria-label="오늘 요약"><div><b id="nU">0</b>긴급</div><div><b id="nC">0</b>주의</div><div><b id="nS">0</b>호출</div></div>
-        <div class="card" id="recent" style="padding:16px 18px" hidden><small style="color:var(--muted);font-weight:800">가장 최근 알림</small><b id="recentText" style="display:block;font-size:17px;margin-top:4px;letter-spacing:-.03em"></b><small id="recentAt" style="color:var(--muted)"></small>
-          <button class="btn" id="toLog" style="margin-top:12px;width:100%">기록에서 사진·영상 보기</button></div>
-        <p class="note">알림이 오면 화면 위에서 알려 드려요.</p>
-        <i id="pdot" class="dot" hidden></i>
+        <div class="sum" aria-label="오늘 요약"><div class="u"><b id="nU">0</b>긴급</div><div class="c"><b id="nC">0</b>주의</div><div><b id="nS">0</b>호출</div></div>
+        <div class="card mapc" id="mapCard"><div class="h"><span>보행자 위치</span><small id="locAt">아직 위치가 없어요</small></div>
+          <div id="map" hidden></div><div id="mapEmpty">보행자가 안내를 시작하고 위치 공유를 켜면 지도에 보여요.</div></div>
+        <div class="sec">최근 알림<button id="toLog">전체 보기</button></div>
+        <div id="recentList" style="display:flex;flex-direction:column;gap:12px"></div>
       </section>
       <section class="view" id="v-log" aria-label="기록">
         <div class="chips" id="chips" role="group" aria-label="알림 종류">
           <button data-f="all" aria-pressed="true">전체</button><button data-f="urgent" aria-pressed="false">긴급</button><button data-f="caution" aria-pressed="false">주의</button><button data-f="sos" aria-pressed="false">호출</button><button data-f="conn" aria-pressed="false">연결</button>
         </div>
-        <div id="timeline" aria-live="polite"></div>
+        <div id="timeline" aria-live="polite" style="display:flex;flex-direction:column;gap:12px"></div>
         <p id="empty">아직 알림이 없어요.</p>
       </section>
       <section class="view" id="v-set" aria-label="설정">
         <div class="card set">
+          <label><span>푸시 알림<small id="pushNote">보호자 화면을 닫아도 폰 알림으로 와요</small></span><button id="pushBtn" class="btn">켜기</button></label>
           <label><span>받을 알림</span><select id="sens"><option value="urgent">긴급만</option><option value="caution">긴급 + 주의</option><option value="all">전체</option></select></label>
           <label><span>알림음</span><input type="checkbox" class="sw" id="sound"></label>
           <label><span>진동</span><input type="checkbox" class="sw" id="vib"></label>
-          <label><span>조용한 시간<small style="display:block;color:var(--muted);font-size:12.5px">긴급·호출만 울려요</small></span><input type="checkbox" class="sw" id="quiet"></label>
+          <label><span>조용한 시간<small>긴급 · 호출만 울려요</small></span><input type="checkbox" class="sw" id="quiet"></label>
           <div class="row-set"><input type="time" id="qFrom" value="22:00" aria-label="조용한 시간 시작"><span>~</span><input type="time" id="qTo" value="07:00" aria-label="조용한 시간 끝"></div>
-          <label><span>브라우저 알림<small style="display:block;color:var(--muted);font-size:12.5px">탭이 닫히면 오지 않아요</small></span><button id="notif" class="btn">허용하기</button></label>
+          <div class="row-set"><a class="btn" href="/dev">개발자 화면</a><a class="btn" href="/">보행자 화면</a></div>
         </div>
-        <p class="note">알림 내역은 서버에 저장돼요. 사진·영상에는 보행자 주변이 찍혀 있어서 서버 폴더를 공유하지 마세요.</p>
+        <p class="note">알림 · 사진 · 영상은 서버에 저장돼요. 보행자 주변이 찍혀 있으니 서버 폴더를 공유하지 마세요.</p>
       </section>
     </div>
     <nav class="tabs" role="tablist" aria-label="화면 이동">
@@ -131,87 +131,119 @@ body{-webkit-user-select:auto;user-select:auto}
   </div>
 </div>
 
+<div id="live" hidden><div class="bar2"><span>실시간 영상</span><button class="btn" id="liveClose">닫기</button></div><img id="liveImg" alt="보행자 폰이 지금 보는 화면"><p id="liveMsg">인식한 물체에 상자가 표시돼요.</p></div>
+
+<script>window.SPLASH_CAPS=["보행자의 위험을", "바로 알리고", "그 순간을 함께 봐요"];</script>
+<script src="splash.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const LV = {urgent:'긴급', caution:'주의', info:'안내', sos:'호출', offline:'끊김', online:'연결', battery:'배터리'};
-const RANK = {urgent:3, sos:3, offline:2, caution:2, battery:1, info:1, online:0};
-const G = {pin:'', alerts:new Map(), filter:'all', ws:null, lastSeen:0, active:null, lastStatusAt:0, fps:0, o:{sens:'caution', sound:true, vib:true, quiet:false, qFrom:'22:00', qTo:'07:00'}};
-
-function load(){ try{ const j=JSON.parse(localStorage.getItem('insight-guardian')||'{}'); G.pin=j.pin||''; G.lastSeen=j.lastSeen||0; Object.assign(G.o,j.o||{}); }catch(e){} }
-function save(){ try{ localStorage.setItem('insight-guardian', JSON.stringify({pin:G.pin,lastSeen:G.lastSeen,o:G.o})); }catch(e){} }
+const G = {pin:'', alerts:new Map(), filter:'all', ws:null, lastSeen:0, lastStatusAt:0, fps:0, loc:null, since:0,
+           o:{sens:'caution', sound:true, vib:true, quiet:false, qFrom:'22:00', qTo:'07:00'}};
+function load(){ try{ const j=JSON.parse(localStorage.getItem('sayeye-guardian')||'{}'); G.pin=j.pin||''; G.lastSeen=j.lastSeen||0; Object.assign(G.o,j.o||{}); }catch(e){} }
+function save(){ try{ localStorage.setItem('sayeye-guardian', JSON.stringify({pin:G.pin,lastSeen:G.lastSeen,o:G.o})); }catch(e){} }
+const P = () => encodeURIComponent(G.pin);
+let curV=0;
 
 /* ── 확인번호 · 연결 ── */
-function gate(show, err){ $('#gate').hidden=!show; $('#app').hidden=show; $('#pinErr').hidden=!err; }
+function gate(show, err){ $('#gate').hidden=!show; $('#main').hidden=show; $('#pinErr').hidden=!err; }
 async function enter(pin){
   const r = await fetch(`/api/alerts?pin=${encodeURIComponent(pin)}`).catch(()=>null);
-  if(!r){ $('#conn').textContent='서버에 닿지 않아요'; return false; }
+  if(!r){ $('#conn').lastChild.textContent='서버에 닿지 않아요'; return false; }
   if(r.status===401){ G.pin=''; save(); gate(true, !!pin); return false; }
   const j = await r.json(); G.pin=pin; save(); gate(false);
   for(const a of j.alerts) G.alerts.set(a.id, a);
-  G.active = j.active; render(); connect(); return true;
+  render(); connect(); pushState().catch(()=>{});
+  fetch(`/api/location?pin=${P()}`).then(r=>r.json()).then(j=>{ if(j.loc) setLoc(j.loc); }).catch(()=>{});
+  return true;
 }
 function connect(){
-  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?role=guardian&pin=${encodeURIComponent(G.pin)}`);
+  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?role=guardian&pin=${P()}`);
   G.ws = ws;
-  ws.onopen = ()=>{ $('#dot').className='dot on'; $('#conn').textContent='연결됨'; resync(); };
-  ws.onclose = ()=>{ $('#dot').className='dot off'; $('#conn').textContent='연결 끊김'; setTimeout(connect, 2000); };
+  ws.onopen = ()=>{ setConn(true); resync(); };
+  ws.onclose = ()=>{ setConn(false); setTimeout(connect, 2000); };
   ws.onmessage = (e)=>{ try{ onMsg(JSON.parse(e.data)); }catch(err){} };
 }
-async function resync(){            // 연결이 끊겼던 동안 놓친 알림을 가져온다
+function setConn(ok){ const c=$('#conn'); c.classList.toggle('off',!ok); c.lastChild.textContent = ok ? '연결됨' : '연결 끊김'; }
+async function resync(){
   const since = Math.max(0, ...G.alerts.keys());
-  const r = await fetch(`/api/alerts?pin=${encodeURIComponent(G.pin)}&since=${since}`).catch(()=>null);
+  const r = await fetch(`/api/alerts?pin=${P()}&since=${since}`).catch(()=>null);
   if(r && r.ok){ const j = await r.json(); for(const a of j.alerts) G.alerts.set(a.id, a); render(); }
 }
 function onMsg(m){
   if(m.type==='auth_error'){ G.pin=''; save(); gate(true,true); }
   else if(m.type==='status'){ G.fps=m.fps; G.lastStatusAt=Date.now(); presence(); }
+  else if(m.type==='loc'){ setLoc(m); }
   else if(m.type==='alert'){ const {type, merged, clip_only, ...a} = m; G.alerts.set(a.id, a); render(); if(!clip_only) notify(a, merged); }
 }
 
-/* ── 보행자 상태 ── */
+/* ── 보행자 상태 (위쪽 문구) ── */
+const hhmm = (ts)=> new Date(ts*1000).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
 function presence(){
   const on = G.fps>0 && Date.now()-G.lastStatusAt<4000;
-  $('#pdot').className = 'dot ' + (on?'on':'off');
-  $('#pstate').textContent = on ? '보행 중 · 영상 들어오는 중' : '영상이 오지 않아요';
-  $('#psub').textContent = on ? `${G.fps} fps` : '보행을 끝냈거나 연결에 문제가 있을 수 있어요.';
+  if(on && !G.since) G.since=Date.now(); if(!on) G.since=0;
+  const body=document.body;
+  body.classList.toggle('running', on); body.classList.toggle('off', !on);
+  if(body.classList.contains('warn')) return;
+  $('#psub').textContent = on ? `${new Date(G.since).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}부터 함께 걷는 중` : '보행자';
+  $('#pstate').innerHTML = on ? '보호자님,<br>지금 보행 중이에요' : '보호자님,<br>지금은 쉬고 있어요';
+  const last=[...G.alerts.values()].filter(a=>a.level!=='online').sort((a,b)=>b.id-a.id)[0];
+  $('#precent').textContent = last ? `최근 ${LV[last.level]||''} · ${hhmm(last.last_ts||last.ts)} ${last.text}` : '아직 알림이 없어요.';
 }
 setInterval(presence, 2000);
 
-/* ── 알림 내역 ── */
+/* ── 지도 ── */
+let map=null, marker=null, circle=null;
+function setLoc(l){
+  G.loc=l; $('#locAt').textContent = `${new Date(l.ts*1000).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})} 기준 · 오차 ${Math.round(l.acc||0)}m`;
+  if(!window.L){ $('#mapEmpty').textContent=`위도 ${l.lat}, 경도 ${l.lon} (지도를 불러오지 못했어요)`; return; }
+  $('#mapEmpty').hidden=true; $('#map').hidden=false;
+  if(!map){ map=L.map('map',{zoomControl:false,attributionControl:true}).setView([l.lat,l.lon],17);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+    marker=L.circleMarker([l.lat,l.lon],{radius:9,color:'#fff',weight:3,fillColor:'#2B5BFF',fillOpacity:1}).addTo(map);
+    circle=L.circle([l.lat,l.lon],{radius:l.acc||10,color:'#2B5BFF',weight:1,fillOpacity:.12}).addTo(map); }
+  else { marker.setLatLng([l.lat,l.lon]); circle.setLatLng([l.lat,l.lon]).setRadius(l.acc||10); map.panTo([l.lat,l.lon]); }
+  setTimeout(()=>map.invalidateSize(),50);
+}
+function showAt(loc){ go('home'); setLoc(Object.assign({}, loc)); $('#mapCard').scrollIntoView({behavior:'smooth',block:'center'}); }
+
+/* ── 알림 목록 ── */
 const dayName = (ts)=>{ const d=new Date(ts*1000), t=new Date(), y=new Date(Date.now()-864e5);
   const same=(a,b)=>a.toDateString()===b.toDateString(); return same(d,t)?'오늘':same(d,y)?'어제':d.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'}); };
-const hhmm = (ts)=> new Date(ts*1000).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
-function passes(a){
-  const f=G.filter;
-  return f==='all' || (f==='conn' ? ['offline','online','battery'].includes(a.level) : a.level===f);
+function passes(a){ const f=G.filter; return f==='all' || (f==='conn' ? ['offline','online','battery'].includes(a.level) : a.level===f); }
+function card(a){
+  const el=document.createElement('article'); el.className=`ev ${a.level}`+(a.id>G.lastSeen?' unread':'');
+  const bar=document.createElement('div'); bar.className='bar';
+  const mid=document.createElement('div');
+  const tag=document.createElement('span'); tag.className='tag'; tag.textContent=LV[a.level]||a.level;
+  const b=document.createElement('b'); b.textContent=a.text;
+  const s=document.createElement('small'); s.textContent=a.count>1 ? `${hhmm(a.ts)} ~ ${hhmm(a.last_ts)} · ${a.count}번 반복` : hhmm(a.ts);
+  mid.append(tag, b, s);
+  if(a.loc){ const w=document.createElement('button'); w.className='where'; w.textContent='위치 보기'; w.onclick=()=>showAt(a.loc); mid.append(w); }
+  el.append(bar, mid);
+  if(a.snap){ const im=document.createElement('img'); im.loading='lazy'; im.alt='그 순간의 화면'; im.src=`/api/alerts/${a.id}.jpg?pin=${P()}`; el.append(im); }
+  if(a.clip){ const v=document.createElement('video'); v.controls=true; v.playsInline=true; v.preload='none'; v.setAttribute('aria-label','위험 구간 영상'); v.src=`/api/alerts/${a.id}.mp4?pin=${P()}`; el.append(v); }
+  return el;
 }
 function render(){
-  const list=[...G.alerts.values()].sort((a,b)=>b.id-a.id).filter(passes);
-  const box=$('#timeline'); box.innerHTML=''; let day='';
-  for(const a of list){
-    const d=dayName(a.ts); if(d!==day){ day=d; const h=document.createElement('div'); h.className='day'; h.textContent=d; box.append(h); }
-    const el=document.createElement('article'); el.className=`ev ${a.level}`+(a.id>G.lastSeen?' unread':'');
-    const bar=document.createElement('div'); bar.className='bar';
-    const mid=document.createElement('div');
-    const tag=document.createElement('span'); tag.className='tag'; tag.textContent=LV[a.level]||a.level;
-    const b=document.createElement('b'); b.textContent=a.text;
-    const s=document.createElement('small'); s.textContent=a.count>1 ? `${hhmm(a.ts)} ~ ${hhmm(a.last_ts)} · ${a.count}번 반복` : hhmm(a.ts);
-    mid.append(tag, b, s);
-    el.append(bar, mid, document.createElement('span'));
-    if(a.snap){ const im=document.createElement('img'); im.loading='lazy'; im.alt='그 순간의 화면'; im.src=`/api/alerts/${a.id}.jpg?pin=${encodeURIComponent(G.pin)}`; el.append(im); }
-    if(a.clip){ const v=document.createElement('video'); v.controls=true; v.playsInline=true; v.preload='none'; v.setAttribute('aria-label','위험 구간 영상'); v.style.cssText='width:100%;border-radius:10px;background:#000;margin-top:8px'; v.src=`/api/alerts/${a.id}.mp4?pin=${encodeURIComponent(G.pin)}`; el.append(v); }
-    box.append(el);
-  }
+  const all=[...G.alerts.values()].sort((a,b)=>b.id-a.id);
+  const list=all.filter(passes), box=$('#timeline'); box.innerHTML=''; let day='';
+  for(const a of list){ const d=dayName(a.ts); if(d!==day){ day=d; const h=document.createElement('div'); h.className='day'; h.textContent=d; box.append(h); } box.append(card(a)); }
   $('#empty').hidden = list.length>0;
-  const today=[...G.alerts.values()].filter(a=>dayName(a.ts)==='오늘');
+  const rl=$('#recentList'); rl.innerHTML=''; all.filter(a=>a.level!=='online').slice(0,3).forEach(a=>rl.append(card(a)));
+  if(!rl.children.length){ const p=document.createElement('p'); p.className='note'; p.textContent='아직 알림이 없어요.'; rl.append(p); }
+  const today=all.filter(a=>dayName(a.ts)==='오늘');
   $('#nU').textContent=today.filter(a=>a.level==='urgent').length;
   $('#nC').textContent=today.filter(a=>a.level==='caution').length;
   $('#nS').textContent=today.filter(a=>a.level==='sos').length;
+  const unread=all.filter(a=>a.id>G.lastSeen && a.level!=='online').length, bd=$('#badge');
+  bd.textContent=unread>99?'99+':unread; bd.hidden=!unread||curV===1;
+  presence();
 }
 $('#chips').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; G.filter=b.dataset.f;
   document.querySelectorAll('#chips button').forEach(x=>x.setAttribute('aria-pressed', x===b)); render(); });
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); } });
-window.addEventListener('focus',()=>{ setTimeout(()=>{ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); render(); }, 4000); });
 
 /* ── 알림 울리기 ── */
 function wanted(a){
@@ -231,60 +263,81 @@ function chime(level){
     let t=actx.currentTime; for(const hz of f){ const os=actx.createOscillator(), g=actx.createGain(); os.frequency.value=hz; g.gain.setValueAtTime(.0001,t);
       g.gain.exponentialRampToValueAtTime(.3,t+.01); g.gain.exponentialRampToValueAtTime(.0001,t+.16); os.connect(g).connect(actx.destination); os.start(t); os.stop(t+.18); t+=.22; } }catch(e){}
 }
-let bannerT=null;
+let bannerT=null, hotT=null;
 function notify(a, merged){
-  if(merged && Date.now()/1000 - a.ts < 0) return;
+  if(['urgent','sos'].includes(a.level)){                 // 위쪽이 빨갛게 바뀌고 문구가 그 알림으로
+    document.body.classList.add('warn'); $('#psub').textContent=`${LV[a.level]} · ${hhmm(a.last_ts||a.ts)}`; $('#pstate').textContent=a.text;
+    clearTimeout(hotT); hotT=setTimeout(()=>{ document.body.classList.remove('warn'); presence(); }, 8000);
+  }
   if(!wanted(a)) return;
-  if(merged && a.count>2 && a.count%3!==0) return;              // 이어지는 같은 알림은 몇 번에 한 번만 울림 (알림 폭탄 방지)
-  const text = `${LV[a.level]||''} · ${a.text}`;
-  const b=$('#banner'); b.textContent=`${hhmm(a.last_ts||a.ts)} ${text}`; b.hidden=false; clearTimeout(bannerT); bannerT=setTimeout(()=>b.hidden=true, 20000);
-  if(['urgent','sos'].includes(a.level)){ const f=$('#gface'); f.classList.add('warn'); clearTimeout(f._t); f._t=setTimeout(()=>f.classList.remove('warn'), 6000); }
+  if(merged && a.count>2 && a.count%3!==0) return;
+  const b=$('#banner'); b.textContent=`${hhmm(a.last_ts||a.ts)} ${LV[a.level]||''} · ${a.text}`; b.hidden=false; clearTimeout(bannerT); bannerT=setTimeout(()=>b.hidden=true, 20000);
   if(G.o.sound) chime(a.level);
   if(G.o.vib && navigator.vibrate) navigator.vibrate(a.level==='urgent'||a.level==='sos' ? [300,120,300,120,300] : [160]);
-  if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
-    try{ new Notification('SayEye 보호자', {body:text, tag:'sayeye-'+a.level, renotify:true}); }catch(e){} }
 }
 
-/* ── 지금 화면 ── */
-$('#snapBtn').onclick = ()=>{
-  const im=$('#snapImg'); im.onerror=()=>{ $('#snapAt').textContent='아직 영상이 없어요.'; };
-  im.onload=()=>{ $('#snapAt').textContent=`${new Date().toLocaleTimeString('ko-KR',{hour12:false})} 기준`; };
-  im.src=`/api/latest.jpg?pin=${encodeURIComponent(G.pin)}&t=${Date.now()}`; $('#snapView').hidden=false;
+/* ── 실시간 영상 ── */
+$('#liveBtn').onclick=()=>{ const im=$('#liveImg'); $('#live').hidden=false; $('#liveMsg').textContent='연결하는 중...';
+  im.onload=()=>{ $('#liveMsg').textContent='인식한 물체에 상자가 표시돼요.'; };
+  im.onerror=()=>{ $('#liveMsg').textContent='영상이 없어요. 보행자가 안내를 시작하면 보여요.'; };
+  im.src=`/api/live.mjpg?pin=${P()}&t=${Date.now()}`; };
+$('#liveClose').onclick=()=>{ $('#liveImg').removeAttribute('src'); $('#live').hidden=true; };
+$('#mapBtn').onclick=()=>{ if(G.loc) showAt(G.loc); else { go('home'); $('#mapCard').scrollIntoView({behavior:'smooth',block:'center'}); } };
+
+/* ── 푸시 알림 ── */
+const b64u=(s)=>{ const p='='.repeat((4-s.length%4)%4), r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); };
+async function pushState(){
+  const btn=$('#pushBtn'), note=$('#pushNote');
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    btn.disabled=true; btn.textContent='지원 안 함';
+    note.textContent = /iPhone|iPad/.test(navigator.userAgent) ? '아이폰은 사파리에서 공유 → 홈 화면에 추가한 앱에서 켤 수 있어요' : '이 브라우저는 푸시 알림을 지원하지 않아요'; return; }
+  if(!window.isSecureContext){ btn.disabled=true; btn.textContent='HTTPS 필요'; note.textContent='https 주소(터널 주소)로 열어야 켤 수 있어요'; return; }
+  const reg=await navigator.serviceWorker.register('/sw.js'); const sub=await reg.pushManager.getSubscription();
+  btn.textContent = sub ? '끄기' : '켜기'; btn.classList.toggle('primary', !sub);
+  note.textContent = sub ? '켜져 있어요. 화면을 닫아도 알림이 와요' : '보호자 화면을 닫아도 폰 알림으로 와요';
+}
+$('#pushBtn').onclick=async()=>{
+  const btn=$('#pushBtn'); btn.disabled=true;
+  try{
+    const reg=await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(sub){ await fetch(`/api/push/unsubscribe?pin=${P()}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})}); await sub.unsubscribe(); }
+    else{
+      if(await Notification.requestPermission()!=='granted') throw new Error('알림 권한을 허용해 주세요');
+      const k=await (await fetch('/api/push/key')).json(); if(!k.ok) throw new Error('서버에서 푸시를 쓸 수 없어요 (pywebpush 설치 필요)');
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(k.key)});
+      const r=await fetch(`/api/push/subscribe?pin=${P()}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub:sub.toJSON(), sens:G.o.sens})});
+      if(!r.ok) throw new Error('서버에 등록하지 못했어요');
+    }
+  }catch(e){ $('#pushNote').textContent=String(e.message||e); }
+  btn.disabled=false; pushState().catch(()=>{});
 };
 
 /* ── 설정 ── */
-function applyOpts(){ const o=G.o; $('#sens').value=o.sens; $('#sound').checked=o.sound; $('#vib').checked=o.vib; $('#quiet').checked=o.quiet; $('#qFrom').value=o.qFrom; $('#qTo').value=o.qTo;
-  $('#notif').textContent = !('Notification' in window) ? '이 브라우저는 지원 안 해요' : Notification.permission==='granted' ? '허용됨' : '허용하기'; }
+function applyOpts(){ const o=G.o; $('#sens').value=o.sens; $('#sound').checked=o.sound; $('#vib').checked=o.vib; $('#quiet').checked=o.quiet; $('#qFrom').value=o.qFrom; $('#qTo').value=o.qTo; }
 for(const [id,key] of [['sens','sens'],['sound','sound'],['vib','vib'],['quiet','quiet'],['qFrom','qFrom'],['qTo','qTo']])
-  $('#'+id).addEventListener('input',e=>{ G.o[key]= e.target.type==='checkbox'? e.target.checked : e.target.value; save(); });
-$('#notif').onclick = async ()=>{ if('Notification' in window){ await Notification.requestPermission(); applyOpts(); } };
+  $('#'+id).addEventListener('input',async e=>{ G.o[key]= e.target.type==='checkbox'? e.target.checked : e.target.value; save();
+    if(key==='sens' && 'serviceWorker' in navigator){ const reg=await navigator.serviceWorker.getRegistration('/'); const sub=reg && await reg.pushManager.getSubscription();
+      if(sub) fetch(`/api/push/subscribe?pin=${P()}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub:sub.toJSON(), sens:G.o.sens})}); } });
 $('#pinGo').onclick = ()=> enter($('#pin').value.trim());
 $('#pin').addEventListener('keydown',e=>{ if(e.key==='Enter') enter($('#pin').value.trim()); });
 
-load(); applyOpts();
-const qpin = new URLSearchParams(location.search).get('pin');         // 서버 화면의 QR 주소(?pin=...)로 들어오면 바로 입장
-if(qpin){ history.replaceState(null,'','/guardian'); enter(qpin); } else if(G.pin){ enter(G.pin); } else gate(true,false);
-window.__guardian = {G, wanted};
-
-/* ── 화면 전환 (탭) : 옆으로 밀리며 겹쳐 사라지고 나타남 ── */
-const VIEWS=['home','log','set']; let curV=0;
+/* ── 탭 전환 ── */
+const VIEWS=['home','log','set'];
 function go(v){ const n=VIEWS.indexOf(v); if(n<0||n===curV) return;
   VIEWS.forEach((k,i)=>{ const el=document.getElementById('v-'+k); el.classList.toggle('on',i===n); el.classList.toggle('before',i<n); });
   document.querySelectorAll('.tabs button').forEach((b,i)=>b.setAttribute('aria-selected',i===n));
   $('#ind').style.transform=`translateX(${n*100}%)`; curV=n;
-  if(v==='log'){ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); render(); } }
+  $('.gsay').style.visibility = $('.acts').style.visibility = n===0 ? '' : 'hidden';
+  if(v==='log'){ G.lastSeen=Math.max(0,...G.alerts.keys()); save(); render(); }
+  if(v==='home' && map) setTimeout(()=>map.invalidateSize(),300); }
 document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
 $('#toLog').onclick=()=>go('log');
-new MutationObserver(()=>{ const on=$('#pdot').classList.contains('on'); $('#statusCard').classList.toggle('off',!on); $('#gface').classList.toggle('look',on); }).observe($('#pdot'),{attributes:true,attributeFilter:['class']});
-const _render=render; render=function(){ _render();
-  const last=[...G.alerts.values()].filter(a=>a.level!=='online').sort((a,b)=>b.id-a.id)[0]; $('#recent').hidden=!last; if(last){ $('#recentText').textContent=last.text; $('#recentAt').textContent=`${LV[last.level]||''} · ${hhmm(last.last_ts||last.ts)}`; } const unread=[...G.alerts.values()].filter(a=>a.id>G.lastSeen && !['online'].includes(a.level)).length;
-  const bd=$('#badge'); bd.textContent=unread>99?'99+':unread; bd.hidden=!unread||curV===1; };
 
-/* ── 시작 화면 ── */
-(()=>{ const n=$('#splashName'); [...'SayEye'].forEach((c,i)=>{ const s=document.createElement('span'); s.textContent=c; s.style.animationDelay=(0.9+i*0.07)+'s'; n.append(s); });
-  const sp=$('#splash'), reduce=matchMedia('(prefers-reduced-motion:reduce)').matches, t0=performance.now();
-  addEventListener('load',()=>setTimeout(()=>{ sp.classList.add('done'); setTimeout(()=>sp.remove(),800); }, Math.max(0,(reduce?300:2000)-(performance.now()-t0)))); })();
-
+load(); applyOpts();
+const qpin = new URLSearchParams(location.search).get('pin');
+if(qpin){ history.replaceState(null,'','/guardian'); enter(qpin); } else if(G.pin){ enter(G.pin); } else gate(true,false);
+window.__guardian = {G, wanted, onMsg, setLoc, notify};
 </script>
 </body>
 </html>

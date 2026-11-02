@@ -1,0 +1,4 @@
+# Raspberry Pi camera client (camera module: sudo apt install python3-picamera2)
+websockets
+opencv-python-headless
+numpy
