@@ -1,0 +1,105 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<style>
+:root{--ink:#101A3A;--sub:#6A7591;--blue:#2B5BFF;--sky:#89A3F7;--pale:#F1F4FF;--line:#E6EBF5}
+*{box-sizing:border-box;margin:0}
+body{background:#EEF1F7;font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif;display:flex;gap:34px;padding:34px 34px 70px;-webkit-font-smoothing:antialiased}
+.wrap{position:relative}
+.ph{width:390px;height:844px;border-radius:46px;position:relative;overflow:hidden;background:#fff;color:var(--ink);box-shadow:0 0 0 1px #DDE3EF,0 24px 50px rgba(20,40,100,.12)}
+.cap{position:absolute;bottom:-46px;left:0;right:0;text-align:center;font-size:14px;font-weight:700;color:var(--sub)}
+.grain{position:absolute;left:0;top:0;width:390px;pointer-events:none;opacity:.08}
+/* 에이전트 영역 */
+.agent{position:absolute;left:0;right:0;top:0;height:640px;overflow:hidden;background:#F5F8FF;-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 64%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0,#000 64%,transparent 100%)}
+.agent svg.aura{height:640px}
+.agent svg.aura{position:absolute;left:-40px;top:-30px;width:470px;height:520px}
+.warn .agent{background:linear-gradient(170deg,#FF9A6A 0%,#F0503C 40%,#D23A44 70%,#F28B8B 100%)}
+.caut .agent{background:linear-gradient(170deg,#FFE58A 0%,#FFC53D 45%,#FFB020 70%,#FFE3A3 100%)}
+.caut .say small{color:#8A5300}.caut .top .st{color:#8A5300}.caut .top .st i{background:#8A5300}.caut .ear{background:rgba(255,255,255,.55)}.caut .wave i{background:#8A5300}.caut .again{color:#8A5300}.caut .say p{color:#4A3A10}
+.top{position:absolute;top:52px;left:24px;right:20px;display:flex;align-items:center;gap:10px;z-index:3}
+.top b{font-size:18px;font-weight:800;letter-spacing:-.02em;flex:1}
+.top .st{font-size:13px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:6px}.top .st i{width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.gear{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.7);display:grid;place-items:center;color:var(--ink)}
+.say{position:absolute;left:26px;right:26px;top:150px;z-index:3}
+.say small{font-size:14px;font-weight:700;color:var(--blue)}
+.say h1{font-size:38px;line-height:1.18;font-weight:800;letter-spacing:-.045em;margin-top:6px}
+.say p{font-size:18px;line-height:1.45;font-weight:500;color:#3A4566;margin-top:10px}
+.ear{position:absolute;left:26px;right:26px;top:362px;z-index:3;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.72);font-size:14px;font-weight:600;color:#3A4566}
+.ear b{color:var(--ink);font-weight:800}
+.wave{display:flex;align-items:center;gap:3px;height:18px}.wave i{width:3px;border-radius:2px;background:var(--blue)}
+.again{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--blue);white-space:nowrap}
+.warn .say h1,.warn .say p,.warn .say small,.warn .top b,.warn .top .st{color:#fff}.warn .top .st i{background:#fff}
+.warn .gear{background:rgba(255,255,255,.15);color:#fff}
+.warn .ear{background:rgba(255,255,255,.14);color:#fff}.warn .ear b{color:#fff}.warn .wave i{background:#fff}.warn .again{color:#fff}
+/* 아래 */
+.start{z-index:4;position:absolute;left:18px;right:18px;top:448px;height:128px;border-radius:24px;background:var(--sky);color:#fff;overflow:hidden;display:flex;align-items:center;padding:0 22px}
+.start .pill{font-size:12px;font-weight:800;letter-spacing:.06em;background:rgba(255,255,255,.22);padding:5px 11px;border-radius:99px}
+.start h2{font-size:34px;font-weight:900;letter-spacing:-.04em;margin-top:8px;line-height:1}
+.start small{display:block;font-size:13px;font-weight:600;opacity:.92;margin-top:8px}
+.start svg.art{position:absolute;right:-6px;bottom:0;width:190px;height:128px}
+.start.run{background:var(--blue)}
+.tiles{z-index:4;position:absolute;left:18px;right:18px;top:592px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.t{height:216px;border-radius:24px;background:#fff;box-shadow:0 6px 22px rgba(70,100,180,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:19px;font-weight:800}
+.t svg{width:52px;height:52px}
+/* 보호자 */
+.stats{z-index:4;position:absolute;left:18px;right:18px;top:448px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.stats div{height:96px;border-radius:20px;background:#fff;box-shadow:0 6px 22px rgba(70,100,180,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--sub)}
+.stats b{font-size:30px;color:var(--ink);font-weight:900}.stats .u b{color:var(--blue)}
+.sec{position:absolute;left:24px;right:24px;top:566px;display:flex;justify-content:space-between;font-weight:800}.sec small{color:var(--blue)}
+.ev{position:absolute;left:18px;right:18px;height:92px;border-radius:20px;background:#fff;box-shadow:0 6px 22px rgba(70,100,180,.12);padding:12px;display:flex;gap:12px;align-items:center}
+.ev .th{width:68px;height:68px;border-radius:14px;background:linear-gradient(#B9C7E6,#7F93BD);position:relative;flex:none}
+.ev .th::after{content:"";position:absolute;left:36%;top:22%;width:34%;height:50%;border:2.5px solid #fff;border-radius:5px}
+.ev small{font-size:12px;font-weight:800;color:var(--blue)}.ev b{display:block;font-size:15.5px;margin:3px 0}.ev span{font-size:12px;color:var(--sub);font-weight:600}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+ <filter id="blob" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="46"/></filter>
+ <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+ <symbol id="rep" viewBox="0 0 48 48"><path d="M8 24a16 16 0 1 0 5-11.6L8 17" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v9h9" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 18v12l9-6z" fill="#2B5BFF"/></symbol>
+ <symbol id="sos" viewBox="0 0 48 48"><circle cx="24" cy="16" r="7" fill="none" stroke="#89A3F7" stroke-width="3"/><path d="M10 41c1-8 7-13 14-13s13 5 14 13" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round"/><circle cx="37" cy="12" r="6" fill="#2B5BFF"/><path d="M37 9v3.5M37 15h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></symbol>
+ <symbol id="cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></g></symbol>
+ <symbol id="art" viewBox="0 0 190 128"><circle cx="48" cy="40" r="11" fill="#fff" opacity=".3"/><circle cx="62" cy="36" r="14" fill="#fff" opacity=".3"/><circle cx="150" cy="30" r="9" fill="#fff" opacity=".3"/>
+  <path d="M0 96c34-18 70-18 104-6s58 8 86-6v44H0z" fill="#fff" opacity=".2"/><path d="M0 110c46-12 92-8 130-2 24 4 42 2 60-4v24H0z" fill="#fff" opacity=".32"/>
+  <g transform="translate(112 28) scale(4)" shape-rendering="crispEdges"><rect x="4" y="0" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="5" y="0" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="6" y="0" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="7" y="0" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="3" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="4" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="5" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="6" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="7" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="8" y="1" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="3" y="2" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="4" y="2" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="5" y="2" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="6" y="2" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="7" y="2" width="1.02" height="1.02" fill="#111827"/><rect x="8" y="2" width="1.02" height="1.02" fill="#111827"/><rect x="3" y="3" width="1.02" height="1.02" fill="#2B2F4A"/><rect x="4" y="3" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="5" y="3" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="6" y="3" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="7" y="3" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="8" y="3" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="4" y="4" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="5" y="4" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="6" y="4" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="7" y="4" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="4" y="5" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="5" y="5" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="5" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="5" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="6" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="6" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="6" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="6" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="6" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="8" y="6" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="7" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="8" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="9" y="7" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="8" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="8" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="8" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="8" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="8" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="9" y="8" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="10" y="8" width="1.02" height="1.02" fill="#F2C6A0"/><rect x="3" y="9" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="9" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="9" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="9" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="9" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="11" y="9" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="10" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="10" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="10" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="10" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="10" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="11" y="10" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="11" width="1.02" height="1.02" fill="#D6E0FF"/><rect x="4" y="11" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="5" y="11" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="6" y="11" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="7" y="11" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="12" y="11" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="4" y="12" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="5" y="12" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="6" y="12" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="7" y="12" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="12" y="12" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="4" y="13" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="5" y="13" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="6" y="13" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="7" y="13" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="12" y="13" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="14" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="4" y="14" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="5" y="14" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="7" y="14" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="8" y="14" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="13" y="14" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="3" y="15" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="4" y="15" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="7" y="15" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="8" y="15" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="13" y="15" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="2" y="16" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="3" y="16" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="8" y="16" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="9" y="16" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="13" y="16" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="2" y="17" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="3" y="17" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="8" y="17" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="9" y="17" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="14" y="17" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="2" y="18" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="3" y="18" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="9" y="18" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="10" y="18" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="14" y="18" width="1.02" height="1.02" fill="#FFFFFF"/><rect x="1" y="19" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="2" y="19" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="9" y="19" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="10" y="19" width="1.02" height="1.02" fill="#1E2A5A"/><rect x="14" y="19" width="1.02" height="1.02" fill="#E5484D"/><rect x="1" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="2" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="3" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="9" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="10" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="11" y="20" width="1.02" height="1.02" fill="#0F172A"/><rect x="14" y="20" width="1.02" height="1.02" fill="#E5484D"/></g></symbol>
+</defs></svg>
+
+<!-- 시작 전 -->
+<div class="wrap"><div class="ph">
+ <div class="agent"><svg class="aura" viewBox="0 0 470 520" preserveAspectRatio="none"><g filter="url(#blob)"><circle cx="150" cy="170" r="150" fill="#BCD2FF"/><circle cx="330" cy="140" r="120" fill="#D6E4FF"/><circle cx="250" cy="300" r="120" fill="#C9DBFF"/></g></svg>
+  <div class="top"><b>SayEye</b><span class="st"><i></i>연결됨</span><span class="gear"><svg width="20" height="20"><use href="#cog"/></svg></span></div>
+  <div class="say"><small>세이아이</small><h1>안녕하세요,<br>준비됐어요</h1><p>"시작"이라고 말하거나<br>아래 버튼을 두 번 누르세요</p></div>
+  <div class="ear"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:6px"></i></span><span><b>듣고 있어요</b></span><span class="again">위쪽 누르면 다시 듣기</span></div></div>
+ <div class="start"><div><span class="pill">START</span><h2>시작</h2><small>두 번 누르면 안내가 시작돼요</small></div><svg class="art"><use href="#art"/></svg></div>
+ <div class="tiles"><div class="t"><svg><use href="#rep"/></svg>다시 듣기</div><div class="t"><svg><use href="#sos"/></svg>보호자 호출</div></div>
+</div><div class="cap">시작 전</div></div>
+
+<!-- 안내 중 -->
+<div class="wrap"><div class="ph">
+ <div class="agent"><svg class="aura" viewBox="0 0 470 520" preserveAspectRatio="none"><g filter="url(#blob)"><circle cx="140" cy="170" r="160" fill="#86ACFF"/><circle cx="330" cy="130" r="130" fill="#9BE2F2"/><circle cx="250" cy="300" r="120" fill="#C3D6FF"/></g></svg>
+  <svg class="grain" height="430"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+  <div class="top"><b>SayEye</b><span class="st"><i></i>안내 중</span><span class="gear"><svg width="20" height="20"><use href="#cog"/></svg></span></div>
+  <div class="say"><small>23분째 함께 걷는 중</small><h1>주변을<br>살피고 있어요</h1><p>방금: 1시 방향 자전거가 지나가요</p></div>
+  <div class="ear"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:6px"></i></span><span><b>듣고 있어요</b></span><span class="again">위쪽 누르면 다시 듣기</span></div></div>
+ <div class="start run"><div><span class="pill">WATCHING</span><h2>중지</h2><small>두 번 누르면 안내를 멈춰요</small></div><svg class="art"><use href="#art"/></svg></div>
+ <div class="tiles"><div class="t"><svg><use href="#rep"/></svg>다시 듣기</div><div class="t"><svg><use href="#sos"/></svg>보호자 호출</div></div>
+</div><div class="cap">안내 중</div></div>
+
+<!-- 주의 -->
+<div class="wrap"><div class="ph caut">
+ <div class="agent"><svg class="aura" viewBox="0 0 470 520" preserveAspectRatio="none"><g filter="url(#blob)"><circle cx="140" cy="160" r="150" fill="#FFF2B0" opacity=".8"/><circle cx="350" cy="130" r="120" fill="#FFB547" opacity=".7"/><circle cx="240" cy="330" r="140" fill="#FFCF5C" opacity=".8"/></g></svg>
+  <svg class="grain" height="430"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+  <div class="top"><b>SayEye</b><span class="st"><i></i>주의</span><span class="gear"><svg width="20" height="20"><use href="#cog"/></svg></span></div>
+  <div class="say"><small>1시 방향 · 킥보드</small><h1>왼쪽으로<br>피하세요</h1><p>킥보드가 다가와요</p></div>
+  <div class="ear"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:6px"></i></span><span><b>듣고 있어요</b></span><span class="again">위쪽 누르면 다시 듣기</span></div></div>
+ <div class="start run"><div><span class="pill">WATCHING</span><h2>중지</h2><small>두 번 누르면 안내를 멈춰요</small></div><svg class="art"><use href="#art"/></svg></div>
+ <div class="tiles"><div class="t"><svg><use href="#rep"/></svg>다시 듣기</div><div class="t"><svg><use href="#sos"/></svg>보호자 호출</div></div>
+</div><div class="cap">주의</div></div>
+<!-- 경고 -->
+<div class="wrap"><div class="ph warn">
+ <div class="agent"><svg class="aura" viewBox="0 0 470 520" preserveAspectRatio="none"><g filter="url(#blob)"><circle cx="140" cy="160" r="150" fill="#FFB27E" opacity=".8"/><circle cx="350" cy="130" r="120" fill="#FF6B5A" opacity=".7"/><circle cx="240" cy="360" r="150" fill="#B81E3A" opacity=".8"/></g></svg>
+  <svg class="grain" height="430"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+  <div class="top"><b>SayEye</b><span class="st"><i></i>위험</span><span class="gear"><svg width="20" height="20"><use href="#cog"/></svg></span></div>
+  <div class="say"><small>정면 · 약 3 m</small><h1>멈추세요</h1><p>정면 자동차가 다가와요</p></div>
+  <div class="ear"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:6px"></i></span><span><b>듣고 있어요</b></span><span class="again">위쪽 누르면 다시 듣기</span></div></div>
+ <div class="start run" style="background:linear-gradient(120deg,#F0503C,#C8283A)"><div><span class="pill">DANGER</span><h2>중지</h2><small>두 번 누르면 안내를 멈춰요</small></div><svg class="art"><use href="#art"/></svg></div>
+ <div class="tiles"><div class="t"><svg><use href="#rep"/></svg>다시 듣기</div><div class="t"><svg><use href="#sos"/></svg>보호자 호출</div></div>
+</div><div class="cap">경고</div></div>
+
+</body></html>
