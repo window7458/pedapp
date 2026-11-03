@@ -225,6 +225,8 @@ class LivePipeline:
         self._fidx = 0
         self._last_proc = -1e9
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
+        self._rx = deque(maxlen=60)          # 받은 프레임 시각 (처리한 프레임 _stamps 와 구분: 전달 문제 ↔ 처리 지연)
+        self._black = False
         self.source_label = "phone"
         self.last_frame = None              # 보호자 '지금 화면' · 알림 사진용
         self.on_frame = None                # (image) — 위험 구간 녹화기가 붙는다
@@ -235,9 +237,10 @@ class LivePipeline:
         threading.Thread(target=self._status_loop, daemon=True).start()
 
     # ── 입력 ──────────────────────────────────────────────
-    def submit(self, image: np.ndarray):
+    def submit(self, image: np.ndarray, meta: dict | None = None):
         """소스(폰 · 카메라 URL)가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다."""
-        self._latest = image
+        self._rx.append(time.perf_counter())
+        self._latest = (image, meta)
         self._evt.set()
 
     def set_scene(self, on: bool):
@@ -252,19 +255,21 @@ class LivePipeline:
             if not self._evt.wait(0.5):
                 continue
             self._evt.clear()
-            im, self._latest = self._latest, None
-            if im is None:
+            item, self._latest = self._latest, None
+            if item is None:
                 continue
+            im, meta = item
             now = time.perf_counter()
             if now - self._last_proc < 1.0 / self.cfg.max_fps - 1e-3:
                 continue
             self._last_proc = now
             try:
-                self._process(im)
+                self._process(im, meta)
             except Exception as e:           # 한 프레임 오류로 전체가 멈추면 안 된다
                 self.log(f"[pipeline] frame error: {e!r}")
 
-    def _process(self, im: np.ndarray):
+    def _process(self, im: np.ndarray, meta: dict | None = None):
+        t_in = time.perf_counter()
         if max(im.shape[:2]) > 1920:
             s = 1920 / max(im.shape[:2])
             im = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s)), interpolation=cv2.INTER_AREA)
@@ -272,6 +277,7 @@ class LivePipeline:
             self.perception.warmup(im)       # 첫 프레임 모델 올리는 시간을 시계 밖으로
             self._warmed = True
         self.last_frame = im
+        self._black = float(im[::16, ::16].mean()) < 3.0     # 카메라가 멈추면 폰이 까만 화면을 보낸다
         if self.on_frame is not None:
             self.on_frame(im)
         t = self.clock.now()
@@ -292,6 +298,8 @@ class LivePipeline:
         self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
                    "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                           round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
+        if meta and meta.get("c") is not None:     # 파이 카메라: 찍은 순간 → 결과 시간을 카메라 쪽에서 잰다
+            self.emit({"type": "frame_done", "c": meta["c"], "p_ms": round((time.perf_counter() - t_in) * 1000, 1)})
 
     def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))
@@ -325,7 +333,7 @@ class LivePipeline:
         self.emit(msg)
         if self.on_warn is not None:
             try:
-                self.on_warn(msg, ev, fr.image)
+                self.on_warn(msg, ev, fr.image, fr.dets)
             except Exception as e:
                 self.log(f"[alerts] {e!r}")
         wants = getattr(self.trigger, "wants_vlm", True) or msg["prio"] >= self.cfg.vlm_min_prio
@@ -365,7 +373,9 @@ class LivePipeline:
                 fps = (len(st) - 1) / (st[-1] - st[0])
             if time.perf_counter() - (st[-1] if st else 0) > 2.0:
                 fps = 0.0
-            self.emit({"type": "status", "fps": round(fps, 1),
+            now_ = time.perf_counter()
+            rx = sum(1 for x in list(self._rx) if now_ - x <= 3.0) / 3.0
+            self.emit({"type": "status", "fps": round(fps, 1), "rx_fps": round(rx, 1), "black": self._black,
                        "perc_ms": round(statistics.median(self._perc) * 1000, 1) if self._perc else None,
                        "lag_s": round(statistics.median(self._lag), 3) if self._lag else None,
                        "source": self.source_label, "perception": self.perception.name,

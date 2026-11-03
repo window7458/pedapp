@@ -30,6 +30,7 @@ sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
 from push import Push  # noqa: E402
+from sensors import SensorLog  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 from sources import SourceManager  # noqa: E402
 
@@ -52,11 +53,11 @@ class Hub:
 
     def _fanout(self, s: str, typ):
         for q, role in list(self.clients.items()):
+            if (role == "camera") != (typ == "frame_done"):      # 파이 카메라는 처리 완료 신호만 받는다
+                continue
             if role == "guardian" and typ not in GUARDIAN_TYPES:
                 continue
             if role != "guardian" and typ in ("alert", "loc"):
-                continue
-            if role == "camera":
                 continue
             if q.full():
                 try:
@@ -124,10 +125,25 @@ def load_pin(arg: str | None) -> str:
     return pin
 
 
-def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alerts_dir: Path | None = None):
+def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alerts_dir: Path | None = None,
+              session_dir: Path | None = None, key: str | None = None):
     hub = Hub()
     app = FastAPI(title="SayEye")
     state = {"cams": 0}
+    sensors = SensorLog(session_dir or (APP / "sessions"))
+
+    def key_ok(q, cookies):
+        return not key or hmac.compare_digest(str(q.get("k") or cookies.get("sayeye_k") or ""), key)
+
+    @app.middleware("http")
+    async def _key_guard(request: Request, call_next):
+        """공개 주소(터널)에서 영상 · 위치가 새지 않게 접속 키를 요구한다. ?k=키 로 한 번 열면 쿠키로 기억."""
+        if not key_ok(request.query_params, request.cookies):
+            return JSONResponse({"error": "접속 키가 필요해요"}, status_code=401)
+        resp = await call_next(request)
+        if key and request.query_params.get("k"):
+            resp.set_cookie("sayeye_k", key, httponly=True, secure=True, samesite="strict", max_age=86400 * 7)
+        return resp
 
     def check_pin(given: str | None):
         if not given or not hmac.compare_digest(str(given), str(pin)):
@@ -141,9 +157,11 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         alerts.on_new = push.on_alert
 
         def emit(msg):
-            hub.broadcast(msg)
             if msg.get("type") == "status":
+                msg["sensors"] = sensors.summary()
+                msg["camera_online"] = state["cams"] > 0
                 alerts.on_status(msg)
+            hub.broadcast(msg)
         pipe = LivePipeline(cfg, emit)
         pipe.on_warn = alerts.on_warn
         pipe.on_frame = alerts.clips.push
@@ -162,6 +180,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         p, s = state["pipe"], state["src"]
         return {"ok": True, "source": s.mode, "url": s.url, "perception": p.perception.name,
                 "trigger": getattr(p.trigger, "name", "?"), "vlm": p.vlm_name, "scene": p.scene_name}
+
+    @app.get("/api/sensors")
+    async def api_sensors():
+        return sensors.summary()
 
     @app.get("/preview.mjpg")
     async def preview():
@@ -261,6 +283,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     async def ws_endpoint(ws: WebSocket):
         role = ws.query_params.get("role", "pedestrian")
         await ws.accept()
+        if not key_ok(ws.query_params, ws.cookies):
+            await ws.send_text(json.dumps({"type": "auth_error"}))
+            await ws.close(code=4401)
+            return
         if role in ("guardian", "camera") and not (ws.query_params.get("pin") and hmac.compare_digest(ws.query_params["pin"], str(pin))):
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
@@ -268,6 +294,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         hub.clients[q] = role
         p, s = state["pipe"], state["src"]
+        rotate = int(ws.query_params.get("rotate", 0) or 0)
         if role == "camera":
             state["cams"] += 1
             hub.broadcast({"type": "camera", "connected": state["cams"]})
@@ -289,19 +316,24 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     break
                 if m.get("bytes") is not None:
                     if role == "camera":
-                        s.on_camera_frame(m["bytes"])
+                        got = s.on_camera_frame(m["bytes"], rotate)
+                        if got:
+                            sensors.frame("pi", got[0], got[1])
                     elif role != "guardian":
                         s.on_phone_frame(m["bytes"])
+                        sensors.frame("phone", None, len(m["bytes"]))
                 elif m.get("text"):
                     try:
                         cmd = json.loads(m["text"])
                     except json.JSONDecodeError:
                         continue
-                    if cmd.get("type") == "set_source":
-                        if cmd.get("mode") == "phone":
-                            await asyncio.to_thread(s.use_phone)
-                        elif cmd.get("mode") == "pi":
+                    if cmd.get("type") == "sensors" and role != "guardian":
+                        sensors.add(cmd)
+                    elif cmd.get("type") == "set_source":
+                        if cmd.get("mode") == "pi":
                             await asyncio.to_thread(s.use_pi)
+                        elif cmd.get("mode") == "phone":
+                            await asyncio.to_thread(s.use_phone)
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
                     elif cmd.get("type") == "set_scene":
@@ -362,6 +394,8 @@ def main():
     ap.add_argument("--scene-interval", type=float, default=5.0, help="특별 상황을 묻는 최소 간격(초)")
     ap.add_argument("--max-fps", type=float, default=15.0)
     ap.add_argument("--guardian-pin", default=None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
+    ap.add_argument("--session-dir", default=None, help="센서 기록 폴더 (기본 code/app/sessions)")
+    ap.add_argument("--key", default=None, help="접속 키. 공개 터널로 열 때 꼭 지정 (https://주소/?k=키)")
     a = ap.parse_args()
     if a.cam_h:
         import os
@@ -398,10 +432,13 @@ def main():
     print(f"보호자 화면: {urls[0]}/guardian   확인번호: {pin}")
     print(f"개발자 화면: {urls[0]}/dev")
     print(f"라즈베리파이: python pi_camera.py --server {urls[0]} --pin {pin}")
+    if a.key:
+        print(f"접속 키가 켜져 있어요. 주소 뒤에 ?k={a.key} 를 붙여 여세요.")
     if not a.https:
         print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → cloudflared tunnel --url " + f"http://localhost:{port}")
     print(f"\n가중치={w.name} · 트리거={a.trigger} · VLM={'켜짐' if vlm == 'server' else '꺼짐'} · 장치={a.device}\n")
-    uvicorn.run(build_app(cfg, None, pin), host=a.host, port=port, log_level="warning", **kw)
+    app = build_app(cfg, None, pin, session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
+    uvicorn.run(app, host=a.host, port=port, log_level="warning", **kw)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import os
+import struct
 import threading
 import time
 
@@ -41,27 +42,33 @@ class SourceManager:
         if im is not None:
             self.pipe.submit(im)
 
-    # 라즈베리파이 ───────────────────────────────────
-    def on_camera_frame(self, data: bytes):
-        if self.mode != "pi":
-            return
-        im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-        if im is not None:
-            self.pipe.submit(im)
-
-    def use_pi(self):
-        self._halt()
-        self.mode, self.url = "pi", None
-        self.pipe.preview_enabled = True             # 폰 화면에서 파이 카메라 영상을 보여 주려고
-        self.pipe.set_source_label("raspberrypi")
-        self.emit({"type": "source", "mode": "pi", "state": "ok"})
-
     def use_phone(self):
         self._halt()
         self.mode, self.url = "phone", None
         self.pipe.preview_enabled = False
         self.pipe.set_source_label("phone")
         self.emit({"type": "source", "mode": "phone", "state": "ok"})
+
+    # 라즈베리파이 카메라 (웹소켓으로 SEF1 + 찍은 시각 + JPEG) ─
+    def on_camera_frame(self, data: bytes, rotate: int = 0):
+        """(찍은 시각 ms, 바이트) 반환. 파이 모드가 아니면 처리하지 않는다."""
+        stamped = data[:4] == b"SEF1"                # code/pi/pi_camera.py 는 시각을 붙이고, code/app/pi_camera.py 는 JPEG만 보낸다
+        cap = struct.unpack("!d", data[4:12])[0] if stamped else None
+        jpg = data[12:] if stamped else data
+        if self.mode == "pi":
+            im = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
+            if im is not None:
+                rot = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}.get(rotate)
+                im = cv2.rotate(im, rot) if rot is not None else im
+                self.pipe.submit(im, dict(c=cap)) if stamped else self.pipe.submit(im)
+        return cap, len(jpg)
+
+    def use_pi(self):
+        self._halt()
+        self.mode, self.url = "pi", None
+        self.pipe.preview_enabled = True
+        self.pipe.set_source_label("raspberry-pi")
+        self.emit({"type": "source", "mode": "pi", "state": "ok"})
 
     # 서버 카메라 ──────────────────────────────────────
     def use_url(self, url: str):

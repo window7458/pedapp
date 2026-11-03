@@ -86,7 +86,7 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="설정과 도움말" tabindex="-1">
   <div class="grab" aria-hidden="true"></div>
   <h2>설정</h2>
-  <label><span>카메라</span><select id="oSrc"><option value="phone">폰 카메라</option><option value="pi">라즈베리파이 카메라</option></select></label>
+  <input type="hidden" id="oSrc" value="phone">
   <label><span>항상 듣기<small>버튼 없이 "시작", "그만", "다시 말해줘", "도와줘"를 알아들어요</small></span><input type="checkbox" class="sw" id="oListen"></label>
   <label><span>위치 공유<small>보호자 화면 지도에 지금 위치를 보여 줘요</small></span><input type="checkbox" class="sw" id="oGps"></label>
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
@@ -103,13 +103,14 @@
 </div>
 
 <script src="splash.js"></script>
+<script src="sensors.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
-function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; }
+function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
@@ -191,10 +192,13 @@ const ears = (() => {
     if(!SR){ label('이 브라우저는 음성 명령을 못 써요'); return; }
     if(!S.listen || denied){ label(denied?'마이크 권한이 필요해요':'항상 듣기 꺼짐'); return; }
     if(on || paused) return;
-    rec = new SR(); rec.lang='ko-KR'; rec.continuous=true; rec.interimResults=false; rec.maxAlternatives=3;
+    rec = new SR(); rec.lang='ko-KR'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=3;
+    const fired=new Set();                          // 말이 끝나기 전에 이미 실행한 발화는 확정 결과에서 다시 실행하지 않는다
     rec.onresult = (e) => {
-      for(let i=e.resultIndex;i<e.results.length;i++){ if(!e.results[i].isFinal) continue;
-        handleSpeech([...e.results[i]].map(a=>a.transcript)); }
+      for(let i=e.resultIndex;i<e.results.length;i++){ if(fired.has(i)) continue;
+        const alts=[...e.results[i]].map(a=>a.transcript);
+        if(e.results[i].isFinal) handleSpeech(alts);
+        else if(handleQuick(alts)) fired.add(i); }
     };
     rec.onerror = (e) => { if(e.error==='not-allowed'||e.error==='service-not-allowed'){ denied=true; label('마이크 권한이 필요해요'); } };
     rec.onend = () => { on=false; if(!paused && S.listen && !denied){ clearTimeout(retry); retry=setTimeout(start, 400); } else if(!S.listen) label('항상 듣기 꺼짐'); };
@@ -205,6 +209,14 @@ const ears = (() => {
   function stop(){ paused=false; clearTimeout(retry); if(on){ try{ rec.abort(); }catch(e){} on=false; } label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐'); }
   return {start, pause, resume, stop};
 })();
+/* 확정 결과는 말이 끝난 뒤 침묵까지 기다려서 늦다. 시작·그만·도와줘만, 그 말 하나로 들리면 바로 실행한다. ("다시 시작"의 "다시"는 여기 안 걸림) */
+const QUICK=[[/^(시작|시작해|시작해줘|출발)$/,'start'],[/^(그만|그만해|중지|정지|멈춰)$/,'stop'],[/^(도와줘|살려줘)$/,'sos']];
+function handleQuick(alts){
+  const raw=(alts[0]||'').replace(/\s+/g,'').replace(/[.,!?]/g,'').replace(/세이아이|쎄이아이|세이|sayeye|say/ig,'');
+  const hit=QUICK.find(([re])=>re.test(raw));
+  if(!hit) return false;
+  beep('listen'); runCommand(hit[1]); return true;
+}
 function handleSpeech(alts){
   for(const t of alts){
     const raw=(t||'').replace(/\s+/g,'');
@@ -265,6 +277,7 @@ function connect(){
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : (S.everOk?'연결 끊김':'연결 중'); }
 function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); }
+SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 
 function handle(m){
   switch(m.type){
@@ -282,12 +295,13 @@ function handle(m){
     case 'scene': if(S.scene){ S.latest=m.text; speech.push('scene', m.text);
                     if(!document.body.classList.contains('warn') && !document.body.classList.contains('caut')) say3(m.label||'특별한 장면', '주변을<br>살피고 있어요', m.text); } break;
     case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok' && S.mode!=='pi') notice(''); break;
-    case 'status': S.fps=m.fps; break;
+    case 'status': S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
   }
 }
 
 /* ── 카메라 ── */
 async function start(){
+  SayEyeSensors.askMotion();   /* 아이폰: 터치 안에서 바로 불러야 권한을 물어요 */
   notice(''); speech.unlock(); S.spokeReady=false;
   try{
     if(S.mode==='phone'){
@@ -340,8 +354,14 @@ function startSending(){
     c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{ if(S.ws && S.ws.readyState===1) S.ws.send(buf); }); }, 'image/jpeg', 0.6);
   }, 100);
 }
-setInterval(()=>{ if(S.running && S.wsOk && S.fps===0 && !S.warnedNoVideo && performance.now()-S.t0>15000){ S.warnedNoVideo=true; say('영상이 서버로 전달되지 않고 있어요.'); }
-                  if(S.fps>0) S.warnedNoVideo=false; if(S.running) calmView(); }, 5000);
+setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){
+    const bad = S.rx>0 && S.black ? '카메라 영상이 까맣게 나와요. 화면을 켠 채 이 앱을 앞에 띄워 주시고, 렌즈가 가려졌는지 확인해 주세요.'
+              : S.fps===0 && !S.rx ? '영상이 서버로 전달되지 않고 있어요.'
+              : S.fps===0 ? '서버 처리가 늦어지고 있어요. 경고가 늦을 수 있어요.' : '';
+    if(bad && !S.warnedNoVideo){ S.warnedNoVideo=true; say(bad); notice(bad); }
+    if(!bad && S.warnedNoVideo){ S.warnedNoVideo=false; notice(''); }
+  }
+  if(S.running) calmView(); }, 5000);
 
 /* ── 위치: 안내 중에만, 5초에 한 번 보호자에게 ── */
 function startGeo(){

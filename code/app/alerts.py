@@ -4,6 +4,7 @@
   · 단계: urgent(멈춰야 하는 위험) · caution(피하세요 등) · info(위치 안내) · sos(보행자가 직접 호출)
           · offline/online(영상 끊김/다시 옴) · battery(보행자 폰 배터리 부족)
   · 묶기: 같은 종류가 12초 안에 또 오면 새 알림이 아니라 '×N'으로 합친다 (펫캠이 움직임을 한 건으로 묶는 것처럼)
+  · 장애물 경고는 alerts/evidence/<id>.jpg(박스 없는 원본) + <id>.json(그 프레임의 모델 검출 전체)도 남긴다 — 사람을 장애물로 말하는 원인 확인용.
   · 저장: alerts/log.jsonl + alerts/snap/<id>.jpg (최근 500건). 사진에는 보행자 주변이 찍히니 이 폴더를 공유하지 말 것.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ SNAP_SIDE = 480
 LEVEL_SNAP = {"urgent", "caution", "sos"}          # 사진을 남기는 단계
 LEVEL_CLIP = {"urgent", "caution", "sos"}          # 위험 구간을 영상으로 남기는 단계
 CLIP_CLASSES = {"person", "car", "bus", "motorcycle", "other_vehicle", "bicycle", "scooter", "sos"}   # 영상은 사람 · 탈것(+보행자 호출)만
+EVIDENCE_CLASSES = {"obstacle", "pole", "pole_long", "pole_short"}   # 오분류 확인용 원본을 남기는 이름 (보호자 화면에는 안 나옴)
 CLIP_PRE_S, CLIP_POST_S, CLIP_MAX_S, CLIP_SIDE = 5.0, 4.0, 30.0, 640
 
 
@@ -119,6 +121,8 @@ class AlertCenter:
     def __init__(self, folder: Path, broadcast, log=print):
         self.dir, self.snap_dir = Path(folder), Path(folder) / "snap"
         self.snap_dir.mkdir(parents=True, exist_ok=True)
+        self.evidence_dir = self.dir / "evidence"
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
         self.broadcast, self.log = broadcast, log
         self.lock = threading.Lock()
         self.items: dict[int, dict] = {}
@@ -148,6 +152,9 @@ class AlertCenter:
             if p.stem.isdigit() and int(p.stem) not in keep:
                 p.unlink(missing_ok=True)
         for p in (self.dir / "clips").glob("*.mp4"):
+            if p.stem.isdigit() and int(p.stem) not in keep:
+                p.unlink(missing_ok=True)
+        for p in self.evidence_dir.glob("*"):
             if p.stem.isdigit() and int(p.stem) not in keep:
                 p.unlink(missing_ok=True)
         for a in self.items.values():
@@ -201,6 +208,8 @@ class AlertCenter:
                     self.items.pop(old, None)
                     (self.snap_dir / f"{old}.jpg").unlink(missing_ok=True)
                     self.clips.path(old).unlink(missing_ok=True)
+                    (self.evidence_dir / f"{old}.jpg").unlink(missing_ok=True)
+                    (self.evidence_dir / f"{old}.json").unlink(missing_ok=True)
             self._append(a)
         out = {k: v for k, v in a.items() if k != "key"}
         self.broadcast({"type": "alert", "merged": merged, **out})
@@ -222,10 +231,28 @@ class AlertCenter:
         self.broadcast({"type": "alert", "merged": True, "clip_only": True, **{k: v for k, v in a.items() if k != "key"}})
 
     # ── 파이프라인 · 서버가 부르는 곳 ─────────────────
-    def on_warn(self, msg: dict, ev, image):
+    def on_warn(self, msg: dict, ev, image, dets=None):
         level = classify(msg)
         cls = (ev.cls if ev is not None else msg.get("cls")) or ""
-        self.add(level, msg["text"], cls, image, getattr(ev, "box", None), getattr(ev, "W", None))
+        a = self.add(level, msg["text"], cls, image, getattr(ev, "box", None), getattr(ev, "W", None))
+        if cls in EVIDENCE_CLASSES and a["count"] == 1:     # 묶인 알림은 첫 장면만
+            self._save_evidence(a["id"], msg, ev, image, dets)
+
+    def _save_evidence(self, aid: int, msg: dict, ev, image, dets):
+        """실패해도 경고 흐름을 막지 않는다."""
+        try:
+            if image is not None:
+                ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                if ok:
+                    (self.evidence_dir / f"{aid}.jpg").write_bytes(buf.tobytes())
+            rows = [dict(track=getattr(d, "track_id", None), cls=getattr(d, "cls", None), conf=getattr(d, "conf", None),
+                         box=list(getattr(d, "box", ()) or ())) for d in (dets or [])]
+            info = dict(id=aid, text=msg.get("text"), spoken_cls=getattr(ev, "cls", None), track=getattr(ev, "track_id", None),
+                        box=list(ev.box) if getattr(ev, "box", None) is not None else None,
+                        W=getattr(ev, "W", None), H=getattr(ev, "H", None), dets=rows)
+            (self.evidence_dir / f"{aid}.json").write_text(json.dumps(info, ensure_ascii=False, default=str), encoding="utf-8")
+        except Exception as e:
+            self.log(f"[evidence] {e!r}")
 
     def on_location(self, m: dict):
         try:
@@ -248,7 +275,7 @@ class AlertCenter:
     def on_status(self, st: dict):
         """1초마다 오는 상태로 영상이 끊겼는지/다시 왔는지 본다."""
         now = time.time()
-        if st.get("fps", 0) > 0:
+        if st.get("rx_fps", st.get("fps", 0)) > 0:     # 받은 프레임 기준: 처리가 잠깐 밀린 건 끊김이 아니다
             self.zero_since = None
             if not self.active:
                 self.active = True

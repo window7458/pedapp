@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory() as d, TestClient(build_app(cfg, None, pin="42
         assert c.get("/api/latest.jpg?pin=424242").status_code == 200
         assert c.get(f"/api/alerts/{sosa['id']}.jpg").status_code == 401
         # 영상이 멈춘 뒤 6초 → 끊김 알림
-        time.sleep(9)
+        time.sleep(11)
         lv2 = [a["level"] for a in c.get("/api/alerts?pin=424242").json()["alerts"]]
         print("끊김 후:", lv2); assert "offline" in lv2
 print("보호자 흐름 통과")
