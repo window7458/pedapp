@@ -135,8 +135,11 @@ margin-top:12px;padding:0 16px}input{border:2px solid #9AA3C7;background:#fff}bu
 <button type="submit">열기</button></form></main></body></html>"""
 
 
-def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
-              session_dir: Path | None = None, key: str | None = None):
+def build_app(cfg: Config | None, pin: str = "000000", alerts_dir: Path | None = None,
+              session_dir: Path | None = None, key: str | None = None, engine: str = "local",
+              fallback_cfg: Config | None = None, worker_token: str | None = None):
+    """engine=local: 이 기계에서 인식까지 (GPU 서버 단독 · 노트북 시험).
+    engine=hub: 상시 서버. 인식은 /ws?role=worker 로 붙는 GPU 작업 서버(worker.py)가 하고, 없으면 fallback_cfg(CPU)."""
     hub = Hub()
     state = {}
     sensors = SensorLog(session_dir or (APP / "sessions"))
@@ -153,7 +156,11 @@ def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
                 msg["sensors"] = sensors.summary()
                 alerts.on_status(msg)
             hub.broadcast(msg)
-        pipe = LivePipeline(cfg, emit)
+        if engine == "hub":
+            from engine import Router
+            pipe = Router(emit, fallback_cfg)
+        else:
+            pipe = LivePipeline(cfg, emit)
         pipe.on_warn = alerts.on_warn
         pipe.on_frame = alerts.clips.push
         src = SourceManager(pipe, hub.broadcast)
@@ -190,9 +197,7 @@ def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
     @app.get("/api/health")
     async def health():
         p, s = state["pipe"], state["src"]
-        return {"ok": True, "source": s.mode, "perception": p.perception.name, "fps": p.fps(),
-                "trigger": getattr(p.trigger, "name", "?"), "vlm": p.vlm_name, "vlm_up": p.vlm_up,
-                "scene": p.scene_name}
+        return {"ok": True, "source": s.mode, "fps": p.fps(), **p.info()}
 
     @app.get("/api/sensors")
     async def api_sensors(pin: str | None = None):
@@ -280,6 +285,47 @@ def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
         ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 75])
         return Response(buf.tobytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
+    async def worker_session(ws: WebSocket):
+        """GPU 작업 서버(worker.py) 연결: 영상(번호+JPEG)을 보내고 인식 결과를 받는다."""
+        p = state["pipe"]
+        ok = engine == "hub" and worker_token and hmac.compare_digest(str(ws.query_params.get("wt") or ""), worker_token)
+        if not ok:
+            await ws.send_text(json.dumps({"type": "auth_error"}))
+            await ws.close(code=4401)
+            return
+        await ws.send_text(json.dumps({"type": "hello", "role": "worker"}))
+        try:
+            first = json.loads(await asyncio.wait_for(ws.receive_text(), 30))
+        except Exception:
+            await ws.close(code=4400)
+            return
+        q = p.attach_worker(first.get("info") or {})
+
+        async def sender():
+            while True:
+                m = await q.get()
+                if isinstance(m, bytes):
+                    await ws.send_bytes(m)
+                else:
+                    await ws.send_text(m)
+
+        task = asyncio.create_task(sender())
+        try:
+            while True:
+                m = await ws.receive()
+                if m["type"] == "websocket.disconnect":
+                    break
+                if m.get("text"):
+                    try:
+                        p.on_worker_msg(json.loads(m["text"]))
+                    except json.JSONDecodeError:
+                        pass
+        except Exception:
+            pass
+        finally:
+            task.cancel()
+            p.detach_worker(q)
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         role = ws.query_params.get("role", "pedestrian")
@@ -287,6 +333,9 @@ def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
         if not key_ok(ws.query_params, ws.cookies):
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
+            return
+        if role == "worker":
+            await worker_session(ws)
             return
         if role not in ("pedestrian", "guardian"):
             await ws.close(code=4400)
@@ -298,11 +347,7 @@ def build_app(cfg: Config, pin: str = "000000", alerts_dir: Path | None = None,
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         hub.clients[q] = role
         p, s = state["pipe"], state["src"]
-        await ws.send_text(json.dumps({"type": "hello", "source": s.mode,
-                                       "vlm": p.vlm_name if p.vlm_up else "none", "scene": p.scene_name,
-                                       "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
-                                       "weights": Path(str(p.cfg.weights)).name},
-                                      ensure_ascii=False))
+        await ws.send_text(json.dumps({"type": "hello", "source": s.mode, **p.info()}, ensure_ascii=False))
 
         async def sender():
             while True:
@@ -384,24 +429,44 @@ def main():
     ap.add_argument("--alerts-dir", default=env("SAYEYE_ALERTS_DIR"), help="경고 기록 폴더 (기본 code/app/alerts)")
     ap.add_argument("--key", default=env("SAYEYE_KEY"), help="접속 키. 공개 주소로 열 때 꼭 지정 (https://주소/?k=키)")
     ap.add_argument("--public-url", default=env("SAYEYE_PUBLIC_URL"), help="공개 주소 (안내 출력용)")
+    ap.add_argument("--engine", default=env("SAYEYE_ENGINE", "local"), choices=["local", "hub"],
+                    help="local: 이 기계에서 인식까지 / hub: 상시 서버 (인식은 GPU 작업 서버 worker.py)")
+    ap.add_argument("--fallback", default=env("SAYEYE_FALLBACK", "cpu"), choices=["cpu", "none"],
+                    help="hub 에서 GPU 가 없을 때: cpu(이 서버 CPU 로 느리게) | none(인식 쉼)")
+    ap.add_argument("--worker-token", default=env("SAYEYE_WORKER_TOKEN"), help="hub: GPU 작업 서버가 붙을 때 쓰는 토큰")
     a = ap.parse_args()
     if a.cam_h:
         os.environ["CAM_H"] = str(a.cam_h)         # hitbox_core 가 import 될 때 읽는다
 
     from pipeline import find_weights, vlm_alive
     w = find_weights(a.weights)
-    if w is None:
-        print("\n[오류] 팀 가중치(.pt)를 찾지 못했어요.\n"
-              f"  {APP / 'weights'} 폴더에 final_10class_best.pt 를 넣고 다시 실행하세요.\n"
-              "  (또는 --weights 경로/파일.pt)\n", flush=True)
-        sys.exit(1)
-    vlm, scene = a.vlm, ("openai" if a.vlm == "server" else "none")
-    if vlm == "server" and not vlm_alive(a.vlm_url):
-        print(f"[알림] VLM 서버({a.vlm_url})가 아직 응답하지 않아요. 켜질 때까지 경고만 내고, 켜지면 자동으로 설명이 붙어요.",
-              flush=True)
-    cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger, vlm=vlm,
-                 vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=scene, scene_url=a.vlm_url,
-                 scene_interval=a.scene_interval, max_fps=a.max_fps)
+    cfg = fallback_cfg = None
+    if a.engine == "hub":
+        if not a.worker_token:
+            print("[오류] 상시 서버(--engine hub)는 --worker-token 이 필요해요.", flush=True)
+            sys.exit(1)
+        if a.fallback == "cpu":
+            if w is None:
+                print("[알림] 가중치가 없어 CPU 느린 모드를 끕니다. GPU 작업 서버가 붙을 때만 인식해요.", flush=True)
+            else:
+                os.environ.setdefault("HB_SURFACE", "0")       # 바닥 분할(Mask2Former)은 CPU 로는 너무 느림
+                fallback_cfg = Config(perception="yolo", weights=str(w), device="cpu", conf=a.conf, trigger=a.trigger,
+                                      vlm="none", scene="none", max_fps=min(a.max_fps, 8.0))
+        engine_desc = f"상시 서버 · GPU 없을 때 {'CPU 느린 모드(' + w.name + ')' if fallback_cfg else '인식 쉼'}"
+    else:
+        if w is None:
+            print("\n[오류] 팀 가중치(.pt)를 찾지 못했어요.\n"
+                  f"  {APP / 'weights'} 폴더에 final_10class_best.pt 를 넣고 다시 실행하세요.\n"
+                  "  (또는 --weights 경로/파일.pt)\n", flush=True)
+            sys.exit(1)
+        vlm, scene = a.vlm, ("openai" if a.vlm == "server" else "none")
+        if vlm == "server" and not vlm_alive(a.vlm_url):
+            print(f"[알림] VLM 서버({a.vlm_url})가 아직 응답하지 않아요. 켜질 때까지 경고만 내고, 켜지면 자동으로 설명이 붙어요.",
+                  flush=True)
+        cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger, vlm=vlm,
+                     vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=scene, scene_url=a.vlm_url,
+                     scene_interval=a.scene_interval, max_fps=a.max_fps)
+        engine_desc = f"가중치={w.name} · 트리거={a.trigger} · VLM={a.vlm_url if vlm == 'server' else '꺼짐'} · 장치={a.device}"
     port = int(a.port or (8443 if a.https else 8080))
     kw = {}
     scheme = "http"
@@ -423,9 +488,10 @@ def main():
     print(f"개발자 화면: {urls[0]}/dev{q}")
     if not a.https and not base:
         print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → 상시 서버는 deploy/README.md 참고")
-    print(f"\n가중치={w.name} · 트리거={a.trigger} · VLM={a.vlm_url if vlm == 'server' else '꺼짐'} · 장치={a.device}\n", flush=True)
+    print(f"\n{engine_desc}\n", flush=True)
     app = build_app(cfg, pin, alerts_dir=Path(a.alerts_dir) if a.alerts_dir else None,
-                    session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
+                    session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key,
+                    engine=a.engine, fallback_cfg=fallback_cfg, worker_token=a.worker_token)
     uvicorn.run(app, host=a.host, port=port, log_level="warning", proxy_headers=True, **kw)
 
 

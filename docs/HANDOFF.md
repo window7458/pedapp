@@ -4,7 +4,8 @@
 
 ## 결정된 것
 - 스마트폰만 쓴다. 라즈베리파이 · 서버 카메라(URL) 코드는 지웠다.
-- 상시 서버는 팀 A5000 GPU 서버. 도메인이 없으므로 고정 HTTPS 주소는 **Tailscale Funnel** (`deploy/`).
+- **상시 서버 = 오라클 무료 서버**(24시간, Tailscale Funnel 고정 HTTPS 주소), **GPU(A5000)는 필요할 때만 직접 켜고 끈다.** GPU 쪽 `worker.py` 가 상시 서버에 먼저 연결하므로 GPU 에는 공개 주소가 필요 없다. GPU 가 없을 땐 상시 서버 CPU 로 느린 인식 + 음성 안내.
+- Tailscale 은 가입 완료 (구글 로그인).
 - 트리거(`hitbox_*`, `runtime/triggers.py`)는 아직 손대지 않는다.
 
 ## 11-05 에 한 것
@@ -13,10 +14,11 @@
 - 접속 키: 키 없이 열면 키 입력 화면, 쿠키 7일 → 400일 (홈 화면 앱이 1주 뒤 막히던 문제).
 - 키만 있으면 보이던 `/preview.mjpg` 제거, `/api/sensors` 는 보호자 확인번호 필요.
 - 서버 설정을 `SAYEYE_*` 환경변수로도 받음 (상시 서버용), `--alerts-dir` 추가, 푸시 연락처 설정(`SAYEYE_PUSH_SUBJECT`).
-- `deploy/install.sh` · `deploy/sayeye.sh`: venv 2개(앱 / vLLM), systemd 서비스(없으면 감시 루프 + @reboot), Tailscale Funnel.
+- 상시 서버 / GPU 분리: `engine.py`(상시 서버 쪽 연결 · CPU 느린 모드), `worker.py`(GPU 작업 서버), `SAYEYE_ENGINE=hub`. 경고 사진은 GPU 가 알려 준 프레임 번호로 상시 서버가 찍는다. 보행자 앱이 GPU 연결 · 끊김 · 느린 모드를 음성으로 알림.
+- `deploy/sayeye.sh`(상시 서버 설치 · 관리), `deploy/gpu.sh`(GPU 설치 · 켜기 · 끄기). 이 환경에서 둘을 같이 띄워 CPU→GPU→CPU 전환까지 확인.
 - 이 환경(클라우드 컨테이너, GPU 없음)에서 공식 yolo11n-seg 로 서버를 실제로 띄워 폰 흉내(웹소켓 영상) · 보호자 · 키 · 확인번호 · VLM 늦게 켜짐 · 감시 루프 재시작을 확인했다. 팀 가중치 · GPU · 실제 폰 · Tailscale 은 이 환경에서 확인하지 못했다.
 
 ## 남은 일 (순서대로)
-1. **GPU 서버에서 `bash deploy/install.sh --weights …` 실행** (사람이 해야 함: Tailscale 로그인 · Funnel 허용 링크).
+1. **오라클 무료 서버 만들고 `bash deploy/sayeye.sh install`** → GPU 켤 때 `bash deploy/gpu.sh setup …` (`deploy/README.md`). 사람이 해야 함: 오라클 가입 · Tailscale 로그인 · Funnel 허용 링크.
 2. **사람을 장애물로 말하는 문제** (트리거 쪽이라 보류 중). `alerts/evidence` 가 쌓이면 확인. 유력 경로 `hitbox_core.py:694`, `:977`.
 3. 실제 폰에서 음성 명령 속도 확인.

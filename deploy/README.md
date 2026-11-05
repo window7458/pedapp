@@ -1,50 +1,77 @@
-# SayEye 상시 서버 (A5000 GPU 서버)
+# SayEye 서버 설치
 
-한 번 설치하면 **터미널을 닫아도, 서버를 재부팅해도** 계속 돌아가고, 폰은 어디서든(LTE 포함) 고정 주소로 접속해요.
+**상시 서버**(무료, 24시간)와 **GPU 서버**(필요할 때만)를 나눠서 써요.
 
 ```
-폰 (어디서든) ──HTTPS──▶ https://sayeye.<tailnet>.ts.net  (Tailscale Funnel, 무료 · 도메인 불필요)
-                                   │
-                         GPU 서버 127.0.0.1:8080  SayEye (YOLO + 히트박스 + 알림)   ← 자동 시작 · 죽으면 재시작
-                                   │
-                                   └─ 127.0.0.1:8000  vLLM Qwen2.5-VL (설명 · 특별 장면)   ← 자동 시작 · 늦게 켜져도 자동 연결
+폰 (어디서든) ──HTTPS──▶ 상시 서버: 오라클 무료 서버   https://sayeye.<tailnet>.ts.net
+                          · 화면 · 접속 키 · 보호자 알림 · 위치 · 푸시 · 기록      ← 24시간, 재부팅해도 자동 시작
+                          · GPU 가 없을 땐 CPU 로 느리게 인식 (안내가 늦을 수 있다고 음성으로 알려 줌)
+                                  ▲
+                                  │ GPU 쪽에서 먼저 연결 (GPU 에는 공개 주소 · 테일스케일 필요 없음)
+                          GPU 서버: A5000 (켤 때만)
+                          · 팀 YOLO + v5_29 히트박스 + VLM 설명                  ← 켜면 몇십 초 안에 자동 연결
 ```
 
-## 준비물 (처음 한 번)
-1. **Tailscale 계정** — https://login.tailscale.com 에서 구글 계정으로 가입 (무료).
-2. **팀 가중치** `final_10class_best.pt` — 서버에 올려 두거나, 구글 드라이브 파일 ID.
+보행자 앱은 GPU 가 연결되면 "인식 서버가 연결됐어요", 끊기면 "느린 인식 모드예요"라고 말해 줘요.
 
-## 설치
-GPU 서버에 접속해서:
+---
+
+## 1. 오라클 무료 서버 만들기 (처음 한 번, 약 15분)
+1. https://www.oracle.com/kr/cloud/free/ → **무료로 시작하기**.
+   - 카드 등록은 본인 확인용이에요. 무료(Always Free) 자원만 쓰면 돈이 나가지 않아요.
+   - **홈 리전은 `South Korea Central (Seoul)` 또는 `South Korea North (Chuncheon)`** 으로 고르세요. 나중에 못 바꾸고, 폰과 가까워야 빨라요.
+2. 로그인 → **인스턴스 생성 (Create a VM instance)**
+   - 이름: `sayeye`
+   - 이미지: **Ubuntu 22.04** (또는 24.04)
+   - Shape: **Ampere → VM.Standard.A1.Flex, OCPU 4 · 메모리 24GB** ("Always Free 대상" 표시 확인)
+   - SSH 키: **개인 키 저장(Save private key)** 을 눌러 파일을 받아 두세요.
+   - "용량 부족(Out of capacity)"이 나오면 가용성 도메인을 바꾸거나 OCPU 2 · 12GB 로 해 보세요.
+3. 만들어지면 나오는 **공용 IP** 로 접속:
+   ```bash
+   ssh -i 받은키.key ubuntu@공용IP
+   ```
+   (윈도우는 PowerShell 에서 같은 명령이 돼요.)
+
+## 2. 상시 서버 설치 (오라클 서버에서, 처음 한 번)
 ```bash
-git clone https://github.com/window7458/pedapp.git && cd pedapp
-bash deploy/install.sh --weights ~/final_10class_best.pt
-#   또는 드라이브에서 바로: bash deploy/install.sh --weights-gdrive <파일 ID>   ('링크가 있는 모든 사용자' 공유일 때)
+git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
+bash deploy/sayeye.sh install --weights-gdrive <가중치 파일 ID>     # 가중치는 GPU 가 꺼져 있을 때 느린 인식용 (없어도 됨)
 ```
-중간에 두 번 브라우저를 열 일이 있어요.
-- **Tailscale 로그인 링크** → 열어서 로그인.
-- 처음이면 **Funnel 허용 링크**가 나와요 → 열어서 허용한 뒤 `bash deploy/install.sh` 를 한 번 더 실행.
+- 중간에 **Tailscale 로그인 링크**가 나오면 열어서 가입한 구글 계정으로 로그인하세요.
+- **Funnel 허용 링크**가 나오면 열어서 허용하고 `bash deploy/sayeye.sh install` 을 한 번 더 실행하세요.
+- 끝나면 보행자 · 보호자 주소와 **GPU 연결 명령**이 나와요. 다시 보려면 `bash deploy/sayeye.sh info`.
 
-끝나면 이렇게 나와요:
-```
-보행자:  https://sayeye.xxxx.ts.net/?k=접속키
-보호자:  https://sayeye.xxxx.ts.net/guardian?k=접속키   확인번호 123456
-```
-- 보행자 폰에서 주소를 열고 **홈 화면에 추가** (아이폰은 사파리). 키는 기기에 기억돼서 다음부터는 아이콘만 누르면 돼요.
-- 키 없이 열면 키 입력 화면이 나와요. 접속 키 · 확인번호는 `deploy/local/sayeye.env` 에 있고 저장소에는 올라가지 않아요.
+> 가중치 파일 ID: 구글 드라이브에서 `final_10class_best.pt` → 공유 → "링크가 있는 모든 사용자" → 링크의 `/d/` 와 `/view` 사이 문자열.
 
-## 관리
+이제 폰에서 보행자 주소를 열고 **홈 화면에 추가**하세요 (아이폰은 사파리). 키는 기기에 기억돼요.
+
+## 3. GPU 를 쓸 때 (A5000 에서)
+처음 한 번 — 상시 서버의 `info` 에 나온 명령을 그대로 붙여 넣으면 돼요:
 ```bash
-bash deploy/sayeye.sh info      # 주소 · 키 · 확인번호 · 상태
-bash deploy/sayeye.sh status    # 서비스 상태
-bash deploy/sayeye.sh logs      # SayEye 로그 (logs vllm: VLM 로그)
-bash deploy/sayeye.sh update    # 최신 코드 받고 다시 시작
-bash deploy/sayeye.sh restart   # deploy/local/sayeye.env 를 고친 뒤
+git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
+bash deploy/gpu.sh setup --hub https://sayeye.xxxx.ts.net --key 접속키 --token 토큰 --weights-gdrive <파일 ID>
 ```
+다음부터 GPU 를 켤 때마다:
+```bash
+cd pedapp && bash deploy/gpu.sh start
+```
+다 쓰면 `bash deploy/gpu.sh stop` 하고 GPU 를 반납하세요 (안 해도 상시 서버가 알아서 느린 모드로 바꿔요).
+
+- VLM(상황 설명)은 처음 켤 때 모델(약 16GB)을 받느라 10분 이상 걸려요. 그동안에도 위험 경고는 나가요.
+- 저장 공간이 유지되는 GPU 대여라면 두 번째부터는 설치 없이 바로 켜져요.
+
+## 관리 명령
+| 어디서 | 명령 | 하는 일 |
+|---|---|---|
+| 상시 서버 | `bash deploy/sayeye.sh info` | 주소 · 키 · 확인번호 · 지금 인식 상태 · GPU 연결 명령 |
+| 상시 서버 | `bash deploy/sayeye.sh logs` / `status` | 로그 / 상태 |
+| 상시 서버 | `bash deploy/sayeye.sh update` | 최신 코드 받고 재시작 |
+| 상시 서버 | `bash deploy/sayeye.sh restart` | `deploy/local/sayeye.env` 고친 뒤 |
+| GPU | `bash deploy/gpu.sh start` / `stop` | 켜기 / 끄기 |
+| GPU | `bash deploy/gpu.sh logs` (`logs vllm`) | 작업 서버 / VLM 로그 |
 
 ## 알아 둘 것
-- **vLLM 첫 실행**은 모델(약 16GB)을 받느라 10분 이상 걸려요. 그동안은 경고만 나가고, VLM이 켜지면 설명 · 특별 장면이 저절로 붙어요.
-- GPU 메모리: vLLM 80%, 나머지를 YOLO · 바닥 분할이 써요 (`VLLM_GPU_UTIL`). 메모리 부족이 나면 0.75로 낮추세요.
-- **컨테이너형 GPU 서버(Runyour AI 등)**: systemd 가 없어서 감시 스크립트 + `@reboot` 로 돌려요. 컨테이너 자체를 반납 · 정지하면 같이 멈추니, 컨테이너는 켜 둬야 해요.
-- 아이폰 푸시 알림을 쓰려면 `SAYEYE_PUSH_SUBJECT=mailto:본인메일` 로 바꿔 주세요.
-- 위험 순간 사진 · 영상(`code/app/alerts/`), 센서 기록(`code/app/sessions/`)은 서버에만 남아요. 사람이 찍혀 있으니 공유하지 마세요.
+- 접속 키 · 확인번호 · 작업 서버 토큰은 `deploy/local/` 에만 있고 저장소에는 올라가지 않아요.
+- 아이폰 푸시 알림을 쓰려면 `deploy/local/sayeye.env` 의 `SAYEYE_PUSH_SUBJECT=mailto:본인메일` 로 바꾸고 `restart`.
+- GPU 가 꺼져 있을 때 인식을 아예 쉬게 하려면 `SAYEYE_FALLBACK=none`.
+- 위험 순간 사진 · 영상(`code/app/alerts/`), 센서 기록(`code/app/sessions/`)은 상시 서버에만 남아요. 사람이 찍혀 있으니 공유하지 마세요.

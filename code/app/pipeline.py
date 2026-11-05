@@ -229,6 +229,7 @@ class LivePipeline:
         self.live_viewers = 0                # 보호자 실시간 영상을 보는 사람 수
         self.preview_jpeg: bytes | None = None
         self._latest, self._evt = None, threading.Event()
+        self.cur_tag = None                 # 지금 처리 중인 프레임의 tag (on_warn 안에서 읽는다)
         self._fidx = 0
         self._last_proc = -1e9
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
@@ -244,10 +245,11 @@ class LivePipeline:
         threading.Thread(target=self._status_loop, daemon=True).start()
 
     # ── 입력 ──────────────────────────────────────────────
-    def submit(self, image: np.ndarray):
-        """폰 소스가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다."""
+    def submit(self, image: np.ndarray, tag=None):
+        """폰 소스가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다.
+        tag: 이 프레임의 번호 (GPU 작업 서버가 상시 서버의 프레임 번호를 그대로 넘겨, 경고가 어느 장면인지 맞춘다)"""
         self._rx.append(time.perf_counter())
-        self._latest = image
+        self._latest = (image, tag)
         self._evt.set()
 
     def set_scene(self, on: bool):
@@ -265,7 +267,7 @@ class LivePipeline:
             item, self._latest = self._latest, None
             if item is None:
                 continue
-            im = item
+            im, self.cur_tag = item
             now = time.perf_counter()
             if now - self._last_proc < 1.0 / self.cfg.max_fps - 1e-3:
                 continue
@@ -378,6 +380,12 @@ class LivePipeline:
             self._stop.wait(15.0 if up else 5.0)
 
     # ── 상태 ──────────────────────────────────────────────
+    def info(self) -> dict:
+        """화면 · 상태 API 에 보여 줄 엔진 정보."""
+        return {"perception": self.perception.name, "trigger": getattr(self.trigger, "name", "?"),
+                "vlm": self.vlm_name if self.vlm_up else "none", "vlm_up": self.vlm_up, "scene": self.scene_name,
+                "weights": Path(str(self.cfg.weights)).name, "device": str(self.cfg.device)}
+
     def fps(self) -> float:
         st = list(self._stamps)
         if len(st) < 2 or st[-1] - st[0] <= 0 or time.perf_counter() - st[-1] > 2.0:

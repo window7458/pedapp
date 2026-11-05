@@ -12,10 +12,17 @@
 ```
 
 ## 빠른 시작
-- **상시 서버(권장)**: [`deploy/README.md`](../../deploy/README.md) — GPU 서버에 한 번 설치하면 터미널 없이 계속 돌고, 고정 HTTPS 주소가 생겨요.
+- **실제 운영**: [`deploy/README.md`](../../deploy/README.md) — 오라클 무료 상시 서버(24시간, 고정 HTTPS 주소) + 필요할 때만 켜는 GPU 서버.
 - **노트북에서 잠깐 시험**: `weights/` 에 `final_10class_best.pt` 를 넣고 `run.bat`(맥/리눅스 `run.sh`). 폰 카메라는 HTTPS 가 필요하니 같은 와이파이에서 `python server.py --https` 로 켜고 경고를 넘어가세요.
   - **아이폰은 사파리로** 여세요 (아이폰 크롬은 카메라 불가).
 - 보호자: 같은 주소 뒤에 `/guardian` + 확인번호. 개발자 화면은 `/dev`.
+
+## 두 가지 실행 방식
+| | `SAYEYE_ENGINE=local` (기본) | `SAYEYE_ENGINE=hub` |
+|---|---|---|
+| 쓰는 곳 | 노트북 · GPU 서버 한 대로 전부 | 상시 서버 (오라클) |
+| 인식 | 이 기계 | GPU 작업 서버(`worker.py`)가 `/ws?role=worker` 로 붙어서 처리. 없으면 `SAYEYE_FALLBACK=cpu` 로 느리게 |
+| 보호자 알림 · 기록 | 이 기계 | 상시 서버 (GPU 가 '몇 번 프레임에서 경고'를 알려 주면 그 장면으로 기록) |
 
 ## 폰 센서 기록 · 접속 키
 - 앱을 켜면 GPS · 자이로 · 가속도 · 중력 · 방향 · 나침반을 자동으로 모아 `sessions/`에 Sensor Logger와 같은 형식의 CSV로 저장해요. 지금은 기록만 하고 판단에는 안 써요.
@@ -96,6 +103,8 @@ LG gram(CPU)에서는 YOLO가 느려 실시간이 어렵고, Mask2Former(바닥 
 | 파일 | 역할 |
 |---|---|
 | `server.py` | FastAPI · 웹소켓 · 보호자 API(실시간 영상 · 위치 · 푸시) |
+| `engine.py` | 상시 서버: GPU 작업 서버로 영상 전달 · 결과 받기, 없으면 CPU 느린 모드 |
+| `worker.py` | GPU 작업 서버: 상시 서버에 연결해 인식 · 판단 · VLM |
 | `push.py` | 보호자 푸시 알림 (Web Push, VAPID 키는 `certs/vapid.json`) |
 | `pipeline.py` | 프레임 → 인식 → 트리거 → 경고/설명, 상태 |
 | `hitbox_trigger.py` | v5_29 실시간 트리거(입력 공급 · 말하기) |
@@ -115,7 +124,8 @@ LG gram(CPU)에서는 YOLO가 느려 실시간이 어렵고, Mask2Former(바닥 
 | `warn` | 즉시 경고 `text`, `prio`(3 멈춰 · 2 피해 · 1 위치), `level`, `scenario` |
 | `desc` | VLM 설명 (긴급도 2 이상 경고 뒤) |
 | `scene` | 특별 장면 `kind`, `label`, `text` |
-| `status` | fps · 지연 · `vlm_up` · `hb`(걸음 속도, 길 유형, 길 방향, 신호등/바닥 on/off) |
+| `engine` | 지금 인식 엔진 `mode`(gpu · cpu · none) — 보행자 앱이 음성으로 알림 |
+| `status` | fps · 지연 · `vlm_up` · `engine` · `hb`(걸음 속도, 길 유형, 길 방향, 신호등/바닥 on/off) |
 | `source` / `scene_error` | 상태 알림 |
 | `loc` | (보호자) 보행자 위치 |
 | `alert` | (보호자) 알림 |

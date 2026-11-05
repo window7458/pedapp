@@ -14,7 +14,10 @@ class SourceManager:
     def on_phone_frame(self, data: bytes):
         im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if im is not None:
-            self.pipe.submit(im)
+            if getattr(self.pipe, "wants_jpeg", False):      # 상시 서버: GPU 로 그대로 넘길 JPEG 도 준다
+                self.pipe.submit(im, jpeg=data)
+            else:
+                self.pipe.submit(im)
 
     def use_phone(self):
         self.emit({"type": "source", "mode": "phone", "state": "ok"})
