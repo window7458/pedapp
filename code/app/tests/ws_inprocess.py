@@ -1,6 +1,7 @@
 """서버(/ws) 배선을 포트를 열지 않고 확인한다 (FastAPI TestClient, 가짜 인식 + hitbox + 가짜 VLM/장면)."""
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -20,7 +21,8 @@ cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="m
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 got = {}
-with TestClient(build_app(cfg, None)) as c:
+tmp = Path(tempfile.mkdtemp(prefix="sayeye_ws_"))           # 실제 alerts/ · sessions/ 에 가짜 기록을 남기지 않게
+with TestClient(build_app(cfg, None, alerts_dir=tmp / "alerts", session_dir=tmp / "sessions")) as c:
     print("health:", c.get("/api/health").json())
     assert "Insight" in c.get("/").text or "<html" in c.get("/").text.lower()
     with c.websocket_connect("/ws") as ws:

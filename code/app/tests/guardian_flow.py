@@ -23,7 +23,7 @@ def frame(i):
     s = 1.0 + 0.004 * (i % 60); M = np.array([[s,0,(1-s)*180],[0,s,(1-s)*320]], np.float32)
     ok, b = cv2.imencode(".jpg", cv2.warpAffine(base, M, (360, 640), borderMode=cv2.BORDER_REFLECT)); return b.tobytes()
 
-with tempfile.TemporaryDirectory() as d, TestClient(build_app(cfg, None, pin="424242", alerts_dir=Path(d))) as c:
+with tempfile.TemporaryDirectory() as d, TestClient(build_app(cfg, None, pin="424242", alerts_dir=Path(d) / "alerts", session_dir=Path(d) / "sessions")) as c:
     assert c.get("/api/alerts").status_code == 401 and c.get("/api/alerts?pin=000000").status_code == 401
     for path in ("/", "/guardian", "/dev", "/manifest-guardian.webmanifest"):
         assert c.get(path).status_code == 200, path

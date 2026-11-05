@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -82,8 +83,10 @@ def main():
     a = ap.parse_args()
     w = a.weights or ("/tmp/yolo/yolov8n.pt" if not any((APP / "weights").glob("*.pt")) else "auto")
     env = dict(os.environ, HB_SURFACE="0")
+    tmp = Path(tempfile.mkdtemp(prefix="sayeye_smoke_"))      # 실제 alerts/ · sessions/ 에 가짜 기록을 남기지 않게
     p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w, "--vlm", "none",
-                          "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
+                          "--guardian-pin", PIN, "--alerts-dir", str(tmp / "alerts"), "--session-dir", str(tmp / "sessions")],
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
     try:
         for _ in range(60):
             try:

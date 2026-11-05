@@ -1,7 +1,7 @@
 """VLM 배선 확인: vLLM 과 같은 모양의 가짜 서버(OpenAI 호환, 스트리밍)를 띄우고
 경고(피하세요·멈추세요) → VLM 설명(desc), 특별 상황(scene) 이 실제 클라이언트 코드로 도는지 본다.
 진짜 Qwen2.5-VL 이 아니라 응답 모양만 같은 가짜라, 설명 '내용'이 아니라 '연결'만 확인한다."""
-import json, os, sys, threading, time
+import json, os, sys, tempfile, threading, time
 from pathlib import Path
 import cv2, numpy as np
 os.environ["HB_LIGHTS"] = os.environ["HB_SURFACE"] = "0"
@@ -56,7 +56,8 @@ cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="server", vlm_ur
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 seen = {}
-with TestClient(build_app(cfg)) as c:
+_tmp = Path(tempfile.mkdtemp(prefix="sayeye_vlm_"))   # 실제 alerts/ · sessions/ 에 쓰지 않게
+with TestClient(build_app(cfg, alerts_dir=_tmp / "alerts", session_dir=_tmp / "sessions")) as c:
     with c.websocket_connect("/ws") as ws:
         ws.receive_json()
         ws.send_json({"type": "set_source", "mode": "phone"})

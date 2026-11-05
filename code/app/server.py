@@ -395,6 +395,7 @@ def main():
     ap.add_argument("--max-fps", type=float, default=15.0)
     ap.add_argument("--guardian-pin", default=None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
     ap.add_argument("--session-dir", default=None, help="센서 기록 폴더 (기본 code/app/sessions)")
+    ap.add_argument("--alerts-dir", default=None, help="경고 기록 폴더 (기본 code/app/alerts)")
     ap.add_argument("--key", default=None, help="접속 키. 공개 터널로 열 때 꼭 지정 (https://주소/?k=키)")
     a = ap.parse_args()
     if a.cam_h:
@@ -437,7 +438,8 @@ def main():
     if not a.https:
         print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → cloudflared tunnel --url " + f"http://localhost:{port}")
     print(f"\n가중치={w.name} · 트리거={a.trigger} · VLM={'켜짐' if vlm == 'server' else '꺼짐'} · 장치={a.device}\n")
-    app = build_app(cfg, None, pin, session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
+    app = build_app(cfg, None, pin, alerts_dir=Path(a.alerts_dir) if a.alerts_dir else None,
+                    session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
     uvicorn.run(app, host=a.host, port=port, log_level="warning", **kw)
 
 
