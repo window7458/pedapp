@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SayEye 상시 서버 (오라클 무료 서버 등, GPU 없음). 24시간 켜 두고 고정 주소를 맡는다.
+# SayEye 상시 서버 (Vultr 서울 등 우분투 서버, GPU 없음). 24시간 켜 두고 고정 주소를 맡는다.
 #   bash deploy/sayeye.sh install [--weights 파일 | --weights-gdrive 파일ID]   처음 한 번
 #   bash deploy/sayeye.sh info       주소 · 접속 키 · 보호자 확인번호 · GPU 연결 명령
 #   bash deploy/sayeye.sh status     상태          bash deploy/sayeye.sh logs     최근 로그
@@ -38,6 +38,11 @@ install() {
   set -e
   say "1/5 시스템 패키지"
   apt_base
+  # 메모리 4GB 미만 서버: 설치 · CPU 인식 중 메모리 부족으로 멈추지 않게 스왑 4GB
+  if [ "$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)" -lt 4000 ] && ! swapon --show | grep -q /swapfile; then
+    $SUDO fallocate -l 4G /swapfile && $SUDO chmod 600 /swapfile && $SUDO mkswap /swapfile >/dev/null && $SUDO swapon /swapfile \
+      && echo '/swapfile none swap sw 0 0' | $SUDO tee -a /etc/fstab >/dev/null && echo "스왑 4GB 추가"
+  fi
   say "2/5 파이썬 환경 (CPU, 처음엔 5~10분)"
   PY=$(pick_python); "$PY" --version
   [ -x "$VENV/bin/python" ] || "$PY" -m venv "$VENV"
