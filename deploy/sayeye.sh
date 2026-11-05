@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SayEye 상시 서버 (Vultr 서울 등 우분투 서버, GPU 없음). 24시간 켜 두고 고정 주소를 맡는다.
+# SayEye 상시 서버 (Google Cloud 등 우분투 서버). 24시간 켜 두고 고정 주소를 맡는다.
 #   bash deploy/sayeye.sh install [--weights 파일 | --weights-gdrive 파일ID]   처음 한 번
 #   bash deploy/sayeye.sh info       주소 · 접속 키 · 보호자 확인번호 · GPU 연결 명령
 #   bash deploy/sayeye.sh status     상태          bash deploy/sayeye.sh logs     최근 로그
@@ -92,8 +92,16 @@ CONF
     start
     at_reboot "bash $SELF start"
   fi
-  sleep 8
+  wait_up
   info
+}
+
+wait_up() {    # 서버가 켜질 때까지 최대 2분 기다린다 (CPU 로 모델을 올리는 데 시간이 걸림)
+  loadenv "$ENVF"
+  for _ in $(seq 60); do
+    curl -s -m 2 -o /dev/null "http://127.0.0.1:${SAYEYE_PORT:-8080}/api/health?k=$SAYEYE_KEY" && { sleep 3; return; }
+    sleep 2
+  done
 }
 
 run_app() {
@@ -142,8 +150,8 @@ case "${1:-info}" in
   _forever) forever "$2" "$SELF" "$3" ;;
   start) start ;;
   stop) stop ;;
-  restart) stop; sleep 2; start; sleep 8; info ;;
-  update) git -C "$REPO" pull --ff-only && "$VENV/bin/pip" install -q -r "$APP/requirements.txt"; stop; sleep 2; start; sleep 8; info ;;
+  restart) stop; sleep 2; start; wait_up; info ;;
+  update) git -C "$REPO" pull --ff-only && "$VENV/bin/pip" install -q -r "$APP/requirements.txt"; stop; sleep 2; start; wait_up; info ;;
   status)
     if [ $HAS_SYSTEMD = 1 ] && [ -f /etc/systemd/system/sayeye.service ]; then systemctl --no-pager status sayeye | head -15
     else alive app && echo "상시 서버: 실행 중" || echo "상시 서버: 꺼짐"; fi
