@@ -4,7 +4,7 @@
 
 ## 결정된 것
 - 스마트폰만 쓴다. 라즈베리파이 · 서버 카메라(URL) 코드는 지웠다.
-- **상시 서버 = 오라클 무료 서버**(24시간, Tailscale Funnel 고정 HTTPS 주소), **GPU(A5000)는 필요할 때만 직접 켜고 끈다.** GPU 쪽 `worker.py` 가 상시 서버에 먼저 연결하므로 GPU 에는 공개 주소가 필요 없다. GPU 가 없을 땐 상시 서버 CPU 로 인식 (동작 확인용). 시연 · 최종 확인은 GPU.
+- **상시 서버 = Hugging Face Space**(무료 CPU basic, `deploy/huggingface/Dockerfile`, 고정 주소 `<아이디>-sayeye.hf.space`; 오라클은 가입이 안 돼서 포기), **GPU(A5000)는 필요할 때만 직접 켜고 끈다.** GPU 쪽 `worker.py` 가 상시 서버에 먼저 연결하므로 GPU 에는 공개 주소가 필요 없다. GPU 가 없을 땐 상시 서버 CPU 로 인식 (동작 확인용). 시연 · 최종 확인은 GPU.
 - Tailscale 은 가입 완료 (구글 로그인).
 - 트리거(`hitbox_*`, `runtime/triggers.py`)는 아직 손대지 않는다.
 
@@ -19,6 +19,6 @@
 - 이 환경(클라우드 컨테이너, GPU 없음)에서 공식 yolo11n-seg 로 서버를 실제로 띄워 폰 흉내(웹소켓 영상) · 보호자 · 키 · 확인번호 · VLM 늦게 켜짐 · 감시 루프 재시작을 확인했다. 팀 가중치 · GPU · 실제 폰 · Tailscale 은 이 환경에서 확인하지 못했다.
 
 ## 남은 일 (순서대로)
-1. **오라클 무료 서버 만들고 `bash deploy/sayeye.sh install`** → GPU 켤 때 `bash deploy/gpu.sh setup …` (`deploy/README.md`). 사람이 해야 함: 오라클 가입 · Tailscale 로그인 · Funnel 허용 링크.
+1. **Hugging Face Space 만들기** (가입 · Secret 입력 · Dockerfile 붙여 넣기) → GPU 켤 때 `bash deploy/gpu.sh setup …` (`deploy/README.md`).
 2. **사람을 장애물로 말하는 문제** (트리거 쪽이라 보류 중). `alerts/evidence` 가 쌓이면 확인. 유력 경로 `hitbox_core.py:694`, `:977`.
 3. 실제 폰에서 음성 명령 속도 확인.

@@ -447,12 +447,12 @@ def main():
             sys.exit(1)
         if a.fallback == "cpu":
             if w is None:
-                print("[알림] 가중치가 없어 CPU 느린 모드를 끕니다. GPU 작업 서버가 붙을 때만 인식해요.", flush=True)
+                print("[알림] 가중치가 없어 CPU 인식을 끕니다. GPU 작업 서버가 붙을 때만 인식해요.", flush=True)
             else:
                 os.environ.setdefault("HB_SURFACE", "0")       # 바닥 분할(Mask2Former)은 CPU 로는 너무 느림
                 fallback_cfg = Config(perception="yolo", weights=str(w), device="cpu", conf=a.conf, trigger=a.trigger,
                                       vlm="none", scene="none", max_fps=min(a.max_fps, 8.0))
-        engine_desc = f"상시 서버 · GPU 없을 때 {'CPU 느린 모드(' + w.name + ')' if fallback_cfg else '인식 쉼'}"
+        engine_desc = f"상시 서버 · GPU 없을 때 {'CPU 인식(' + w.name + ')' if fallback_cfg else '인식 쉼'}"
     else:
         if w is None:
             print("\n[오류] 팀 가중치(.pt)를 찾지 못했어요.\n"

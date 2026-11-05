@@ -1,9 +1,9 @@
 # SayEye 서버 설치
 
-**상시 서버**(무료, 24시간)와 **GPU 서버**(필요할 때만)를 나눠서 써요.
+**상시 서버**(Hugging Face Spaces, 무료)와 **GPU 서버**(필요할 때만)를 나눠서 써요.
 
 ```
-폰 (어디서든) ──HTTPS──▶ 상시 서버: 오라클 무료 서버   https://sayeye.<tailnet>.ts.net
+폰 (어디서든) ──HTTPS──▶ 상시 서버: Hugging Face Space   https://<아이디>-sayeye.hf.space
                           · 화면 · 접속 키 · 보호자 알림 · 위치 · 푸시 · 기록      ← 24시간, 재부팅해도 자동 시작
                           · GPU 가 없을 땐 이 서버 CPU 로 인식 (YOLO + 히트박스, VLM 설명 없이)
                                   ▲
@@ -16,40 +16,40 @@
 
 ---
 
-## 1. 오라클 무료 서버 만들기 (처음 한 번, 약 15분)
-1. https://www.oracle.com/kr/cloud/free/ → **무료로 시작하기**.
-   - 카드 등록은 본인 확인용이에요. 무료(Always Free) 자원만 쓰면 돈이 나가지 않아요.
-   - **홈 리전은 `South Korea Central (Seoul)` 또는 `South Korea North (Chuncheon)`** 으로 고르세요. 나중에 못 바꾸고, 폰과 가까워야 빨라요.
-2. 로그인 → **인스턴스 생성 (Create a VM instance)**
-   - 이름: `sayeye`
-   - 이미지: **Ubuntu 22.04** (또는 24.04)
-   - Shape: **Ampere → VM.Standard.A1.Flex, OCPU 4 · 메모리 24GB** ("Always Free 대상" 표시 확인)
-   - SSH 키: **개인 키 저장(Save private key)** 을 눌러 파일을 받아 두세요.
-   - "용량 부족(Out of capacity)"이 나오면 가용성 도메인을 바꾸거나 OCPU 2 · 12GB 로 해 보세요.
-3. 만들어지면 나오는 **공용 IP** 로 접속:
-   ```bash
-   ssh -i 받은키.key ubuntu@공용IP
-   ```
-   (윈도우는 PowerShell 에서 같은 명령이 돼요.)
+## 1. 상시 서버: Hugging Face Spaces (무료 · 카드 불필요 · 고정 HTTPS 주소)
+1. https://huggingface.co/join 에서 가입 (이메일 인증).
+2. https://huggingface.co/new-space
+   - Space name: `sayeye` · SDK: **Docker** → **Blank** · Hardware: **CPU basic (Free)** · **Public**
+     (공개여도 접속 키가 없으면 키 입력 화면만 보여요.)
+3. 만든 Space → **Settings → Variables and secrets → New secret** 으로 넣기:
+   | 이름 | 값 |
+   |---|---|
+   | `SAYEYE_KEY` | 접속 키 (아무 영문·숫자 10자 이상) |
+   | `SAYEYE_GUARDIAN_PIN` | 보호자 확인번호 6자리 |
+   | `SAYEYE_WORKER_TOKEN` | GPU 연결용 토큰 (아무 영문·숫자 20자 이상) |
+   | `WEIGHTS_GDRIVE_ID` | (선택) 가중치 드라이브 파일 ID — 넣으면 GPU 없을 때 CPU 로 인식 |
+   | `SAYEYE_PUSH_SUBJECT` | (선택) `mailto:본인메일` — 아이폰 푸시 알림용 |
+4. Space → **Files → + Add file → Create a new file** → 이름 `Dockerfile`, 내용은 이 저장소의
+   [`deploy/huggingface/Dockerfile`](huggingface/Dockerfile) 을 그대로 복사 → **Commit**.
+5. 몇 분 빌드되면 주소가 생겨요: `https://<아이디>-sayeye.hf.space`
+   - 보행자: `https://<아이디>-sayeye.hf.space/?k=<SAYEYE_KEY>` → 폰에서 **홈 화면에 추가**
+   - 보호자: `https://<아이디>-sayeye.hf.space/guardian?k=<SAYEYE_KEY>` + 확인번호
 
-## 2. 상시 서버 설치 (오라클 서버에서, 처음 한 번)
-```bash
-git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
-bash deploy/sayeye.sh install --weights-gdrive <가중치 파일 ID>     # 가중치는 GPU 가 꺼져 있을 때 CPU 인식용 (없어도 됨)
-```
-- 중간에 **Tailscale 로그인 링크**가 나오면 열어서 가입한 구글 계정으로 로그인하세요.
-- **Funnel 허용 링크**가 나오면 열어서 허용하고 `bash deploy/sayeye.sh install` 을 한 번 더 실행하세요.
-- 끝나면 보행자 · 보호자 주소와 **GPU 연결 명령**이 나와요. 다시 보려면 `bash deploy/sayeye.sh info`.
+> 가중치 파일 ID: 구글 드라이브 `final_10class_best.pt` → 공유 → "링크가 있는 모든 사용자" → 링크의 `/d/` 와 `/view` 사이.
 
-> 가중치 파일 ID: 구글 드라이브에서 `final_10class_best.pt` → 공유 → "링크가 있는 모든 사용자" → 링크의 `/d/` 와 `/view` 사이 문자열.
+알아 둘 것
+- 48시간 동안 아무도 안 열면 잠들어요. 누가 주소를 열면 1~2분 뒤 다시 켜져요.
+- 켜질 때마다 깃허브 최신 코드를 받아요. 코드를 고친 뒤에는 Space → **Settings → Restart** 만 하면 돼요.
+- 무료 Space 는 저장 공간이 유지되지 않아서, 다시 켜지면 보호자 알림 기록 · 사진이 지워져요.
 
-이제 폰에서 보행자 주소를 열고 **홈 화면에 추가**하세요 (아이폰은 사파리). 키는 기기에 기억돼요.
+### (다른 방법) 리눅스 서버 · 집 PC 를 상시 서버로
+`bash deploy/sayeye.sh install` — Tailscale Funnel 로 `https://sayeye.<tailnet>.ts.net` 주소를 만들어요 (그 컴퓨터를 계속 켜 둬야 해요).
 
 ## 3. GPU 를 쓸 때 (A5000 에서)
-처음 한 번 — 상시 서버의 `info` 에 나온 명령을 그대로 붙여 넣으면 돼요:
+처음 한 번 (주소 · 키 · 토큰은 1단계에서 정한 값):
 ```bash
 git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
-bash deploy/gpu.sh setup --hub https://sayeye.xxxx.ts.net --key 접속키 --token 토큰 --weights-gdrive <파일 ID>
+bash deploy/gpu.sh setup --hub https://<아이디>-sayeye.hf.space --key <SAYEYE_KEY> --token <SAYEYE_WORKER_TOKEN> --weights-gdrive <파일 ID>
 ```
 다음부터 GPU 를 켤 때마다:
 ```bash
