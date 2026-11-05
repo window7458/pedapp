@@ -368,13 +368,27 @@ setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){
 
 /* ── 위치: 안내 중에만, 5초에 한 번 보호자에게 ── */
 function startGeo(){
-  if(!S.gps || !navigator.geolocation || S.geo!=null) return;
+  if(!S.gps || S.geo!=null) return;
+  if(!navigator.geolocation){ sendCmd({type:'client_event', kind:'gps', state:'none'}); return; }
   S.geo = navigator.geolocation.watchPosition(p=>{
     const now=Date.now(); if(now-S.lastGeo<5000) return; S.lastGeo=now;
+    if(S.geoErr){ S.geoErr=0; notice(''); sendCmd({type:'client_event', kind:'gps', state:'ok'}); }
     sendCmd({type:'gps', lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy});
-  }, ()=>{}, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+  }, (e)=>{
+    /* 1 = 권한 거부, 2 = 위치를 못 잡음, 3 = 시간 초과 — 조용히 넘어가지 않고 보행자 · 보호자에게 알린다 */
+    if(S.geoErr===e.code || !S.running) return; S.geoErr=e.code;
+    const ios=/iPhone|iPad/.test(navigator.userAgent);
+    if(e.code===1){
+      say('위치 권한이 꺼져 있어서 보호자에게 위치를 보낼 수 없어요.');
+      notice(ios ? '위치 권한이 꺼져 있어요. 설정 → 개인정보 보호 및 보안 → 위치 서비스 → Safari 웹 사이트 → "앱을 사용하는 동안"으로 바꾼 뒤 다시 열어 주세요.'
+                 : '위치 권한이 꺼져 있어요. 주소창 왼쪽 자물쇠 → 권한 → 위치 허용 후 다시 열어 주세요.');
+    } else {
+      say('지금 위치를 찾지 못하고 있어요. 계속 찾는 중이에요.');
+    }
+    sendCmd({type:'client_event', kind:'gps', state: e.code===1 ? 'denied' : 'searching'});
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
 }
-function stopGeo(){ if(S.geo!=null){ navigator.geolocation.clearWatch(S.geo); S.geo=null; } }
+function stopGeo(){ if(S.geo!=null){ navigator.geolocation.clearWatch(S.geo); S.geo=null; } S.geoErr=0; }
 
 /* ── 보호자 호출 · 배터리 ── */
 function sos(){ sendCmd({type:'sos'}); beep(3); vibrate(3); say('보호자에게 도움을 요청했어요.'); }

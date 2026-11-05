@@ -266,6 +266,16 @@ class AlertCenter:
         self.add("sos", "보행자가 도움을 요청했어요.", "sos", image, merge_key=("sos",))
 
     def on_client_event(self, ev: dict):
+        if ev.get("kind") == "gps":
+            st = ev.get("state")
+            text = {"denied": "보행자 폰의 위치 권한이 꺼져 있어서 위치를 받을 수 없어요.",
+                    "searching": "보행자 폰이 위치를 찾지 못하고 있어요 (실내이거나 신호가 약할 수 있어요).",
+                    "none": "보행자 폰 브라우저가 위치 기능을 지원하지 않아요.",
+                    "ok": "보행자 위치를 다시 받고 있어요."}.get(st)
+            if text and st != getattr(self, "_gps_state", None):
+                self._gps_state = st
+                self.add("info", text, "gps", merge_key=("gps", st))
+            return
         if ev.get("kind") == "battery":
             pct = int(ev.get("pct", 0))
             if pct < self.low_battery_said:
