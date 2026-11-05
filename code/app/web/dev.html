@@ -159,18 +159,6 @@ summary::-webkit-details-marker{display:none}
     </button>
   </div>
 
-  <div class="seg" role="group" aria-label="카메라 종류">
-    <button type="button" id="mPhone" aria-pressed="true">폰 카메라</button>
-    <button type="button" id="mServer" aria-pressed="false">서버 카메라</button>
-  </div>
-  <div id="urlBox" hidden>
-    <div class="urlrow">
-      <input id="url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="http://192.168.0.20:81/stream" aria-label="카메라 주소">
-      <button class="sq" id="useUrl" type="button" style="width:auto;padding:0 16px;font-weight:700" aria-label="이 주소로 연결">연결</button>
-    </div>
-    <p class="hint">XIAO는 http://IP:81/stream, 노트북 웹캠은 0 을 입력하세요.</p>
-  </div>
-
   <div class="pipe" aria-label="처리 단계">
     <div class="stages">
       <span class="st" id="s-det">인식·추적</span><i>›</i>
@@ -200,10 +188,10 @@ summary::-webkit-details-marker{display:none}
 const $ = (s) => document.querySelector(s);
 const KO = {person:'사람',bicycle:'자전거',scooter:'킥보드',motorcycle:'오토바이',car:'자동차',bus:'버스',other_vehicle:'차량',obstacle:'장애물',stairs:'계단',traffic_light:'신호등'};
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, speak:true, rate:1.1, vib:true, boxes:true,
-           scene:true, dets:null, detsAt:0, flagged:new Map(), defaultUrl:'', wake:null};
+           scene:true, dets:null, detsAt:0, flagged:new Map(), wake:null};
 
-function load(){ try{ const j=JSON.parse(localStorage.getItem('insight')||'{}'); Object.assign(S, j.s||{}); if(j.url) $('#url').value=j.url; }catch(e){} }
-function save(){ try{ localStorage.setItem('insight', JSON.stringify({s:{speak:S.speak,rate:S.rate,vib:S.vib,boxes:S.boxes,scene:S.scene,mode:S.mode}, url:$('#url').value})); }catch(e){} }
+function load(){ try{ const j=JSON.parse(localStorage.getItem('insight')||'{}'); Object.assign(S, j.s||{}); }catch(e){} }
+function save(){ try{ localStorage.setItem('insight', JSON.stringify({s:{speak:S.speak,rate:S.rate,vib:S.vib,boxes:S.boxes,scene:S.scene}})); }catch(e){} }
 
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
 
@@ -221,8 +209,6 @@ function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)
 function handle(m){
   switch(m.type){
     case 'hello':
-      S.defaultUrl = m.default_url || '';
-      if(S.defaultUrl && !$('#url').value) $('#url').value = S.defaultUrl;
       break;
     case 'dets': S.dets = m; S.detsAt = performance.now(); pulse('s-det'); break;
     case 'warn':
@@ -324,9 +310,9 @@ async function start(){
   notice('');
   speech.unlock();
   try{
-    if(S.mode==='phone'){
+    {
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-        notice('폰 카메라는 https 주소에서만 켜져요. 서버를 --https 로 실행하고 그 주소로 접속해 주세요.'); return;
+        notice('폰 카메라는 https 주소에서만 켜져요.'); return;
       }
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=false; $('#pv').hidden=true;
@@ -334,13 +320,6 @@ async function start(){
       sendCmd({type:'set_source', mode:'phone'});
       $('#badge').textContent='폰 카메라';
       startSending();
-    }else{
-      const url=$('#url').value.trim();
-      if(!url){ notice('서버 카메라 주소를 입력해 주세요.'); return; }
-      sendCmd({type:'set_source', mode:'url', url});
-      const im=$('#pv'); im.onload=()=>setAspect(im.naturalWidth, im.naturalHeight);
-      im.src='/preview.mjpg?'+Date.now(); im.hidden=false; $('#cam').hidden=true;
-      $('#badge').textContent='서버 카메라';
     }
   }catch(e){
     notice(e && e.name==='NotAllowedError' ? '카메라 권한이 필요해요. 브라우저 설정에서 허용해 주세요.' : '카메라를 켤 수 없어요: '+(e&&e.message||e));
@@ -362,7 +341,7 @@ function setAspect(w,h){ if(w&&h) $('#stage').style.setProperty('--arn', (w/h).t
 function startSending(){
   const c=document.createElement('canvas'), ctx=c.getContext('2d'); let busy=false; const v=$('#cam');
   S.timer=setInterval(()=>{
-    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
+    if(!S.running || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
     const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
     const s=Math.min(1, 960/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
     ctx.drawImage(v,0,0,c.width,c.height); busy=true;
@@ -371,15 +350,7 @@ function startSending(){
 }
 
 /* ── 조작 ── */
-function setMode(m){
-  S.mode=m; $('#mPhone').setAttribute('aria-pressed', m==='phone'); $('#mServer').setAttribute('aria-pressed', m==='server');
-  $('#urlBox').hidden = m!=='server'; save();
-  if(S.running){ stop(); start(); }
-}
 $('#go').onclick = () => S.running ? stop() : start();
-$('#mPhone').onclick = () => setMode('phone');
-$('#mServer').onclick = () => setMode('server');
-$('#useUrl').onclick = () => { save(); if(S.running){ stop(); } start(); };
 $('#mute').onclick = () => { S.speak=!S.speak; $('#mute').setAttribute('aria-pressed', S.speak); $('#mute').setAttribute('aria-label', S.speak?'음성 안내 켜짐':'음성 안내 꺼짐'); if(!S.speak) speech.stop(); save(); };
 $('#rate').oninput = (e) => { S.rate=+e.target.value; save(); };
 $('#sceneOn').onchange = (e) => { S.scene=e.target.checked; sendCmd({type:'set_scene', on:S.scene}); save(); };
@@ -389,7 +360,6 @@ $('#boxes').onchange = (e) => { S.boxes=e.target.checked; save(); };
 load();
 $('#rate').value=S.rate; $('#sceneOn').checked=S.scene; $('#vib').checked=S.vib; $('#boxes').checked=S.boxes;
 $('#mute').setAttribute('aria-pressed', S.speak);
-setMode(S.mode==='server' ? 'server' : 'phone');
 connect(); draw();
 </script>
 </body>

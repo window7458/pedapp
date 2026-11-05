@@ -1,24 +1,21 @@
-# SayEye 앱 (서버는 노트북/GPU, 보행자 · 보호자는 폰 브라우저)
+# SayEye 앱 (서버는 GPU 서버, 보행자 · 보호자는 폰 브라우저)
 
-시각장애인 보행 보조: **폰 카메라 또는 라즈베리파이 카메라의 실시간 영상**을 서버가 받아 팀 YOLO + v5_29 히트박스로 판정하고,
+시각장애인 보행 보조: **보행자 폰 카메라의 실시간 영상**을 서버가 받아 팀 YOLO + v5_29 히트박스로 판정하고,
 위험을 **폰 음성 · 진동**으로 먼저 알린다. 보호자는 별도 화면에서 **푸시 알림 · 위치 지도 · 실시간 영상 · 위험 구간 영상**을 본다.
 
 ```
  보행자 폰 (카메라 · 음성 · 항상 듣기 · GPS) ─┐                     ┌─ ① YOLO11s-seg (팀 가중치) + ByteTrack
                                              ├─▶ 서버 (FastAPI) ───┤  ② v5_29 히트박스: 사람 · 탈것 · 장애물 · 신호 바뀜
- 라즈베리파이 카메라 (pi_camera.py) ─────────┘        │            ├─ ③ VLM 설명 (SJ 브랜치 Qwen2.5-VL, vLLM)
+                                             │        │            ├─ ③ VLM 설명 (Qwen2.5-VL, vLLM)
                                                       │            └─ ④ 특별 장면 묘사 (같은 VLM)
  보호자 폰 ◀── 알림 · 사진 · 위험 구간 영상 · 위치 · 실시간 영상 · 푸시 ──┘
 ```
 
 ## 빠른 시작
-1. 이 저장소를 받고 `code/app` 폴더에서 `pip install -r requirements.txt` (파이썬 3.10+, GPU면 PyTorch CUDA 버전을 먼저 설치).
-2. **Google Drive 의 팀 가중치 `final_10class_best.pt` 를 `code/app/weights/` 에 넣기.** (없으면 서버가 안 켜지고 넣을 곳을 알려 줘요.)
-3. 서버 켜기: **`run.bat`** (맥/리눅스 `run.sh`). GPU 서버면 `run_gpu.sh`.
-4. 폰 카메라 · 푸시 알림은 **HTTPS 주소**가 필요해요. 다른 터미널에서 `cloudflared tunnel --url http://localhost:8080` → 나온 `https://…trycloudflare.com` 주소를 폰에서 열기.
-   - **아이폰은 사파리로** 여세요 (아이폰 크롬은 카메라 불가).
-   - 폰에서 **홈 화면에 추가**하면 앱처럼 열려요. 아이폰 푸시 알림은 홈 화면에 추가한 앱에서만 켤 수 있어요(iOS 16.4+).
-5. 보호자: 같은 주소 뒤에 `/guardian` + 터미널에 뜬 확인번호. 개발자 화면은 `/dev`.
+- **상시 서버(권장)**: [`deploy/README.md`](../../deploy/README.md) — GPU 서버에 한 번 설치하면 터미널 없이 계속 돌고, 고정 HTTPS 주소가 생겨요.
+- **노트북에서 잠깐 시험**: `weights/` 에 `final_10class_best.pt` 를 넣고 `run.bat`(맥/리눅스 `run.sh`). 폰 카메라는 HTTPS 가 필요하니 같은 와이파이에서 `python server.py --https` 로 켜고 경고를 넘어가세요.
+  - **아이폰은 사파리로** 여세요 (아이폰 크롬은 카메라 불가).
+- 보호자: 같은 주소 뒤에 `/guardian` + 확인번호. 개발자 화면은 `/dev`.
 
 ## 폰 센서 기록 · 접속 키
 - 앱을 켜면 GPS · 자이로 · 가속도 · 중력 · 방향 · 나침반을 자동으로 모아 `sessions/`에 Sensor Logger와 같은 형식의 CSV로 저장해요. 지금은 기록만 하고 판단에는 안 써요.
@@ -26,23 +23,22 @@
 - 공개 주소로 열 때는 `--key` 를 꼭 지정해요 (`https://주소/?k=키`).
 
 ## VLM (상황 설명 · 특별 장면)
-SJ 브랜치의 vLLM 서버를 GPU에서 먼저 띄우면 자동으로 켜져요. 꺼져 있으면 서버가 알려 주고 **경고만** 냅니다.
-```bash
-# GPU 서버 (A5000): SJ 브랜치 code/p0
-python serve_vllm.py qwen2_5-vl-7b --gpu-util 0.80      # → http://localhost:8000/v1
-python server.py --device 0 --vlm-url http://localhost:8000/v1
-```
-- 히트박스 경고 중 **피하세요 · 멈추세요(긴급도 2 이상)** 에만 VLM 설명이 이어서 나와요 (위치 안내마다 붙이면 너무 많아서). 행동(멈추세요/피하세요)은 히트박스 판단을 그대로 따라요.
+`p0/serve_vllm.py` 로 띄운 vLLM 서버(기본 `http://localhost:8000/v1`)를 15초마다 확인해서, **살아 있을 때만** 부릅니다.
+SayEye 를 먼저 켜도 VLM 이 나중에 켜지면 자동으로 설명이 붙고, VLM 이 죽어도 경고는 계속 나가요.
+- 히트박스 경고 중 **피하세요 · 멈추세요(긴급도 2 이상)** 에만 VLM 설명이 이어서 나와요. 행동(멈추세요/피하세요)은 히트박스 판단을 그대로 따라요.
 - 같은 VLM 서버로 불꽃놀이 · 벚꽃길 같은 **특별 장면**도 5초 간격으로 물어봐요.
 
-## 라즈베리파이 카메라
-라즈베리파이(제로 2 W · 4 · 5)에서:
-```bash
-sudo apt install -y python3-picamera2          # 카메라 모듈 (USB 웹캠이면 생략)
-pip install websockets opencv-python-headless numpy
-python pi_camera.py --server https://xxxx.trycloudflare.com --pin <확인번호>
-```
-그다음 보행자 앱 **설정 → 카메라 → 라즈베리파이 카메라**. 음성 · 진동은 그대로 폰에서 나와요. 서버 주소만 닿으면 되니 같은 와이파이가 아니어도 돼요.
+## 설정 (명령줄 또는 환경변수)
+| 옵션 | 환경변수 | 기본 |
+|---|---|---|
+| `--key` | `SAYEYE_KEY` | 없음 (공개 주소면 필수) |
+| `--guardian-pin` | `SAYEYE_GUARDIAN_PIN` | 처음 만들어 `certs/guardian_pin.txt` |
+| `--device` | `SAYEYE_DEVICE` | cpu |
+| `--cam-h` | `SAYEYE_CAM_H` | 1.70 |
+| `--vlm-url` | `SAYEYE_VLM_URL` | http://localhost:8000/v1 |
+| `--port` / `--host` | `SAYEYE_PORT` / `SAYEYE_HOST` | 8080 / 0.0.0.0 |
+| `--alerts-dir` / `--session-dir` | `SAYEYE_ALERTS_DIR` / `SAYEYE_SESSION_DIR` | `alerts/` / `sessions/` |
+| | `SAYEYE_PUSH_SUBJECT` | 푸시 연락처 (아이폰은 실제 메일 필요) |
 
 ## 경고 범위 · 녹화
 - 보행자에게 말하는 것: **사람 · 탈것(자동차 · 버스 · 오토바이 · 자전거 · 킥보드) · 장애물(기둥 · 볼라드 · 벽 …) · 신호 바뀜 · 횡단 안내**. 계단만 뺐어요 (`HB_WARN_EXCLUDE`).
@@ -61,7 +57,7 @@ python pi_camera.py --server https://xxxx.trycloudflare.com --pin <확인번호>
 | Mask2Former 바닥 분할 | `SurfaceWorker` — 별도 스레드, 5프레임마다 (GPU 필요) |
 | group_speech | `OnlineSpeech` — 같은 규칙을 한 사건씩 |
 
-**검증** (`python tests/test_hitbox_port.py`, 모델·GPU·영상 불필요): 가짜 장면(검출·광류·신호등·바닥)을 원본 `run()`과 실시간 코어에 똑같이 넣어 경고 사건이 **전부 일치**(7개), 말하기 묶기는 무작위 사건열 300개에서 원본과 일치. 즉 *같은 입력이면 같은 판정*이에요. 실제 영상에서의 정확도는 이 테스트로는 알 수 없고, 아래 차이 때문에 오프라인 결과와 100% 같지는 않습니다.
+이식 당시 같은 입력을 원본 `run()`과 실시간 코어에 넣어 경고 사건이 전부 일치하는 것을 확인했어요. 아래 차이 때문에 오프라인 결과와 100% 같지는 않습니다.
 
 ### 원본과 다른 점 (정직하게)
 - 바닥 분할·신호등은 **비동기**라 몇 프레임 늦게 반영돼요 (원본은 같은 프레임 번호의 결과). 모델이 없거나 느리면 그 입력만 빠진 채 돌고, 화면 아래 상태줄에 `신호등 off / 바닥 off`로 표시돼요.
@@ -100,18 +96,16 @@ LG gram(CPU)에서는 YOLO가 느려 실시간이 어렵고, Mask2Former(바닥 
 | 파일 | 역할 |
 |---|---|
 | `server.py` | FastAPI · 웹소켓 · 보호자 API(실시간 영상 · 위치 · 푸시) |
-| `pi_camera.py` | 라즈베리파이 카메라 → 서버 |
 | `push.py` | 보호자 푸시 알림 (Web Push, VAPID 키는 `certs/vapid.json`) |
 | `pipeline.py` | 프레임 → 인식 → 트리거 → 경고/설명, 상태 |
 | `hitbox_trigger.py` | v5_29 실시간 트리거(입력 공급 · 말하기) |
 | `hitbox_core.py` | **자동 생성** v5_29 판정 코어 (직접 고치지 않기) |
 | `hitbox_original_v5_29.py` / `hitbox_build.py` | 원본 / 변환기 |
 | `scene.py` | 특별 장면 묘사 (불꽃놀이 · 벚꽃길 …) |
-| `sources.py` | 폰 · 라즈베리파이 소스 |
+| `sources.py` | 폰 카메라 소스 |
 | `weights/` | 팀 가중치를 넣는 곳 (GitHub에는 안 올라감) |
 | `web/` | 폰 화면 (디자인은 Figma로 교체 예정, 아래 참고) |
 | `alerts.py` | 보호자 알림 센터 (분류·묶기·사진·저장) |
-| `tests/` | `test_hitbox_port.py`(원본 대조) · `smoke_test.py`(실제 YOLO · 파이 카메라 · 위치 · 실시간 영상) · `vlm_wiring_test.py`(VLM 배선) · `alerts_rules_test.py` · `guardian_flow.py` · `ws_inprocess.py` |
 
 ## 화면 메시지 (웹소켓)
 | `type` | 내용 |
@@ -121,8 +115,7 @@ LG gram(CPU)에서는 YOLO가 느려 실시간이 어렵고, Mask2Former(바닥 
 | `warn` | 즉시 경고 `text`, `prio`(3 멈춰 · 2 피해 · 1 위치), `level`, `scenario` |
 | `desc` | VLM 설명 (긴급도 2 이상 경고 뒤) |
 | `scene` | 특별 장면 `kind`, `label`, `text` |
-| `status` | fps · 지연 · `hb`(걸음 속도, 길 유형, 길 방향, 신호등/바닥 on/off) |
+| `status` | fps · 지연 · `vlm_up` · `hb`(걸음 속도, 길 유형, 길 방향, 신호등/바닥 on/off) |
 | `source` / `scene_error` | 상태 알림 |
-| `camera` | 라즈베리파이 카메라 연결 수 |
 | `loc` | (보호자) 보행자 위치 |
 | `alert` | (보호자) 알림 |

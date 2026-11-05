@@ -1,0 +1,14 @@
+[Unit]
+Description=SayEye server (127.0.0.1:8080, Tailscale Funnel 으로 공개)
+After=network-online.target sayeye-vllm.service
+Wants=network-online.target sayeye-vllm.service
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/code/app
+ExecStart=/bin/bash @REPO@/deploy/sayeye.sh run-app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

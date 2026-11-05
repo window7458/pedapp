@@ -1,0 +1,15 @@
+[Unit]
+Description=SayEye VLM (vLLM Qwen2.5-VL, 127.0.0.1:8000)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/code/p0
+ExecStart=/bin/bash @REPO@/deploy/sayeye.sh run-vllm
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

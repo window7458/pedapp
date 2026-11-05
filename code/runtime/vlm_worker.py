@@ -2,8 +2,6 @@
 
 백엔드 (모두 같은 반환 형식 {"out": JSON 5칸|None, "lat": {...}})
   server : vLLM OpenAI 호환 서버 (A5000) — p0/describe.py 그대로
-  pt     : VLM 없음. 트리거 정보만으로 같은 형식의 답 (기준선, 지연 0)
-  mock   : pt 답 + 지정한 지연만큼 대기 — 서버 없이 '설명이 늦게 오는' 상황을 시험
 작업이 밀리면 가장 최근 것만 남긴다 (늦은 설명은 쓸모가 없음).
 
 하이브리드 후처리 (docs/13 0단계): 대상 · 움직임 · 위험 여부 = VLM, 방향 = 박스 위치, 행동 = 규칙표
@@ -11,12 +9,11 @@
 from __future__ import annotations
 
 import threading
-import time
 
 import core  # noqa: F401
 from config import COARSE, MODELS
 from frames import _crop, _draw, _resize, window_times
-from ko_template import action_ok, direction_of, pt_output, scenario_of
+from ko_template import action_ok, direction_of, scenario_of
 
 
 def build_inputs(buffer, frame, ev, setting="F8", bbox_mode="draw"):
@@ -62,25 +59,6 @@ def hybrid(out: dict, ev) -> dict:
 
 def coarse_match(out: dict, ev) -> bool:
     return COARSE.get(out.get("target"), "obstacle") == (ev.cls if ev.cls in COARSE else "obstacle")
-
-
-class PTBackend:
-    name = "pt"
-
-    def __call__(self, ev, imgs, times, boxes):
-        return {"out": pt_output(dict(cls=ev.cls, **ev.extra), ev.box, ev.W), "lat": {"total_s": 0.0}}
-
-
-class MockBackend(PTBackend):
-    def __init__(self, latency_s=1.0):
-        self.latency = latency_s
-        self.name = f"mock{latency_s:g}s"
-
-    def __call__(self, ev, imgs, times, boxes):
-        time.sleep(self.latency)
-        r = super().__call__(ev, imgs, times, boxes)
-        r["lat"] = {"total_s": self.latency}
-        return r
 
 
 class ServerBackend:

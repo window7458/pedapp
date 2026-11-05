@@ -86,7 +86,6 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="설정과 도움말" tabindex="-1">
   <div class="grab" aria-hidden="true"></div>
   <h2>설정</h2>
-  <input type="hidden" id="oSrc" value="phone">
   <label><span>항상 듣기<small>버튼 없이 "시작", "그만", "다시 말해줘", "도와줘"를 알아들어요</small></span><input type="checkbox" class="sw" id="oListen"></label>
   <label><span>위치 공유<small>보호자 화면 지도에 지금 위치를 보여 줘요</small></span><input type="checkbox" class="sw" id="oGps"></label>
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
@@ -108,8 +107,9 @@
 const $ = (s) => document.querySelector(s);
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
-           spokeReady:false, pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
+           spokeReady:false, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
+function sysInfo(){ if(S.sys) $('#sysInfo').textContent=`인식 ${S.sys.w} · 판단 ${S.sys.t} · 설명 ${S.vlmUp?'켜짐':'꺼짐'}`; }
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
@@ -270,7 +270,7 @@ function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
   ws.binaryType='arraybuffer'; S.ws=ws;
   ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true); sendCmd({type:'set_scene', on:S.scene});
-                      if(S.running) sendCmd({type:'set_source', mode:S.mode});
+                      if(S.running) sendCmd({type:'set_source', mode:'phone'});
                       if(was && S.running) say('서버와 다시 연결됐어요.'); };
   ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false); setTimeout(connect, 1500); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
@@ -281,8 +281,7 @@ SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.strin
 
 function handle(m){
   switch(m.type){
-    case 'hello': S.pi=m.pi||0; $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger} · 설명 ${m.vlm==='none'?'꺼짐':'켜짐'}`; break;
-    case 'camera': S.pi=m.connected||0; if(S.running && S.mode==='pi') say(S.pi ? '라즈베리파이 카메라가 연결됐어요.' : '라즈베리파이 카메라 연결이 끊겼어요.'); if(S.pi) notice(''); break;
+    case 'hello': S.sys={w:m.weights||m.perception, t:m.trigger}; S.vlmUp=m.vlm!=='none'; sysInfo(); break;
     case 'dets': S.dets=m; S.detsAt=performance.now(); if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
     case 'warn': {
       const prio=m.prio||1;
@@ -294,8 +293,8 @@ function handle(m){
     case 'desc': if(S.scene){ S.latest=m.text; speech.push('desc', m.text); calmView(); } break;
     case 'scene': if(S.scene){ S.latest=m.text; speech.push('scene', m.text);
                     if(!document.body.classList.contains('warn') && !document.body.classList.contains('caut')) say3(m.label||'특별한 장면', '주변을<br>살피고 있어요', m.text); } break;
-    case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok' && S.mode!=='pi') notice(''); break;
-    case 'status': S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
+    case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok') notice(''); break;
+    case 'status': if(m.vlm_up!==undefined && m.vlm_up!==S.vlmUp){ S.vlmUp=m.vlm_up; sysInfo(); } S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
   }
 }
 
@@ -304,16 +303,12 @@ async function start(){
   SayEyeSensors.askMotion();   /* 아이폰: 터치 안에서 바로 불러야 권한을 물어요 */
   notice(''); speech.unlock(); S.spokeReady=false;
   try{
-    if(S.mode==='phone'){
+    {
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬 · 파이어폭스는 카메라를 쓸 수 없어요.'); return; }
         say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=false; $('#pv').hidden=true;
       sendCmd({type:'set_source', mode:'phone'}); startSending();
-    }else{
-      sendCmd({type:'set_source', mode:'pi'});
-      if(!S.pi){ say('라즈베리파이 카메라가 아직 연결되지 않았어요. 파이에서 카메라 프로그램을 켜 주세요.'); notice('라즈베리파이 카메라가 연결되지 않았어요. 파이에서 pi_camera.py 를 실행해 주세요.'); }
-      const im=$('#pv'); im.src='/preview.mjpg?'+Date.now(); im.hidden=false; $('#cam').hidden=true;
     }
   }catch(e){
     const denied = e && e.name==='NotAllowedError';
@@ -347,7 +342,7 @@ function setGo(){
 function startSending(){
   const c=document.createElement('canvas'), ctx=c.getContext('2d'); let busy=false; const v=$('#cam');
   S.timer=setInterval(()=>{
-    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
+    if(!S.running || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
     const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
     const s=Math.min(1, 960/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
     ctx.drawImage(v,0,0,c.width,c.height); busy=true;
@@ -411,7 +406,7 @@ document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
 /* ── 설정 ── */
 function applySettings(){
   $('#oGuide').checked=S.guide; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oScene').checked=S.scene; $('#oHc').checked=S.hc;
-  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
+  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
   document.documentElement.dataset.hc = S.hc?'1':'';
   setGo();
 }
@@ -421,8 +416,6 @@ const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key
   if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
 bind('oGuide','guide'); bind('oBeep','beep'); bind('oVib','vib'); bind('oScene','scene'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
 bind('oListen','listen'); bind('oGps','gps');
-$('#oSrc').addEventListener('input',e=>{ if(S.running) stop(); S.mode=e.target.value; save(); applySettings();
-  say(S.mode==='pi' ? '카메라를 라즈베리파이로 바꿨어요.' : '카메라를 폰 카메라로 바꿨어요.'); });
 $('#help').addEventListener('click', ()=>{ speech.unlock(); speakHelp(); });
 
 /* ── 미리보기 위 인식 박스 ── */

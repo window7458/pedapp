@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -21,8 +22,9 @@ def _b64u(b: bytes) -> str:
 
 
 class Push:
-    def __init__(self, cert_dir: Path, data_dir: Path, subject: str = "mailto:sayeye@example.com", log=print):
-        self.log, self.subject = log, subject
+    def __init__(self, cert_dir: Path, data_dir: Path, subject: str | None = None, log=print):
+        # 애플 푸시는 연락처(sub)를 확인한다 → 상시 서버는 SAYEYE_PUSH_SUBJECT=mailto:실제주소 로 바꿀 것
+        self.log, self.subject = log, subject or os.environ.get("SAYEYE_PUSH_SUBJECT") or "mailto:sayeye@example.com"
         self.key_file, self.sub_file = Path(cert_dir) / "vapid.json", Path(data_dir) / "push_subs.json"
         self.subs: dict[str, dict] = {}
         self.lock = threading.Lock()

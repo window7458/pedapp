@@ -27,6 +27,7 @@ if __name__ == "__main__":
     ap.add_argument("model", choices=list(MODELS))
     ap.add_argument("--print", action="store_true")
     ap.add_argument("--gpu-util", default="0.90", help="실행 시스템과 GPU를 나눠 쓸 때 낮춤 (YOLO 몫)")
+    ap.add_argument("--host", default=None, help="상시 서버는 127.0.0.1 (밖에서 VLM 에 직접 못 들어오게)")
     a = ap.parse_args()
     m = MODELS[a.model]
     # Runyour AI 템플릿엔 CUDA 툴킷이 없고 pip nvcc(13.4)는 런타임 헤더(13.0)와 안 맞음
@@ -34,6 +35,8 @@ if __name__ == "__main__":
     os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
     common = [a.gpu_util if c == "0.90" else c for c in COMMON]
     cmd = ["vllm", "serve", m["hf"], *common, *m["serve"]]
+    if a.host:
+        cmd += ["--host", a.host]
     print(" ".join(shlex.quote(c) for c in cmd), flush=True)
     if not a.print:
         os.execvp(cmd[0], cmd)

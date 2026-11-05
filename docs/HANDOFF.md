@@ -1,23 +1,22 @@
-# SayEye 작업 인계 (2026-11-03 기준, 브랜치 wip/phone-only-handoff)
+# SayEye 작업 인계 (2026-11-05 기준, 브랜치 wip/phone-only-handoff)
 
 저장소가 공개라서 서버 주소 · 키 · 사람이 찍힌 사진은 이 문서와 저장소에 넣지 않는다.
 
 ## 결정된 것
-- 라즈베리파이는 쓰지 않고 스마트폰만 쓴다. 보행자 설정에서 파이 선택은 뺐고, 서버의 파이 코드와 `code/pi/`는 아직 남아 있다.
+- 스마트폰만 쓴다. 라즈베리파이 · 서버 카메라(URL) 코드는 지웠다.
+- 상시 서버는 팀 A5000 GPU 서버. 도메인이 없으므로 고정 HTTPS 주소는 **Tailscale Funnel** (`deploy/`).
+- 트리거(`hitbox_*`, `runtime/triggers.py`)는 아직 손대지 않는다.
 
-## 이 브랜치에 들어간 것
-- 음성 명령: `시작` · `그만` · `도와줘` 계열은 그 말만 들리면 확정 전에 바로 실행 (`code/app/web/index.html`). 가짜 음성 입력으로만 검증했고 실제 폰 확인은 아직 안 했다.
-- 장애물 경고 원인 자료: 장애물 · 기둥 경고 때 `alerts/evidence/<id>.jpg`(원본) + `<id>.json`(그 프레임의 검출 전체) 저장. 보호자 화면에는 안 나온다.
-- 이전까지 커밋되지 않았던 폰 센서 기록, 접속 키(`--key`), `code/pi/`, `code/runtime/dump_tracks.py`.
+## 11-05 에 한 것
+- 가짜 · 시험 코드 제거: `code/app/tests/`, mock VLM · mock 장면, 가짜 인식기 주입, 오프라인 데모 · 평가 코드(`runtime/run_demo.py` 등, `p0/` 평가 스크립트), Pi 코드, 카메라 진단 페이지. 저장소에 올라가 있던 `.pyc` 도 뺐다.
+- VLM 자동 연결: 서버를 먼저 켜도 vLLM 이 나중에 올라오면 자동으로 설명 · 특별 장면이 켜짐 (15초마다 확인). 꺼져 있을 땐 부르지 않음.
+- 접속 키: 키 없이 열면 키 입력 화면, 쿠키 7일 → 400일 (홈 화면 앱이 1주 뒤 막히던 문제).
+- 키만 있으면 보이던 `/preview.mjpg` 제거, `/api/sensors` 는 보호자 확인번호 필요.
+- 서버 설정을 `SAYEYE_*` 환경변수로도 받음 (상시 서버용), `--alerts-dir` 추가, 푸시 연락처 설정(`SAYEYE_PUSH_SUBJECT`).
+- `deploy/install.sh` · `deploy/sayeye.sh`: venv 2개(앱 / vLLM), systemd 서비스(없으면 감시 루프 + @reboot), Tailscale Funnel.
+- 이 환경(클라우드 컨테이너, GPU 없음)에서 공식 yolo11n-seg 로 서버를 실제로 띄워 폰 흉내(웹소켓 영상) · 보호자 · 키 · 확인번호 · VLM 늦게 켜짐 · 감시 루프 재시작을 확인했다. 팀 가중치 · GPU · 실제 폰 · Tailscale 은 이 환경에서 확인하지 못했다.
 
 ## 남은 일 (순서대로)
-1. **상시 서버 올리기.** 노트북을 꺼도 돌아가야 한다. 사용자가 서버를 아직 정하지 않았으므로 먼저 물어볼 것: 쓸 수 있는 GPU 서버가 있는지, 없으면 월 예산. 폰 카메라에 HTTPS가 필요하고, 공개 주소이므로 `--key`가 필수다.
-   Claude Code 웹 환경은 서버를 상시로 띄우는 곳이 아니다. 배포 스크립트를 만드는 곳으로 쓴다.
-2. **사람을 장애물로 말하는 문제.** 코드가 사람 클래스를 바꾸지는 않는다. 가까운 사람을 모델이 낮은 확신도의 탈것으로 잡으면 `장애물`로 바뀌는 경로가 유력하다 (`hitbox_core.py:694`, `:977`). 확정은 아니다. `alerts/evidence`가 쌓이면 확인한 뒤, 말하기 전에 해당 영역을 사람인지 재확인하는 방안을 검토한다. `hitbox_core.py`는 `hitbox_build.py`로 생성되는 파일이다.
+1. **GPU 서버에서 `bash deploy/install.sh --weights …` 실행** (사람이 해야 함: Tailscale 로그인 · Funnel 허용 링크).
+2. **사람을 장애물로 말하는 문제** (트리거 쪽이라 보류 중). `alerts/evidence` 가 쌓이면 확인. 유력 경로 `hitbox_core.py:694`, `:977`.
 3. 실제 폰에서 음성 명령 속도 확인.
-
-## 알려진 문제
-- `tests/guardian_flow.py`, `tests/vlm_wiring_test.py`가 간헐적으로 실패한다. 같은 코드에서 실패 후 다시 돌리면 통과했다. 원인은 못 찾았다.
-- `tests/smoke_test.py`, `tests/ws_inprocess.py`는 임시 폴더를 쓰지 않아 실제 `alerts/`에 가짜 기록을 남긴다. 고쳐야 한다.
-- 가중치(`code/app/weights/*.pt`)는 저장소에 없다. README대로 팀 Drive에서 받는다. 웹 환경에서는 실제 모델 테스트가 안 될 수 있다.
-- `alerts/`, `sessions/`, `certs/`는 올리지 않는다 (사람 사진, 위치, 키).

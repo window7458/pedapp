@@ -33,26 +33,24 @@ from core import Clock, Det, Frame  # noqa: E402
 from ko_template import direction_of, sentence  # noqa: E402
 from perception import FrameBuffer  # noqa: E402
 from dispatcher import DispatchConfig, warn_text_of  # noqa: E402
-from vlm_worker import (MockBackend, PTBackend, ServerBackend, VLMWorker, build_inputs, coarse_match,  # noqa: E402
-                        hybrid)
+from vlm_worker import ServerBackend, VLMWorker, build_inputs, coarse_match, hybrid  # noqa: E402
 
 from scene import SceneDescriber, make_backend  # noqa: E402
 
 
 @dataclass
 class Config:
-    perception: object = "yolo"         # yolo | none (테스트는 가짜 인식기 객체를 직접 넣는다)
+    perception: str = "yolo"            # 팀 YOLO11s-seg + ByteTrack
     weights: str = "auto"               # auto(weights/ 폴더에서 찾기) 또는 .pt 파일 경로
     device: str = "cpu"
     conf: float | None = None           # YOLO 신뢰도. 비우면 트리거가 정함 (hitbox 는 0.2, 그 밖은 0.25)
     trigger: str = "hitbox"             # hitbox(v5_29) | b0 | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
-    vlm: str = "server"                 # server(vLLM Qwen2.5-VL) | none | mock(테스트)
+    vlm: str = "server"                 # server(vLLM Qwen2.5-VL) | none
     vlm_min_prio: int = 2               # hitbox 경고 중 이 긴급도 이상(피하세요·멈추세요)만 VLM 설명을 붙인다
-    mock_latency: float = 1.0
     vlm_url: str = "http://localhost:8000/v1"
     vlm_model: str = "qwen2_5-vl-7b"
     vlm_prompt: str = "h2"
-    scene: str = "openai"               # openai(같은 vLLM 서버) | anthropic | none | mock(테스트)
+    scene: str = "openai"               # openai(같은 vLLM 서버) | anthropic | none
     scene_url: str | None = None
     scene_model: str | None = None
     scene_interval: float = 5.0
@@ -92,6 +90,16 @@ def find_weights(spec: str | None) -> Path | None:
             if pts:
                 return pts[0]
     return None
+
+
+def vlm_alive(url: str) -> bool:
+    """OpenAI 호환 서버(vLLM)가 응답하는지."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/models", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
 
 
 def foot_point(poly, box) -> tuple[float, float]:
@@ -144,13 +152,6 @@ class AppYoloTracker:
         return out
 
 
-class NoPerception:
-    name = "none"
-
-    def __call__(self, fidx, image):
-        return []
-
-
 class NoTrigger:
     name = "none"
 
@@ -159,10 +160,6 @@ class NoTrigger:
 
 
 def make_perception(cfg: Config):
-    if not isinstance(cfg.perception, str):          # 테스트가 가짜 인식기를 직접 넣을 때
-        return cfg.perception
-    if cfg.perception == "none":
-        return NoPerception()
     if cfg.perception == "yolo":
         w = find_weights(cfg.weights)
         if w is None:
@@ -171,7 +168,7 @@ def make_perception(cfg: Config):
         conf = cfg.conf if cfg.conf is not None else (0.2 if str(cfg.trigger).startswith("hitbox") else 0.25)
         cfg.weights = str(w)
         return AppYoloTracker(w, cfg.device, conf=conf)
-    raise ValueError(f"unknown perception {cfg.perception} (yolo | none)")
+    raise ValueError(f"unknown perception {cfg.perception} (yolo)")
 
 
 def make_trigger(cfg: Config):
@@ -197,15 +194,16 @@ class LivePipeline:
         self.buffer = FrameBuffer()
         self.perception = make_perception(cfg)
         self.trigger = make_trigger(cfg)
+        self._stop = threading.Event()
         self.events = 0
         self.last_track, self.last_text = {}, {}
         self.event_seq = 0
 
         self.vlm = None
         if cfg.vlm != "none":
-            backend = {"pt": lambda: PTBackend(), "mock": lambda: MockBackend(cfg.mock_latency),
-                       "server": lambda: ServerBackend(cfg.vlm_url, cfg.vlm_model, cfg.dispatch.bbox, cfg.vlm_prompt)
-                       }[cfg.vlm]()
+            if cfg.vlm != "server":
+                raise ValueError(f"unknown vlm {cfg.vlm} (server | none)")
+            backend = ServerBackend(cfg.vlm_url, cfg.vlm_model, cfg.dispatch.bbox, cfg.vlm_prompt)
             self.vlm = VLMWorker(backend, self._on_vlm, self._vlm_log)
             self.vlm.start()
         self.vlm_name = getattr(self.vlm.backend, "name", "none") if self.vlm else "none"
@@ -217,11 +215,20 @@ class LivePipeline:
             self.scene.start()
         self.scene_name = self.scene.name
 
+        # vLLM 은 켜지는 데 몇 분 걸리고 중간에 재시작될 수도 있다 → 주기적으로 확인해서 살아 있을 때만 부른다.
+        # (서버를 먼저 켜도 VLM 이 나중에 올라오면 자동으로 설명 · 특별 장면이 켜진다)
+        self.vlm_up = False
+        self._health_urls = {u for u, on in ((cfg.vlm_url, self.vlm is not None),
+                                             (cfg.scene_url or cfg.vlm_url, cfg.scene == "openai")) if on}
+        if self._health_urls:
+            threading.Thread(target=self._vlm_health_loop, daemon=True).start()
+        else:
+            self.scene.available = sb is not None
+
         self.preview_enabled = False
         self.live_viewers = 0                # 보호자 실시간 영상을 보는 사람 수
         self.preview_jpeg: bytes | None = None
         self._latest, self._evt = None, threading.Event()
-        self._stop = threading.Event()
         self._fidx = 0
         self._last_proc = -1e9
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
@@ -237,10 +244,10 @@ class LivePipeline:
         threading.Thread(target=self._status_loop, daemon=True).start()
 
     # ── 입력 ──────────────────────────────────────────────
-    def submit(self, image: np.ndarray, meta: dict | None = None):
-        """소스(폰 · 카메라 URL)가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다."""
+    def submit(self, image: np.ndarray):
+        """폰 소스가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다."""
         self._rx.append(time.perf_counter())
-        self._latest = (image, meta)
+        self._latest = image
         self._evt.set()
 
     def set_scene(self, on: bool):
@@ -258,18 +265,17 @@ class LivePipeline:
             item, self._latest = self._latest, None
             if item is None:
                 continue
-            im, meta = item
+            im = item
             now = time.perf_counter()
             if now - self._last_proc < 1.0 / self.cfg.max_fps - 1e-3:
                 continue
             self._last_proc = now
             try:
-                self._process(im, meta)
+                self._process(im)
             except Exception as e:           # 한 프레임 오류로 전체가 멈추면 안 된다
                 self.log(f"[pipeline] frame error: {e!r}")
 
-    def _process(self, im: np.ndarray, meta: dict | None = None):
-        t_in = time.perf_counter()
+    def _process(self, im: np.ndarray):
         if max(im.shape[:2]) > 1920:
             s = 1920 / max(im.shape[:2])
             im = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s)), interpolation=cv2.INTER_AREA)
@@ -298,8 +304,6 @@ class LivePipeline:
         self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
                    "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                           round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
-        if meta and meta.get("c") is not None:     # 파이 카메라: 찍은 순간 → 결과 시간을 카메라 쪽에서 잰다
-            self.emit({"type": "frame_done", "c": meta["c"], "p_ms": round((time.perf_counter() - t_in) * 1000, 1)})
 
     def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))
@@ -337,7 +341,7 @@ class LivePipeline:
             except Exception as e:
                 self.log(f"[alerts] {e!r}")
         wants = getattr(self.trigger, "wants_vlm", True) or msg["prio"] >= self.cfg.vlm_min_prio
-        if self.vlm is not None and c.use_vlm and wants and ev.box is not None:
+        if self.vlm is not None and self.vlm_up and c.use_vlm and wants and ev.box is not None:
             imgs, times, boxes = build_inputs(self.buffer, fr, ev, c.frames, c.bbox)
             self.vlm.submit(dict(ev=ev, imgs=imgs, times=times, boxes=boxes, eid=eid))
 
@@ -363,16 +367,27 @@ class LivePipeline:
         if stage in ("vlm_end",) and kw.get("error"):
             self.log(f"[vlm] error: {kw['error']}")
 
+    def _vlm_health_loop(self):
+        while not self._stop.is_set():
+            up = all(vlm_alive(u) for u in self._health_urls)
+            if up != self.vlm_up:
+                self.log(f"[vlm] {'연결됨' if up else '응답 없음'} ({', '.join(sorted(self._health_urls))})")
+            self.vlm_up = up
+            if self.cfg.scene == "openai":
+                self.scene.available = up
+            self._stop.wait(15.0 if up else 5.0)
+
     # ── 상태 ──────────────────────────────────────────────
+    def fps(self) -> float:
+        st = list(self._stamps)
+        if len(st) < 2 or st[-1] - st[0] <= 0 or time.perf_counter() - st[-1] > 2.0:
+            return 0.0
+        return round((len(st) - 1) / (st[-1] - st[0]), 1)
+
     def _status_loop(self):
         while not self._stop.is_set():
             time.sleep(1.0)
-            st = self._stamps
-            fps = 0.0
-            if len(st) >= 2 and st[-1] - st[0] > 0:
-                fps = (len(st) - 1) / (st[-1] - st[0])
-            if time.perf_counter() - (st[-1] if st else 0) > 2.0:
-                fps = 0.0
+            fps = self.fps()
             now_ = time.perf_counter()
             rx = sum(1 for x in list(self._rx) if now_ - x <= 3.0) / 3.0
             self.emit({"type": "status", "fps": round(fps, 1), "rx_fps": round(rx, 1), "black": self._black,
@@ -380,7 +395,7 @@ class LivePipeline:
                        "lag_s": round(statistics.median(self._lag), 3) if self._lag else None,
                        "source": self.source_label, "perception": self.perception.name,
                        "trigger": getattr(self.trigger, "name", "?"), "vlm": self.vlm_name,
-                       "scene": self.scene_name, "events": self.events,
+                       "vlm_up": self.vlm_up, "scene": self.scene_name, "events": self.events,
                        "hb": getattr(self.trigger, "info", None) or None})
 
     def stop(self):

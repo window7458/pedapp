@@ -9,7 +9,6 @@
   · 모델 호출은 별도 스레드. 호출이 길어져도 경고 경로는 막히지 않는다.
 
 백엔드
-  mock       : 서버 · API 없이 UI 시험용 (벚꽃길 → 불꽃놀이 → 없음 순환)
   openai     : OpenAI 호환 서버 (팀의 vLLM Qwen2.5-VL 서버 그대로 쓸 수 있음)
   anthropic  : Claude API (환경변수 ANTHROPIC_API_KEY)
 """
@@ -81,26 +80,6 @@ def build_prompt(previous: str | None) -> str:
     return PROMPT % (", ".join(KIND_KO), previous or "none")
 
 
-class MockScene:
-    name = "mock"
-    CANNED = [
-        {"special": True, "kind": "cherry_blossom", "new_info": True,
-         "description": "정면으로 벚꽃길이 길게 이어져 있어요. 길 양옆에 분홍색 벚꽃이 활짝 피어 있어요."},
-        {"special": True, "kind": "fireworks", "new_info": True,
-         "description": "하늘 높은 곳에서 불꽃놀이가 터지고 있어요. 오른쪽 위에서 불꽃이 연달아 터져요."},
-        {"special": False, "kind": "other", "description": "", "new_info": False},
-    ]
-
-    def __init__(self, latency: float = 0.8):
-        self.i, self.latency = 0, latency
-
-    def __call__(self, images, previous):
-        time.sleep(self.latency)
-        r = self.CANNED[self.i % len(self.CANNED)]
-        self.i += 1
-        return r
-
-
 class OpenAIScene:
     """OpenAI 호환 서버 (vLLM Qwen2.5-VL 등)."""
 
@@ -141,13 +120,11 @@ class AnthropicScene:
 def make_backend(kind: str, url: str | None = None, model: str | None = None):
     if kind == "none":
         return None
-    if kind == "mock":
-        return MockScene()
     if kind == "openai":
         return OpenAIScene(url or "http://localhost:8000/v1", model or "Qwen/Qwen2.5-VL-7B-Instruct")
     if kind == "anthropic":
         return AnthropicScene(model)
-    raise ValueError(f"unknown scene backend {kind} (none | mock | openai | anthropic)")
+    raise ValueError(f"unknown scene backend {kind} (none | openai | anthropic)")
 
 
 class SceneDescriber(threading.Thread):
@@ -158,6 +135,7 @@ class SceneDescriber(threading.Thread):
         self.min_interval, self.max_interval, self.change_thr = min_interval, max_interval, change_thr
         self.repeat_s, self.n_frames, self.span_s = repeat_s, n_frames, span_s
         self.enabled = True
+        self.available = True                 # 모델 서버가 꺼져 있으면 파이프라인이 False 로 바꾼다
         self.lock = threading.Lock()
         self.frames: deque = deque()          # (t, image)
         self.sig = None
@@ -211,7 +189,7 @@ class SceneDescriber(threading.Thread):
     def run(self):
         while not self.stopped.is_set():
             time.sleep(0.3)
-            if not self.enabled or self.backend is None or not self._due():
+            if not self.enabled or not self.available or self.backend is None or not self._due():
                 continue
             got = self._pick()
             if not got:
