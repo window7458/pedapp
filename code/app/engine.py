@@ -1,4 +1,4 @@
-"""상시 서버(hub)의 인식 엔진 연결 — GPU 작업 서버가 붙어 있으면 그쪽으로, 없으면 CPU 느린 모드(또는 꺼짐).
+"""상시 서버(hub)의 인식 엔진 연결 — GPU 작업 서버가 붙어 있으면 그쪽으로, 없으면 CPU 인식(또는 꺼짐).
 
   폰 ──영상──▶ 상시 서버(이 파일) ──영상──▶ GPU 작업 서버(worker.py: YOLO + 히트박스 + VLM)
                      ▲                              │
@@ -33,7 +33,7 @@ class Router:
     def __init__(self, emit, fallback_cfg=None, log=print):
         self.emit, self.log = emit, log
         self.fallback_cfg = fallback_cfg
-        self.local = None                    # CPU 느린 모드 파이프라인 (처음 필요할 때 만든다)
+        self.local = None                    # CPU 인식 파이프라인 (처음 필요할 때 만든다)
         self._local_lock = threading.Lock()
         self.worker = None                   # {"q": asyncio.Queue, "info": dict, "since": float}
         self.worker_status: dict = {}
@@ -73,7 +73,7 @@ class Router:
                     p.on_warn = self._local_warn
                     p.set_scene(self.scene_on)
                     self.local = p
-                    self.log("[engine] CPU 느린 모드 준비됨")
+                    self.log("[engine] CPU 인식 준비됨")
                     self._announce()
                 except Exception as e:
                     self.log(f"[engine] CPU 모드를 켤 수 없어요: {e!r}")
@@ -90,7 +90,7 @@ class Router:
     def engine_state(self) -> dict:
         m = self.mode()
         return {"mode": m, "gpu": m == "gpu",
-                "label": {"gpu": "GPU 인식", "cpu": "느린 인식(CPU)", "none": "인식 꺼짐"}[m]}
+                "label": {"gpu": "GPU 인식", "cpu": "CPU 인식", "none": "인식 꺼짐"}[m]}
 
     # ── 입력 (이벤트 루프 스레드에서 불린다) ─────────────
     def set_source_label(self, label: str):
@@ -175,7 +175,7 @@ class Router:
         except Exception as ex:
             self.log(f"[alerts] {ex!r}")
 
-    # ── CPU 느린 모드 ───────────────────────────────────
+    # ── CPU 인식 ────────────────────────────────────────
     def _local_emit(self, m: dict):
         if self.worker is not None:          # GPU 가 붙은 뒤에는 CPU 결과를 내보내지 않는다
             return

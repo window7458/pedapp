@@ -3,7 +3,7 @@
 #   bash deploy/gpu.sh setup --hub https://sayeye.xxxx.ts.net --key 접속키 --token 작업서버토큰 [--weights 파일 | --weights-gdrive ID]
 #        (처음 한 번. 위 명령은 상시 서버에서 'bash deploy/sayeye.sh info' 를 하면 그대로 나와요)
 #   bash deploy/gpu.sh start      GPU 를 켤 때마다 (설정은 기억해요)
-#   bash deploy/gpu.sh stop       다 쓰고 GPU 를 반납하기 전에 (안 해도 상시 서버가 알아서 느린 모드로 바꿔요)
+#   bash deploy/gpu.sh stop       다 쓰고 GPU 를 반납하기 전에 (안 해도 상시 서버가 알아서 CPU 인식으로 바꿔요)
 #   bash deploy/gpu.sh status | logs [worker|vllm]
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -78,7 +78,7 @@ start() {
   echo "GPU 작업 서버를 켰어요. 몇십 초 안에 상시 서버에 연결돼요 (보행자 앱이 '인식 서버가 연결됐어요'라고 말해요)."
   echo "VLM(설명)은 처음엔 모델을 받느라 10분 이상 걸릴 수 있어요. 그동안도 위험 경고는 나가요."
 }
-stop() { kill_tree worker; kill_tree vllm; echo "껐어요. 상시 서버는 느린 모드로 바뀌어요."; }
+stop() { kill_tree worker; kill_tree vllm; echo "껐어요. 상시 서버는 CPU 인식으로 바뀌어요."; }
 
 case "${1:-}" in
   setup) shift; setup "$@" ;;

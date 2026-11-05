@@ -5,14 +5,14 @@
 ```
 폰 (어디서든) ──HTTPS──▶ 상시 서버: 오라클 무료 서버   https://sayeye.<tailnet>.ts.net
                           · 화면 · 접속 키 · 보호자 알림 · 위치 · 푸시 · 기록      ← 24시간, 재부팅해도 자동 시작
-                          · GPU 가 없을 땐 CPU 로 느리게 인식 (안내가 늦을 수 있다고 음성으로 알려 줌)
+                          · GPU 가 없을 땐 이 서버 CPU 로 인식 (YOLO + 히트박스, VLM 설명 없이)
                                   ▲
                                   │ GPU 쪽에서 먼저 연결 (GPU 에는 공개 주소 · 테일스케일 필요 없음)
                           GPU 서버: A5000 (켤 때만)
                           · 팀 YOLO + v5_29 히트박스 + VLM 설명                  ← 켜면 몇십 초 안에 자동 연결
 ```
 
-보행자 앱은 GPU 가 연결되면 "인식 서버가 연결됐어요", 끊기면 "느린 인식 모드예요"라고 말해 줘요.
+시연 · 최종 확인은 GPU 를 켜고 하고, 평소 동작 확인은 GPU 없이도 돼요.
 
 ---
 
@@ -35,7 +35,7 @@
 ## 2. 상시 서버 설치 (오라클 서버에서, 처음 한 번)
 ```bash
 git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
-bash deploy/sayeye.sh install --weights-gdrive <가중치 파일 ID>     # 가중치는 GPU 가 꺼져 있을 때 느린 인식용 (없어도 됨)
+bash deploy/sayeye.sh install --weights-gdrive <가중치 파일 ID>     # 가중치는 GPU 가 꺼져 있을 때 CPU 인식용 (없어도 됨)
 ```
 - 중간에 **Tailscale 로그인 링크**가 나오면 열어서 가입한 구글 계정으로 로그인하세요.
 - **Funnel 허용 링크**가 나오면 열어서 허용하고 `bash deploy/sayeye.sh install` 을 한 번 더 실행하세요.
@@ -55,7 +55,7 @@ bash deploy/gpu.sh setup --hub https://sayeye.xxxx.ts.net --key 접속키 --toke
 ```bash
 cd pedapp && bash deploy/gpu.sh start
 ```
-다 쓰면 `bash deploy/gpu.sh stop` 하고 GPU 를 반납하세요 (안 해도 상시 서버가 알아서 느린 모드로 바꿔요).
+다 쓰면 `bash deploy/gpu.sh stop` 하고 GPU 를 반납하세요 (안 해도 상시 서버가 알아서 CPU 인식으로 바꿔요).
 
 - VLM(상황 설명)은 처음 켤 때 모델(약 16GB)을 받느라 10분 이상 걸려요. 그동안에도 위험 경고는 나가요.
 - 저장 공간이 유지되는 GPU 대여라면 두 번째부터는 설치 없이 바로 켜져요.

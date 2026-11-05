@@ -112,10 +112,10 @@ const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1
 function engineSay(e, starting){
   const prev=S.eng; S.eng=e&&e.mode||S.eng; if(!S.running) return;
   if(S.eng==='none' && (starting || prev!=='none')){ say('지금은 인식 서버가 꺼져 있어서 위험을 알려 드릴 수 없어요. 보호자 호출과 위치 공유는 계속 돼요.','ui',2); notice('인식 서버(GPU)가 꺼져 있어요. 위험 안내 없이 위치 · 호출만 돼요.'); }
-  else if(S.eng==='cpu' && (starting || prev!=='cpu')){ say('지금은 느린 인식 모드예요. 위험 안내가 늦을 수 있으니 조심해서 걸어 주세요.','ui',2); notice('느린 인식 모드 (GPU 꺼짐). 안내가 늦을 수 있어요.'); }
-  else if(S.eng==='gpu' && !starting && prev && prev!=='gpu'){ say('인식 서버가 연결됐어요. 이제 빠르게 안내해요.'); notice(''); }
+  else if(S.eng==='cpu' && prev==='none'){ notice(''); }
+  else if(S.eng==='gpu' && !starting && prev && prev!=='gpu'){ notice(''); }
 }
-function sysInfo(){ if(S.sys) $('#sysInfo').textContent=(S.eng==='none'?'인식 꺼짐 (GPU 대기 중)':S.eng==='cpu'?`느린 인식(CPU) · ${S.sys.w}`:`인식 ${S.sys.w} · 판단 ${S.sys.t} · 설명 ${S.vlmUp?'켜짐':'꺼짐'}`); }
+function sysInfo(){ if(S.sys) $('#sysInfo').textContent=(S.eng==='none'?'인식 꺼짐 (GPU 대기 중)':S.eng==='cpu'?`CPU 인식 · ${S.sys.w}`:`인식 ${S.sys.w} · 판단 ${S.sys.t} · 설명 ${S.vlmUp?'켜짐':'꺼짐'}`); }
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }

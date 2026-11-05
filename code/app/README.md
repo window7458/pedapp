@@ -21,7 +21,7 @@
 | | `SAYEYE_ENGINE=local` (기본) | `SAYEYE_ENGINE=hub` |
 |---|---|---|
 | 쓰는 곳 | 노트북 · GPU 서버 한 대로 전부 | 상시 서버 (오라클) |
-| 인식 | 이 기계 | GPU 작업 서버(`worker.py`)가 `/ws?role=worker` 로 붙어서 처리. 없으면 `SAYEYE_FALLBACK=cpu` 로 느리게 |
+| 인식 | 이 기계 | GPU 작업 서버(`worker.py`)가 `/ws?role=worker` 로 붙어서 처리. 없으면 `SAYEYE_FALLBACK=cpu` 로 이 서버 CPU |
 | 보호자 알림 · 기록 | 이 기계 | 상시 서버 (GPU 가 '몇 번 프레임에서 경고'를 알려 주면 그 장면으로 기록) |
 
 ## 폰 센서 기록 · 접속 키
@@ -103,7 +103,7 @@ LG gram(CPU)에서는 YOLO가 느려 실시간이 어렵고, Mask2Former(바닥 
 | 파일 | 역할 |
 |---|---|
 | `server.py` | FastAPI · 웹소켓 · 보호자 API(실시간 영상 · 위치 · 푸시) |
-| `engine.py` | 상시 서버: GPU 작업 서버로 영상 전달 · 결과 받기, 없으면 CPU 느린 모드 |
+| `engine.py` | 상시 서버: GPU 작업 서버로 영상 전달 · 결과 받기, 없으면 CPU 인식 |
 | `worker.py` | GPU 작업 서버: 상시 서버에 연결해 인식 · 판단 · VLM |
 | `push.py` | 보호자 푸시 알림 (Web Push, VAPID 키는 `certs/vapid.json`) |
 | `pipeline.py` | 프레임 → 인식 → 트리거 → 경고/설명, 상태 |

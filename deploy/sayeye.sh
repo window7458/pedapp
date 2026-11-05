@@ -44,7 +44,7 @@ install() {
   "$VENV/bin/pip" install -q -U pip wheel
   "$VENV/bin/pip" install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
   "$VENV/bin/pip" install -q -r "$APP/requirements.txt"
-  say "3/5 팀 가중치 (GPU 가 꺼져 있을 때 느린 인식용 — 없어도 됨)"
+  say "3/5 팀 가중치 (GPU 가 꺼져 있을 때 CPU 인식용 — 없어도 됨)"
   get_weights "$VENV" "$WSRC" "$GID" && ls "$APP"/weights/*.pt || echo "가중치 없음 → GPU 가 꺼져 있을 땐 인식을 쉬어요"
   say "4/5 설정 ($ENVF)"
   if [ ! -f "$ENVF" ]; then
