@@ -1,9 +1,9 @@
 # SayEye 서버 설치
 
-**상시 서버**(Hugging Face Spaces, 무료)와 **GPU 서버**(필요할 때만)를 나눠서 써요.
+**상시 서버**(Google Cloud VM)와 **GPU 서버**(A5000, 필요할 때만)를 나눠서 써요.
 
 ```
-폰 (어디서든) ──HTTPS──▶ 상시 서버: Hugging Face Space   https://<아이디>-sayeye.hf.space
+폰 (어디서든) ──HTTPS──▶ 상시 서버: Google Cloud VM   https://sayeye.<tailnet>.ts.net
                           · 화면 · 접속 키 · 보호자 알림 · 위치 · 푸시 · 기록      ← 24시간, 재부팅해도 자동 시작
                           · GPU 가 없을 땐 이 서버 CPU 로 인식 (YOLO + 히트박스, VLM 설명 없이)
                                   ▲
@@ -16,40 +16,25 @@
 
 ---
 
-## 1. 상시 서버: Hugging Face Spaces (무료 · 카드 불필요 · 고정 HTTPS 주소)
-1. https://huggingface.co/join 에서 가입 (이메일 인증).
-2. https://huggingface.co/new-space
-   - Space name: `sayeye` · SDK: **Docker** → **Blank** · Hardware: **CPU basic (Free)** · **Public**
-     (공개여도 접속 키가 없으면 키 입력 화면만 보여요.)
-3. 만든 Space → **Settings → Variables and secrets → New secret** 으로 넣기:
-   | 이름 | 값 |
-   |---|---|
-   | `SAYEYE_KEY` | 접속 키 (아무 영문·숫자 10자 이상) |
-   | `SAYEYE_GUARDIAN_PIN` | 보호자 확인번호 6자리 |
-   | `SAYEYE_WORKER_TOKEN` | GPU 연결용 토큰 (아무 영문·숫자 20자 이상) |
-   | `WEIGHTS_GDRIVE_ID` | (선택) 가중치 드라이브 파일 ID — 넣으면 GPU 없을 때 CPU 로 인식 |
-   | `SAYEYE_PUSH_SUBJECT` | (선택) `mailto:본인메일` — 아이폰 푸시 알림용 |
-4. Space → **Files → + Add file → Create a new file** → 이름 `Dockerfile`, 내용은 이 저장소의
-   [`deploy/huggingface/Dockerfile`](huggingface/Dockerfile) 을 그대로 복사 → **Commit**.
-5. 몇 분 빌드되면 주소가 생겨요: `https://<아이디>-sayeye.hf.space`
-   - 보행자: `https://<아이디>-sayeye.hf.space/?k=<SAYEYE_KEY>` → 폰에서 **홈 화면에 추가**
-   - 보호자: `https://<아이디>-sayeye.hf.space/guardian?k=<SAYEYE_KEY>` + 확인번호
+## 1. 상시 서버: Google Cloud VM (서울)
+1. https://console.cloud.google.com 가입 (무료 체험 300달러 크레딧).
+2. Compute Engine → VM 인스턴스 → 인스턴스 만들기: 리전 **asia-northeast3(서울)**, 머신 **e2-standard-4**, 부팅 디스크 **Ubuntu 22.04 · 30GB**.
+3. 목록의 **SSH** 버튼으로 접속해서:
+   ```bash
+   sudo apt-get update && sudo apt-get install -y git
+   git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
+   bash deploy/sayeye.sh install --weights-gdrive <가중치 파일 ID>
+   ```
+   중간의 Tailscale 로그인 링크는 **Ctrl+클릭**으로 열어요 (터미널에서 Ctrl+C 는 '중지'라 누르면 안 돼요).
+4. 끝나면 보행자 · 보호자 주소와 GPU 연결 명령이 나와요. 안 쓸 땐 콘솔에서 VM **중지**, 쓸 땐 **시작** (자동으로 다 켜지고 주소도 그대로).
 
 > 가중치 파일 ID: 구글 드라이브 `final_10class_best.pt` → 공유 → "링크가 있는 모든 사용자" → 링크의 `/d/` 와 `/view` 사이.
 
-알아 둘 것
-- 48시간 동안 아무도 안 열면 잠들어요. 누가 주소를 열면 1~2분 뒤 다시 켜져요.
-- 켜질 때마다 깃허브 최신 코드를 받아요. 코드를 고친 뒤에는 Space → **Settings → Restart** 만 하면 돼요.
-- 무료 Space 는 저장 공간이 유지되지 않아서, 다시 켜지면 보호자 알림 기록 · 사진이 지워져요.
-
-### (다른 방법) 리눅스 서버 · 집 PC 를 상시 서버로
-`bash deploy/sayeye.sh install` — Tailscale Funnel 로 `https://sayeye.<tailnet>.ts.net` 주소를 만들어요 (그 컴퓨터를 계속 켜 둬야 해요).
-
 ## 3. GPU 를 쓸 때 (A5000 에서)
-처음 한 번 (주소 · 키 · 토큰은 1단계에서 정한 값):
+처음 한 번 (상시 서버 `bash deploy/sayeye.sh info` 에 나온 명령 그대로). 반납해도 남는 저장소 폴더에서 clone 하세요:
 ```bash
 git clone https://github.com/window7458/pedapp.git && cd pedapp && git checkout wip/phone-only-handoff
-bash deploy/gpu.sh setup --hub https://<아이디>-sayeye.hf.space --key <SAYEYE_KEY> --token <SAYEYE_WORKER_TOKEN> --weights-gdrive <파일 ID>
+bash deploy/gpu.sh setup --hub https://sayeye.<tailnet>.ts.net --key <접속키> --token <작업서버토큰> --weights-gdrive <파일 ID>
 ```
 다음부터 GPU 를 켤 때마다:
 ```bash

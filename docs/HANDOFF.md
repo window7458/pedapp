@@ -4,7 +4,7 @@
 
 ## 결정된 것
 - 스마트폰만 쓴다. 라즈베리파이 · 서버 카메라(URL) 코드는 지웠다.
-- **상시 서버 = Hugging Face Space**(무료 CPU basic, `deploy/huggingface/Dockerfile`, 고정 주소 `<아이디>-sayeye.hf.space`; 오라클은 가입이 안 돼서 포기), **GPU(A5000)는 필요할 때만 직접 켜고 끈다.** GPU 쪽 `worker.py` 가 상시 서버에 먼저 연결하므로 GPU 에는 공개 주소가 필요 없다. GPU 가 없을 땐 상시 서버 CPU 로 인식 (동작 확인용). 시연 · 최종 확인은 GPU.
+- **상시 서버 = Google Cloud VM `sayeye`** (서울, e2-standard-4, 무료 체험 크레딧, 12월 중순까지). `deploy/sayeye.sh install` 로 설치 완료, Tailscale Funnel 고정 주소. 안 쓸 땐 콘솔에서 중지, 쓸 땐 시작 (자동으로 다 켜짐). **GPU = 몬드리안(Runyour AI) A5000** 을 필요할 때 켜고 `bash deploy/gpu.sh start` (처음 한 번 `gpu.sh setup --hub …`). 오라클 · Hugging Face(무료 CPU도 PRO 필요) · Google Cloud L4(서울 리전 없음)는 포기.
 - Tailscale 은 가입 완료 (구글 로그인).
 - 트리거(`hitbox_*`, `runtime/triggers.py`)는 아직 손대지 않는다.
 
@@ -19,6 +19,6 @@
 - 이 환경(클라우드 컨테이너, GPU 없음)에서 공식 yolo11n-seg 로 서버를 실제로 띄워 폰 흉내(웹소켓 영상) · 보호자 · 키 · 확인번호 · VLM 늦게 켜짐 · 감시 루프 재시작을 확인했다. 팀 가중치 · GPU · 실제 폰 · Tailscale 은 이 환경에서 확인하지 못했다.
 
 ## 남은 일 (순서대로)
-1. **Hugging Face Space 만들기** (가입 · Secret 입력 · Dockerfile 붙여 넣기) → GPU 켤 때 `bash deploy/gpu.sh setup …` (`deploy/README.md`).
+1. **A5000 에서 `bash deploy/gpu.sh setup --hub <상시 서버 주소> --key … --token … --weights-gdrive …`** (값은 상시 서버 `bash deploy/sayeye.sh info`). 반납해도 남는 저장소 폴더에 clone.
 2. **사람을 장애물로 말하는 문제** (트리거 쪽이라 보류 중). `alerts/evidence` 가 쌓이면 확인. 유력 경로 `hitbox_core.py:694`, `:977`.
 3. 실제 폰에서 음성 명령 속도 확인.
