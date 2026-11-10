@@ -247,7 +247,6 @@ class LivePipeline:
                 self.log(f"[pipeline] frame error: {e!r}")
 
     def _process(self, im: np.ndarray, meta: dict | None = None):
-        t_in = time.perf_counter()
         if max(im.shape[:2]) > 1920:
             s = 1920 / max(im.shape[:2])
             im = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s)), interpolation=cv2.INTER_AREA)
@@ -280,8 +279,6 @@ class LivePipeline:
         self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
                    "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                           round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
-        if meta and meta.get("c") is not None:     # 파이 카메라: 찍은 순간 → 결과 시간을 카메라 쪽에서 잰다
-            self.emit({"type": "frame_done", "c": meta["c"], "p_ms": round((time.perf_counter() - t_in) * 1000, 1)})
 
     def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))

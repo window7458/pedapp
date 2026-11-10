@@ -3,7 +3,7 @@
     python server.py --device 0                 # GPU: weights/ 의 팀 가중치 + 임태규 v12.1 트리거
     python server.py --device cpu               # GPU 없는 노트북
 
-카메라는 두 가지: 보행자 폰 카메라, 라즈베리파이 카메라(pi_camera.py). 폰 카메라는 HTTPS 주소가 필요하다
+카메라는 보행자 폰 카메라(스마트폰 전용). 폰 카메라는 HTTPS 주소가 필요하다
 (Cloudflare 터널 주소를 쓰거나 --https).
 """
 from __future__ import annotations
@@ -156,7 +156,7 @@ class Pairing:
         self._save()
 
 
-GUARDIAN_TYPES = {"alert", "status", "loc", "camera", "share", "share_denied", "g_msg_ok", "profile"}   # 보호자 화면은 알림 · 상태 · 위치만 받는다 (박스 · 음성 문장은 안 받음)
+GUARDIAN_TYPES = {"alert", "status", "loc", "share", "share_denied", "g_msg_ok", "profile"}   # 보호자 화면은 알림 · 상태 · 위치만 받는다 (박스 · 음성 문장은 안 받음)
 
 
 class Hub:
@@ -174,8 +174,6 @@ class Hub:
 
     def _fanout(self, s: str, typ):
         for q, role in list(self.clients.items()):
-            if (role == "camera") != (typ == "frame_done"):      # 파이 카메라는 처리 완료 신호만 받는다
-                continue
             if role == "guardian" and typ not in GUARDIAN_TYPES:
                 continue
             if role != "guardian" and typ in ("alert", "loc"):
@@ -250,10 +248,31 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
               session_dir: Path | None = None, key: str | None = None):
     hub = Hub()
     app = FastAPI(title="SayEye")
-    state = {"cams": 0, "gws": set()}
+    state = {"gws": set()}
     pairing = Pairing(DATA / "certs" / "guardians.json")
     profile = Profile(DATA / "certs" / "profile.json")
     tts = AppTTS(DATA / "tts_cache")
+    scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
+
+    async def wake_scene(force=False):
+        """보행을 시작하면 풍경 서버(VLM)도 같이 깨운다. 걷는 동안 4분마다 다시 불러 잠들지 않게 한다.
+        풍경 서버는 큰 모델을 올리느라 깨어나는 데 몇 분 걸리므로, 정작 "주변 설명해줘"라고 할 때 바로 답하게 하려는 것."""
+        if not scene_url:
+            return
+        now = time.time()
+        if not force and now - state.get("scene_ping", 0) < 240:
+            return
+        state["scene_ping"] = now
+
+        def ping():
+            import urllib.request
+            try:
+                with urllib.request.urlopen(scene_url + "/api/health", timeout=600) as r:
+                    state["scene_ready"] = json.loads(r.read() or b"{}").get("vlm", True)
+            except Exception as e:
+                state["scene_ready"] = False
+                print(f"[풍경 서버] 깨우기 실패: {e!r}")
+        asyncio.get_running_loop().run_in_executor(None, ping)
 
     def apply_profile():
         IMU.set_height(profile.d.get("height_cm"))       # 보폭 = 키 × 0.415
@@ -301,7 +320,6 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         def emit(msg):
             if msg.get("type") == "status":
                 msg["sensors"] = sensors.summary()
-                msg["camera_online"] = state["cams"] > 0
                 alerts.on_status(msg)
             hub.broadcast(msg)
         pipe = LivePipeline(cfg, emit)
@@ -472,7 +490,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
-        if role in ("guardian", "camera") and not guardian_ok(ws.query_params.get("pin")):
+        if role == "guardian" and not guardian_ok(ws.query_params.get("pin")):
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
@@ -481,12 +499,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         hub.clients[q] = role
         p, s = state["pipe"], state["src"]
-        rotate = int(ws.query_params.get("rotate", 0) or 0)
-        if role == "camera":
-            state["cams"] += 1
-            hub.broadcast({"type": "camera", "connected": state["cams"]})
         await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
-                                       "pi": state["cams"],
                                        "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
                                        "weights": Path(str(p.cfg.weights)).name,
                                        # 보호자 확인번호는 보행자 화면에만 보낸다 (앱 열 때마다 화면에 띄움)
@@ -505,11 +518,8 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 if m["type"] == "websocket.disconnect":
                     break
                 if m.get("bytes") is not None:
-                    if role == "camera":
-                        got = s.on_camera_frame(m["bytes"], rotate)
-                        if got:
-                            sensors.frame("pi", got[0], got[1])
-                    elif role != "guardian":
+                    if role != "guardian":
+                        await wake_scene()                           # 걷는 동안 4분마다 (잠들지 않게)
                         got = s.on_phone_frame(m["bytes"])
                         sensors.frame("phone", got[0] if got else None, got[1] if got else len(m["bytes"]))
                 elif m.get("text"):
@@ -521,10 +531,9 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                         sensors.add(cmd)
                         IMU.add(cmd.get("motion"))           # 자이로 · 가속도 → 프레임 시각에 맞춰 트리거에
                     elif cmd.get("type") == "set_source":
-                        if cmd.get("mode") == "pi":
-                            await asyncio.to_thread(s.use_pi)
-                        elif cmd.get("mode") == "phone":
+                        if cmd.get("mode") == "phone":
                             await asyncio.to_thread(s.use_phone)
+                            await wake_scene(force=True)             # 보행 시작 → 풍경 서버(VLM)도 같이 깨우기
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
                     elif cmd.get("type") == "sos" and role != "guardian":
@@ -579,9 +588,6 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             task.cancel()
             hub.clients.pop(q, None)
             state["gws"].discard(ws)
-            if role == "camera":
-                state["cams"] = max(0, state["cams"] - 1)
-                hub.broadcast({"type": "camera", "connected": state["cams"]})
 
     @app.get("/")
     async def index():
@@ -647,7 +653,6 @@ def main():
         print("  ", u)
     print(f"보호자 화면: {urls[0]}/guardian   확인번호: {pin}")
     print(f"개발자 화면: {urls[0]}/dev")
-    print(f"라즈베리파이: python pi_camera.py --server {urls[0]} --pin {pin}")
     if a.key:
         print(f"접속 키가 켜져 있어요. 주소 뒤에 ?k={a.key} 를 붙여 여세요.")
     if not a.https:

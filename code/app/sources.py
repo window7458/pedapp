@@ -1,7 +1,6 @@
-"""영상 소스 — 폰 카메라 또는 라즈베리파이 카메라 (둘 다 웹소켓으로 JPEG 를 밀어 보낸다).
+"""영상 소스 — 보행자 폰 카메라 (웹소켓으로 'SEF1' + 찍은 시각 + JPEG 를 밀어 보낸다). 스마트폰 전용.
 
   phone : 보행자 폰 브라우저가 /ws 로 보냄
-  pi    : 라즈베리파이에서 pi_camera.py 가 /ws?role=camera 로 보냄 (같은 와이파이가 아니어도 서버 주소만 닿으면 됨)
   url   : (개발용) 서버가 직접 여는 카메라 주소
 
 서버 카메라로 쓸 수 있는 것
@@ -57,27 +56,6 @@ class SourceManager:
         self.pipe.preview_enabled = False
         self.pipe.set_source_label("phone")
         self.emit({"type": "source", "mode": "phone", "state": "ok"})
-
-    # 라즈베리파이 카메라 (웹소켓으로 SEF1 + 찍은 시각 + JPEG) ─
-    def on_camera_frame(self, data: bytes, rotate: int = 0):
-        """(찍은 시각 ms, 바이트) 반환. 파이 모드가 아니면 처리하지 않는다."""
-        stamped = data[:4] == b"SEF1"                # code/pi/pi_camera.py 는 시각을 붙이고, code/app/pi_camera.py 는 JPEG만 보낸다
-        cap = struct.unpack("!d", data[4:12])[0] if stamped else None
-        jpg = data[12:] if stamped else data
-        if self.mode == "pi":
-            im = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
-            if im is not None:
-                rot = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}.get(rotate)
-                im = cv2.rotate(im, rot) if rot is not None else im
-                self.pipe.submit(im, dict(c=cap)) if stamped else self.pipe.submit(im)
-        return cap, len(jpg)
-
-    def use_pi(self):
-        self._halt()
-        self.mode, self.url = "pi", None
-        self.pipe.preview_enabled = True
-        self.pipe.set_source_label("raspberry-pi")
-        self.emit({"type": "source", "mode": "pi", "state": "ok"})
 
     # 서버 카메라 ──────────────────────────────────────
     def use_url(self, url: str):

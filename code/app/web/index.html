@@ -143,7 +143,6 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="설정과 도움말" tabindex="-1">
   <div class="grab" aria-hidden="true"></div>
   <h2>설정</h2>
-  <input type="hidden" id="oSrc" value="phone">
   <label><span>항상 듣기<small>버튼 없이 "시작", "그만", "다시 말해줘", "도와줘"를 알아들어요</small></span><input type="checkbox" class="sw" id="oListen"></label>
   <label><span>위치 공유<small>보호자 화면 지도에 지금 위치를 보여 줘요</small></span><input type="checkbox" class="sw" id="oGps"></label>
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
@@ -170,9 +169,9 @@
 const $ = (s) => document.querySelector(s);
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
-           spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(), pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
+           spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
-function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
+function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
@@ -219,7 +218,7 @@ function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibra
 /* ── 말하기: 모든 말을 Zephyr(구글 04번 여자 목소리)로. 자주 하는 말과 트리거 경고 206문장은 미리 만들어 두어 바로 나온다.
    폰 기본 음성은 서버에 아예 닿지 않을 때(2.5초 안에 음성을 못 받음)만 비상용으로 쓴다 — 아무 말도 못 하는 것보다는 낫기 때문. ──
    자주 하는 말(FIXED)은 앱을 열 때 미리 받아 두므로 바로 나온다. 경고처럼 처음 나오는 문장은 한 번 받은 뒤로 바로 나온다. */
-const FIXED = ["거절했어요.", "저장했어요.", "설명을 켰어요.", "설명을 껐어요.", "소리를 줄였어요.", "소리를 키웠어요.", "안내를 중지했어요.", "이미 안내 중이에요.", "보호자가 연결됐어요.", "말을 천천히 할게요.", "말을 빠르게 할게요.", "안내가 다시 시작됐어요.", "서버와 다시 연결됐어요.", "지금은 안내 중이 아니에요.", "위치와 화면 공유를 멈췄어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유가 끝났어요.", "다행이에요. 안내를 계속할게요.", "준비됐어요. 안내를 시작합니다.", "보호자가 지금 화면을 보고 있어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "라즈베리파이 카메라가 아직 연결되지 않았어요. 파이에서 카메라 프로그램을 켜 주세요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
+const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "말을 빠르게 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "말을 천천히 할게요.", "안내가 다시 시작됐어요.", "서버와 다시 연결됐어요.", "지금은 안내 중이 아니에요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "위치와 화면 공유가 끝났어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 const speech = (() => {
   let q=[], cur=null, voice=null;
   const PRI={warn:0,ui:1,desc:2,scene:3}, TTL={warn:2500,ui:9000,desc:6500,scene:14000};
@@ -398,8 +397,7 @@ SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.strin
 
 function handle(m){
   switch(m.type){
-    case 'hello': S.pi=m.pi||0; if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
-    case 'camera': S.pi=m.connected||0; if(S.running && S.mode==='pi') say(S.pi ? '라즈베리파이 카메라가 연결됐어요.' : '라즈베리파이 카메라 연결이 끊겼어요.'); if(S.pi) notice(''); break;
+    case 'hello': if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
     case 'pair_link': showPair(m); break;
     case 'share_req': askShare(); break;
     case 'profile': S.profile=m; if(m.set){ try{ localStorage.setItem('sayeye-profile', JSON.stringify({age:m.age, height_cm:m.height_cm, mount:m.mount})); }catch(e){} }   /* 서버 값(보호자가 바꾼 나이 포함)에 맞춤 */
@@ -418,7 +416,7 @@ function handle(m){
       S.latest=m.text;
       if(prio>=3) flash('warn', m.text); else if(prio===2) flash('caut', m.text); else calmView();
       break; }
-    case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok' && S.mode!=='pi') notice(''); break;
+    case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok') notice(''); break;
     case 'status': S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
   }
 }
@@ -435,10 +433,6 @@ async function start(){
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=false; $('#pv').hidden=true;
       sendCmd({type:'set_source', mode:'phone'}); startSending();
-    }else{
-      sendCmd({type:'set_source', mode:'pi'});
-      if(!S.pi){ say('라즈베리파이 카메라가 아직 연결되지 않았어요. 파이에서 카메라 프로그램을 켜 주세요.'); notice('라즈베리파이 카메라가 연결되지 않았어요. 파이에서 pi_camera.py 를 실행해 주세요.'); }
-      const im=$('#pv'); im.src='/preview.mjpg?'+Date.now(); im.hidden=false; $('#cam').hidden=true;
     }
   }catch(e){
     const denied = e && e.name==='NotAllowedError';
@@ -637,7 +631,7 @@ document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
 /* ── 설정 ── */
 function applySettings(){
   $('#oGuide').checked=S.guide; $('#oFall').checked=S.fall; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oHc').checked=S.hc;
-  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
+  $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
   document.documentElement.dataset.hc = S.hc?'1':'';
   setGo();
 }
@@ -646,8 +640,6 @@ const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key
   if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
 bind('oGuide','guide'); bind('oFall','fall'); bind('oBeep','beep'); bind('oVib','vib'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
 bind('oListen','listen'); bind('oGps','gps');
-$('#oSrc').addEventListener('input',e=>{ if(S.running) stop(); S.mode=e.target.value; save(); applySettings();
-  say(S.mode==='pi' ? '카메라를 라즈베리파이로 바꿨어요.' : '카메라를 폰 카메라로 바꿨어요.'); });
 $('#help').addEventListener('click', ()=>{ speech.unlock(); speakHelp(); });
 $('#pairBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('pair'); });
 $('#pingBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('ping'); });

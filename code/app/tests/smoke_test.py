@@ -1,6 +1,5 @@
 """서버 실제 실행 스모크 테스트: 진짜 YOLO 가중치로 서버를 띄우고
-  · 라즈베리파이 역할(/ws?role=camera)로 영상을 보내 → 보행자 화면이 박스(dets)를 받는지
-  · 폰 역할로 바꿔 영상을 보내도 되는지
+  · 폰 역할로 영상(찍은 시각 헤더 포함)을 보내 → 보행자 화면이 박스(dets)를 받는지
   · 보호자: 위치(gps) 받기, 실시간 영상(/api/live.mjpg), 푸시 키
 를 확인한다.  python tests/smoke_test.py --weights /경로/모델.pt   (기본: weights/ 폴더 또는 /tmp/yolo/yolov8n.pt)
 """
@@ -40,12 +39,11 @@ async def run(seconds: float, img: Path):
     import websockets
     seen, classes = {}, set()
     async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws", max_size=None) as ped, \
-            websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=camera&pin={PIN}", max_size=None) as cam, \
             websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=guardian&pin={PIN}", max_size=None) as gd:
         hello = json.loads(await ped.recv())
-        print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights", "pi")})
-        await cam.recv(); await gd.recv()
-        await ped.send(json.dumps({"type": "set_source", "mode": "pi"}))
+        print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights")})
+        await gd.recv()
+        await ped.send(json.dumps({"type": "set_source", "mode": "phone"}))
         await ped.send(json.dumps({"type": "share_allow"}))      # 보행자가 공유를 허락한 상황 (평소엔 위치 · 영상이 막혀 있음)
         await ped.send(json.dumps({"type": "gps", "lat": 37.4502, "lon": 126.6535, "acc": 8}))
         gen = frames(img)
@@ -63,15 +61,11 @@ async def run(seconds: float, img: Path):
                     classes.update(d[1] for d in m["d"])
 
         async def send():
-            half = t0 + seconds / 2
-            switched = False
+            import struct
             while time.time() - t0 < seconds:
-                if not switched and time.time() > half:               # 절반은 파이, 절반은 폰
-                    await ped.send(json.dumps({"type": "set_source", "mode": "phone"}))
-                    switched = True
-                await (ped if switched else cam).send(next(gen))
+                await ped.send(b"SEF1" + struct.pack("!d", time.time() * 1000) + next(gen))
                 await asyncio.sleep(0.12)
-        await asyncio.gather(pump(ped, "ped"), pump(gd, "guardian"), send(), pump(cam, "cam"))
+        await asyncio.gather(pump(ped, "ped"), pump(gd, "guardian"), send())
     return seen, classes
 
 

@@ -1,5 +1,5 @@
-"""폰 센서 + 파이 카메라 경로 확인 (포트 없이, 가짜 인식 · 가짜 트리거).
-파이 역할: SEF1 프레임 전송 → frame_done 수신. 폰 역할: sensors 묶음 전송 → CSV 저장 · 접속 키."""
+"""폰 센서 + 폰 프레임(찍은 시각 헤더) 경로 확인 (포트 없이, 가짜 인식 · 가짜 트리거).
+폰: sensors 묶음 → CSV 저장, 'SEF1'+시각+JPEG 프레임 → 처리 · Frames.csv 에 찍은 시각 기록, 접속 키."""
 import json
 import os
 import struct
@@ -39,26 +39,22 @@ with TestClient(app, base_url="https://testserver") as c:
                                     "motion": [[now + i * 10, .1, .2, .3, .1, -9.6, .3, 10, 20, 30] for i in range(100)],
                                     "orient": [[now, 10, 85, 2, 123.0]],
                                     "gps": [[now, 37.45, 126.65, 30, 5, 3, 1.1, 90]]}))
-        with c.websocket_connect("/ws?role=camera&rotate=90&k=abc&pin=111111") as pi:
-            h = json.loads(pi.receive_text()); assert h.get("pi") == 1, h
-            phone.send_text(json.dumps({"type": "set_source", "mode": "pi"}))     # 새 화면: 설정에서 파이 카메라를 고른다
-            time.sleep(0.3)
-            done = []
-            for i in range(25):
-                ok, b = cv2.imencode(".jpg", np.roll(base, i * 2, 1))
-                time.sleep(0.05)      # 파이프라인 속도 제한(max_fps)에 안 걸리게
-                cap = time.time() * 1000
-                pi.send_bytes(b"SEF1" + struct.pack("!d", cap) + b.tobytes())
-                m = json.loads(pi.receive_text())
-                assert m["type"] == "frame_done", m
-                assert m["c"] == cap, "최신 프레임 짝"
-                done.append(time.time() * 1000 - cap)
-            print("frame_done", len(done), "median ms", round(sorted(done)[len(done) // 2], 1))
-        for _ in range(200):
+        phone.send_text(json.dumps({"type": "set_source", "mode": "phone"}))
+        caps = []
+        for i in range(25):
+            ok, b = cv2.imencode(".jpg", np.roll(base, i * 2, 1))
+            cap = time.time() * 1000
+            caps.append(cap)
+            phone.send_bytes(b"SEF1" + struct.pack("!d", cap) + b.tobytes())
+            time.sleep(0.05)
+        got = 0
+        for _ in range(400):
             t = json.loads(phone.receive_text())
-            assert t["type"] != "frame_done", "폰에는 안 감"
-            if t["type"] == "camera" and t["connected"] == 0:
+            assert t["type"] != "frame_done"
+            got += t["type"] == "dets"
+            if got >= 5:
                 break
+        assert got >= 5, "폰 프레임이 처리되지 않음"
         s = c.get("/api/sensors").json()
         print("summary", s["session"], s["latest"], s["total"])
         assert s["latest"]["gps"]["lat"] == 37.45 and s["latest"]["heading"] == 123.0
@@ -71,5 +67,6 @@ for f in ("Gyroscope", "Accelerometer", "Gravity", "Orientation", "Compass", "Lo
 rows = (d / "Gyroscope.csv").read_text().splitlines()
 assert len(rows) >= 101 and rows[0] == "time,seconds_elapsed,z,y,x", rows[0]
 assert abs(float(rows[1].split(",")[2]) - np.radians(10)) < 1e-6
-assert len((d / "Frames.csv").read_text().splitlines()) == 26
+fr = (d / "Frames.csv").read_text().splitlines()
+assert len(fr) == 26 and all(r.split(",")[1] == "phone" and r.split(",")[2] for r in fr[1:]), fr[:3]   # 찍은 시각이 기록됨
 print("OK", d.name)
