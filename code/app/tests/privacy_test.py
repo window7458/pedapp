@@ -17,7 +17,7 @@ def until(ws, typ, n=300):
         if m["type"] == typ: return m
     raise AssertionError(typ)
 
-cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", max_fps=30.0)
 with TestClient(build_app(cfg, None, pin="424242", alerts_dir=Path(d) / "alerts")) as c:
     P = "pin=424242"
     with c.websocket_connect("/ws?role=guardian&" + P) as g, c.websocket_connect("/ws") as p:

@@ -43,7 +43,7 @@ async def run(seconds: float, img: Path):
             websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=camera&pin={PIN}", max_size=None) as cam, \
             websockets.connect(f"ws://127.0.0.1:{PORT}/ws?role=guardian&pin={PIN}", max_size=None) as gd:
         hello = json.loads(await ped.recv())
-        print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights", "vlm", "pi")})
+        print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights", "pi")})
         await cam.recv(); await gd.recv()
         await ped.send(json.dumps({"type": "set_source", "mode": "pi"}))
         await ped.send(json.dumps({"type": "share_allow"}))      # 보행자가 공유를 허락한 상황 (평소엔 위치 · 영상이 막혀 있음)
@@ -83,7 +83,7 @@ def main():
     a = ap.parse_args()
     w = a.weights or ("/tmp/yolo/yolov8n.pt" if not any((APP / "weights").glob("*.pt")) else "auto")
     env = dict(os.environ, HB_SURFACE="0")
-    p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w, "--vlm", "none",
+    p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w,
                           "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
     try:
         for _ in range(60):

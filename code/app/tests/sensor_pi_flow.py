@@ -21,7 +21,7 @@ from server import build_app  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 from fakes import FakePerception  # noqa: E402
-cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 app = build_app(cfg, None, "111111", alerts_dir=tmp / "alerts", session_dir=tmp / "s", key="abc")

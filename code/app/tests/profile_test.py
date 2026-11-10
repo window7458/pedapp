@@ -26,7 +26,7 @@ def both(ws, *types):                       # 순서와 상관없이 여러 종�
         if m["type"] in types: got.setdefault(m["type"], m)
     return [got[t] for t in types]
 
-cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", max_fps=30.0)
 P = "pin=424242"
 with TestClient(build_app(cfg, None, pin="424242", alerts_dir=Path(d) / "alerts")) as c:
     with c.websocket_connect("/ws?role=guardian&" + P) as g, c.websocket_connect("/ws") as ped:

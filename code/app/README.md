@@ -25,15 +25,9 @@
 - 아이폰은 자이로 권한을 화면을 누른 순간에만 물을 수 있어요. 걸음 수 · 활동 · 기압계는 웹으로 못 읽어요.
 - 공개 주소로 열 때는 `--key` 를 꼭 지정해요 (`https://주소/?k=키`).
 
-## VLM (상황 설명 · 특별 장면)
-SJ 브랜치의 vLLM 서버를 GPU에서 먼저 띄우면 자동으로 켜져요. 꺼져 있으면 서버가 알려 주고 **경고만** 냅니다.
-```bash
-# GPU 서버 (A5000): SJ 브랜치 code/p0
-python serve_vllm.py qwen2_5-vl-7b --gpu-util 0.80      # → http://localhost:8000/v1
-python server.py --device 0 --vlm-url http://localhost:8000/v1
-```
-- 접근 경고(주의 · 위험)에만 VLM 설명이 이어서 나와요. 신호 바뀜에는 붙이지 않아요.
-- 같은 VLM 서버로 불꽃놀이 · 벚꽃길 같은 **특별 장면**도 5초 간격으로 물어봐요.
+## VLM
+경고에 VLM 설명을 붙이던 기능과 5초마다 특별 장면을 묻던 기능은 **뺐다**(경고는 트리거 문장만, VLM 때문에 늦어지지 않게).
+VLM은 보행자가 **"주변 설명해줘"** 라고 할 때만 SJ 브랜치의 "말로 듣는 풍경" 서버(`/api/text`)로 묘사를 받는 방식으로 붙일 예정.
 
 ## 라즈베리파이 카메라
 라즈베리파이(제로 2 W · 4 · 5)에서:
@@ -103,12 +97,11 @@ taegyu 브랜치 `navigation_trigger/`를 **고치지 않고 그대로** 가져�
 | `pipeline.py` | 프레임 → 인식 → 트리거 → 경고/설명, 상태 |
 | `nav_trigger.py` · `navigation_trigger/` | v12.1 트리거 연결 · taegyu 브랜치 원본 코드 |
 | `face_blur.py` | 나가는 영상의 얼굴 가리기 |
-| `scene.py` | 특별 장면 묘사 (불꽃놀이 · 벚꽃길 …) |
 | `sources.py` | 폰 · 라즈베리파이 소스 |
 | `weights/` | 팀 가중치를 넣는 곳 (GitHub에는 안 올라감) |
 | `web/` | 폰 화면 (디자인은 Figma로 교체 예정, 아래 참고) |
 | `alerts.py` | 보호자 알림 센터 (분류·묶기·사진·저장) |
-| `tests/` | `smoke_test.py`(실제 YOLO · 파이 카메라 · 위치 · 실시간 영상) · `vlm_wiring_test.py`(VLM 배선) · `alerts_rules_test.py` · `guardian_flow.py` · `ws_inprocess.py` |
+| `tests/` | `smoke_test.py`(실제 YOLO · 파이 카메라 · 위치 · 실시간 영상) · `alerts_rules_test.py` · `guardian_flow.py` · `ws_inprocess.py` |
 
 ## 화면 메시지 (웹소켓)
 | `type` | 내용 |

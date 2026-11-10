@@ -9,4 +9,4 @@ RUN pip install -r /tmp/req.txt
 COPY code /srv/code
 WORKDIR /srv/code/app
 # 포트는 Cloud Run 이 PORT 로 준다. 접속 키(SAYEYE_KEY) · 보호자 번호(GUARDIAN_PIN) · DEVICE 는 배포할 때 환경변수로.
-CMD ["python", "server.py", "--host", "0.0.0.0", "--vlm", "none"]
+CMD ["python", "server.py", "--host", "0.0.0.0"]

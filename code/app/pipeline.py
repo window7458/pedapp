@@ -1,12 +1,12 @@
-"""실시간 파이프라인 — 프레임 → 인식 → Trigger → 즉시 경고 / VLM 설명, 그리고 특별 상황 묘사.
+"""실시간 파이프라인 — 프레임 → 인식 → Trigger → 즉시 경고.
+(경고에 VLM 설명을 붙이던 기능과 5초마다 특별 장면을 묻던 기능은 뺐다. VLM은 사용자가 "주변 설명해줘"라고 할 때만 따로 쓴다.)
 
 팀 실행 시스템(code/runtime)의 부품(YoloTracker · Trigger · FrameBuffer · VLM 작업자 · 한국어 문장 규칙)을
 그대로 쓰고, 재생 큐 · 스피커 대신 emit(dict)로 웹앱에 내보낸다. 음성은 폰 브라우저가 낸다.
 
 내보내는 메시지 (type)
   dets   : 이 프레임의 박스 (0–1로 정규화)         warn  : 즉시 경고 문장
-  desc   : VLM이 만든 설명 문장 (경고 뒤에 온다)    scene : 특별 상황 묘사 (불꽃놀이 · 벚꽃길 …)
-  status : 1 s마다 속도 · 지연                     source / scene_error : 상태 알림
+  status : 1 s마다 속도 · 지연                     source : 상태 알림
 """
 from __future__ import annotations
 
@@ -30,13 +30,9 @@ for p in (CODE, CODE / "p0", CODE / "runtime"):
 
 import core  # noqa: E402,F401  (sys.path 설정)
 from core import Clock, Det, Frame  # noqa: E402
-from ko_template import direction_of, sentence  # noqa: E402
+from ko_template import direction_of  # noqa: E402
 from perception import FrameBuffer  # noqa: E402
 from dispatcher import DispatchConfig, warn_text_of  # noqa: E402
-from vlm_worker import (MockBackend, PTBackend, ServerBackend, VLMWorker, build_inputs, coarse_match,  # noqa: E402
-                        hybrid)
-
-from scene import SceneDescriber, make_backend  # noqa: E402
 
 
 @dataclass
@@ -48,16 +44,6 @@ class Config:
     trigger: str = "nav"                # nav(임태규 v12.1) | b0 | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
     nav_imgsz: int | None = None        # nav YOLO 입력 크기. 비우면 CPU 640 · GPU 960
     nav_crop: bool = True               # nav 의 0.4 s 마다 잘라 보기 (작은 신호등 · 먼 물체)
-    vlm: str = "server"                 # server(vLLM Qwen2.5-VL) | none | mock(테스트)
-    vlm_min_prio: int = 2               # 경고 중 이 긴급도 이상(주의 · 위험)만 VLM 설명을 붙인다
-    mock_latency: float = 1.0
-    vlm_url: str = "http://localhost:8000/v1"
-    vlm_model: str = "qwen2_5-vl-7b"
-    vlm_prompt: str = "h2"
-    scene: str = "openai"               # openai(같은 vLLM 서버) | anthropic | none | mock(테스트)
-    scene_url: str | None = None
-    scene_model: str | None = None
-    scene_interval: float = 5.0
     max_fps: float = 15.0
     dispatch: DispatchConfig = field(default_factory=DispatchConfig)
 
@@ -210,22 +196,6 @@ class LivePipeline:
         self.last_track, self.last_text = {}, {}
         self.event_seq = 0
 
-        self.vlm = None
-        if cfg.vlm != "none":
-            backend = {"pt": lambda: PTBackend(), "mock": lambda: MockBackend(cfg.mock_latency),
-                       "server": lambda: ServerBackend(cfg.vlm_url, cfg.vlm_model, cfg.dispatch.bbox, cfg.vlm_prompt)
-                       }[cfg.vlm]()
-            self.vlm = VLMWorker(backend, self._on_vlm, self._vlm_log)
-            self.vlm.start()
-        self.vlm_name = getattr(self.vlm.backend, "name", "none") if self.vlm else "none"
-
-        sb = make_backend(cfg.scene, cfg.scene_url, cfg.scene_model)
-        self.scene = SceneDescriber(sb, emit, min_interval=cfg.scene_interval,
-                                    max_interval=max(cfg.scene_interval * 2.4, 12.0), log=log)
-        if sb is not None:
-            self.scene.start()
-        self.scene_name = self.scene.name
-
         self.preview_enabled = False
         self.live_viewers = 0                # 보호자 실시간 영상을 보는 사람 수
         self.preview_jpeg: bytes | None = None
@@ -253,8 +223,6 @@ class LivePipeline:
         self._latest = (image, meta)
         self._evt.set()
 
-    def set_scene(self, on: bool):
-        self.scene.set_enabled(on)
 
     def set_source_label(self, label: str):
         self.source_label = label
@@ -303,7 +271,6 @@ class LivePipeline:
         H, W = im.shape[:2]
         fr = Frame(self._fidx, t, safe, dets, W, H)
         self.buffer.push(fr)
-        self.scene.push(t, safe)
         for ev in self.trigger.step(fr):
             self._on_event(fr, ev)
         self._lag.append(self.clock.now() - t)
@@ -351,32 +318,6 @@ class LivePipeline:
                 self.on_warn(msg, ev, fr.image, fr.dets)
             except Exception as e:
                 self.log(f"[alerts] {e!r}")
-        wants = getattr(self.trigger, "wants_vlm", True) or msg["prio"] >= self.cfg.vlm_min_prio
-        if self.vlm is not None and c.use_vlm and wants and ev.box is not None:
-            imgs, times, boxes = build_inputs(self.buffer, fr, ev, c.frames, c.bbox)
-            self.vlm.submit(dict(ev=ev, imgs=imgs, times=times, boxes=boxes, eid=eid))
-
-    def _on_vlm(self, job, res):
-        ev, c = job["ev"], self.cfg.dispatch
-        out = res.get("out")
-        if not out:
-            self.log(f"[vlm] no output: {res.get('error') or res.get('raw')}")
-            return
-        o = hybrid(out, ev) if c.use_hybrid else out
-        act = ev.extra.get("action")                 # 히트박스가 정한 행동이 있으면 그대로 따른다 (경고와 설명이 엇갈리지 않게)
-        if act in ("stop", "veer_left", "veer_right"):
-            o["action"] = act
-        elif act is not None and o.get("action") in ("stop", "veer_left", "veer_right"):
-            o["action"] = "caution"
-        if c.skip_no_hazard and not o.get("hazard", True):
-            return
-        self.emit({"type": "desc", "id": job.get("eid"), "text": sentence(o), "cls": ev.cls,
-                   "t_event": round(ev.t, 2), "t": round(self.clock.now(), 2),
-                   "mismatch": not coarse_match(o, ev)})
-
-    def _vlm_log(self, stage, **kw):
-        if stage in ("vlm_end",) and kw.get("error"):
-            self.log(f"[vlm] error: {kw['error']}")
 
     # ── 상태 ──────────────────────────────────────────────
     def _status_loop(self):
@@ -396,12 +337,8 @@ class LivePipeline:
                        "face": self.blur.name,
                        "lag_s": round(statistics.median(self._lag), 3) if self._lag else None,
                        "source": self.source_label, "perception": self.perception.name,
-                       "trigger": getattr(self.trigger, "name", "?"), "vlm": self.vlm_name,
-                       "scene": self.scene_name, "events": self.events,
+                       "trigger": getattr(self.trigger, "name", "?"), "events": self.events,
                        "hb": getattr(self.trigger, "info", None) or None})
 
     def stop(self):
         self._stop.set()
-        self.scene.stop()
-        if self.vlm:
-            self.vlm.stop()

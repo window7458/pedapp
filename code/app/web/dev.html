@@ -175,8 +175,6 @@ summary::-webkit-details-marker{display:none}
     <div class="stages">
       <span class="st" id="s-det">인식·추적</span><i>›</i>
       <span class="st" id="s-trig">Trigger</span><i>›</i>
-      <span class="st" id="s-vlm">VLM</span><i>›</i>
-      <span class="st" id="s-scene">장면</span><i>›</i>
       <span class="st" id="s-tts">음성</span>
     </div>
     <div class="meta" id="meta">서버 대기 중</div>
@@ -189,7 +187,6 @@ summary::-webkit-details-marker{display:none}
     <summary>설정</summary>
     <div class="opts">
       <div class="opt"><label for="rate">음성 속도</label><input id="rate" type="range" min="0.8" max="1.6" step="0.1" value="1.1"></div>
-      <div class="opt"><label for="sceneOn">특별한 장면 설명 (불꽃놀이, 벚꽃길 등)</label><input id="sceneOn" type="checkbox" checked></div>
       <div class="opt"><label for="vib">경고 때 진동</label><input id="vib" type="checkbox" checked></div>
       <div class="opt"><label for="boxes">화면에 박스 표시</label><input id="boxes" type="checkbox" checked></div>
     </div>
@@ -212,7 +209,7 @@ function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
   ws.binaryType = 'arraybuffer';
   S.ws = ws;
-  ws.onopen = () => { $('#dot').classList.add('on'); $('#connText').textContent='서버 연결됨'; sendCmd({type:'set_scene', on:S.scene}); };
+  ws.onopen = () => { $('#dot').classList.add('on'); $('#connText').textContent='서버 연결됨'; };
   ws.onclose = () => { $('#dot').classList.remove('on'); $('#connText').textContent='연결 끊김'; setTimeout(connect, 1500); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
@@ -244,7 +241,7 @@ function handle(m){
       if(m.perc_ms!=null) bits.push(`인식 ${m.perc_ms} ms`);
       if(m.lag_s!=null) bits.push(`지연 ${m.lag_s} s`);
       bits.push(`${m.fps} fps`);
-      $('#meta').textContent = bits.join(' · ') + `  |  ${m.perception} · ${m.trigger} · ${m.vlm}` + (m.scene && m.scene!=='scene:none' ? ` · ${m.scene}` : '')
+      $('#meta').textContent = bits.join(' · ') + `  |  ${m.perception} · ${m.trigger}`
         + (m.hb ? `  |  걸음 ${m.hb.walk} m/s · 길 ${m.hb.road} · 방향 ${m.hb.heading}° · 신호등 ${m.hb.lights} · 바닥 ${m.hb.surface}` : '');
       break; }
   }
@@ -382,12 +379,11 @@ $('#mServer').onclick = () => setMode('server');
 $('#useUrl').onclick = () => { save(); if(S.running){ stop(); } start(); };
 $('#mute').onclick = () => { S.speak=!S.speak; $('#mute').setAttribute('aria-pressed', S.speak); $('#mute').setAttribute('aria-label', S.speak?'음성 안내 켜짐':'음성 안내 꺼짐'); if(!S.speak) speech.stop(); save(); };
 $('#rate').oninput = (e) => { S.rate=+e.target.value; save(); };
-$('#sceneOn').onchange = (e) => { S.scene=e.target.checked; sendCmd({type:'set_scene', on:S.scene}); save(); };
 $('#vib').onchange = (e) => { S.vib=e.target.checked; save(); };
 $('#boxes').onchange = (e) => { S.boxes=e.target.checked; save(); };
 
 load();
-$('#rate').value=S.rate; $('#sceneOn').checked=S.scene; $('#vib').checked=S.vib; $('#boxes').checked=S.boxes;
+$('#rate').value=S.rate; $('#vib').checked=S.vib; $('#boxes').checked=S.boxes;
 $('#mute').setAttribute('aria-pressed', S.speak);
 setMode(S.mode==='server' ? 'server' : 'phone');
 connect(); draw();

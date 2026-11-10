@@ -16,7 +16,7 @@ from fakes import FakePerception  # noqa: E402
 from pipeline import Config  # noqa: E402
 from server import build_app  # noqa: E402
 
-cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 got = {}
@@ -25,7 +25,7 @@ with TestClient(build_app(cfg, None)) as c:
     assert "Insight" in c.get("/").text or "<html" in c.get("/").text.lower()
     with c.websocket_connect("/ws") as ws:
         hello = ws.receive_json()
-        print("hello:", {k: hello[k] for k in ("type", "perception", "trigger", "scene")})
+        print("hello:", {k: hello[k] for k in ("type", "perception", "trigger")})
         ws.send_json({"type": "set_source", "mode": "phone"})
         t0 = time.time()
         i = 0
@@ -37,7 +37,7 @@ with TestClient(build_app(cfg, None)) as c:
             i += 1
             time.sleep(1 / 12)
         # 쌓인 메시지 읽기
-        ws.send_json({"type": "set_scene", "on": True})
+        ws.send_json({"type": "client_event", "kind": "noop"})
         t1 = time.time()
         while time.time() - t1 < 3:
             try:

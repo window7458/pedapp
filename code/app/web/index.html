@@ -149,7 +149,6 @@
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
   <label><span>효과음</span><input type="checkbox" class="sw" id="oBeep"></label>
   <label><span>진동</span><input type="checkbox" class="sw" id="oVib"></label>
-  <label><span>상황 · 장면 설명<small>위험 물체 설명, 불꽃놀이 · 벚꽃길 같은 장면</small></span><input type="checkbox" class="sw" id="oScene"></label>
   <label><span>고대비 (검정/노랑)</span><input type="checkbox" class="sw" id="oHc"></label>
   <label><span>화면에 카메라 보이기</span><input type="checkbox" class="sw" id="oPrev"></label>
   <label><span>음성 속도</span><input type="range" id="oRate" min="0.7" max="1.6" step="0.1"></label>
@@ -169,12 +168,12 @@
 <script src="sensors.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
-const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true, fall:true, shareOn:false, stallSaid:false,
+const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(), pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
-function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
+function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
 
@@ -326,8 +325,6 @@ function handleSpeech(alts){
 function parseCommand(text){
   const t = (text||'').replace(/\s+/g,'').toLowerCase();
   if(!t) return null;
-  if(/(설명|장면|묘사).*(꺼|끄|그만|중지|멈)/.test(t)) return 'scene_off';
-  if(/(설명|장면|묘사).*(켜|시작|해줘)/.test(t)) return 'scene_on';
   if(/(터치|안내모드|손가락).*(꺼|끄)/.test(t)) return 'guide_off';
   if(/(터치|안내모드|손가락).*(켜)/.test(t)) return 'guide_on';
   if(Ask.kind && /^(허락|허락해|허락할게|좋아|응|네|예|보여줘|괜찮아|괜찮아요|괜찮습니다|나괜찮아)/.test(t)) return 'yes';
@@ -364,8 +361,6 @@ function runCommand(cmd){
     case 'unpair': sendCmd({type:'unpair_all'}); break;
     case 'pin': { const n=$('#pinNum').textContent; say(n ? `보호자 확인번호는 ${n.split('').join(' ')} 이에요.` : '아직 서버에 연결되지 않았어요.'); break; }
     case 'help': speakHelp(); break;
-    case 'scene_on': S.scene=true; $('#oScene').checked=true; sendCmd({type:'set_scene',on:true}); save(); say('설명을 켰어요.'); break;
-    case 'scene_off': S.scene=false; $('#oScene').checked=false; sendCmd({type:'set_scene',on:false}); save(); say('설명을 껐어요.'); break;
     case 'guide_on': S.guide=true; $('#oGuide').checked=true; save(); setGo(); say('터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.'); break;
     case 'guide_off': S.guide=false; $('#oGuide').checked=false; save(); setGo(); say('터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.'); break;
     case 'vol_up': S.vol=Math.min(1,S.vol+.2); $('#oVol').value=S.vol; save(); say('소리를 키웠어요.'); break;
@@ -379,7 +374,7 @@ function runCommand(cmd){
 function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
   ws.binaryType='arraybuffer'; S.ws=ws;
-  ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true); sendCmd({type:'set_scene', on:S.scene});
+  ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true);
                       { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden) showSetup(); }
                       if(S.running) sendCmd({type:'set_source', mode:S.mode});
                       if(was && S.running) say('서버와 다시 연결됐어요.');
@@ -390,7 +385,7 @@ function connect(){
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok && !S.sleeping); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : S.sleeping ? '절전' : (S.everOk?'연결 끊김':'연결 중'); }
-function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); else if(o.type!=='set_scene'){ S.pending.push(o); wake(); } }
+function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); else { S.pending.push(o); wake(); } }
 /* ── 절전: 안내 중이 아니고 5분 동안 아무것도 안 하면 서버 연결을 끊는다.
      GPU 서버는 연결이 하나라도 있으면 켜진 채 요금이 나가므로, 앱을 켜 두기만 해도 GPU 가 도는 일을 막는다.
      시작 · 음성 명령 · 화면 터치가 오면 바로 다시 연결 (서버가 자고 있었다면 깨어나는 데 수십 초) ── */
@@ -403,7 +398,7 @@ SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.strin
 
 function handle(m){
   switch(m.type){
-    case 'hello': S.pi=m.pi||0; if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger} · 설명 ${m.vlm==='none'?'꺼짐':'켜짐'}`; break;
+    case 'hello': S.pi=m.pi||0; if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
     case 'camera': S.pi=m.connected||0; if(S.running && S.mode==='pi') say(S.pi ? '라즈베리파이 카메라가 연결됐어요.' : '라즈베리파이 카메라 연결이 끊겼어요.'); if(S.pi) notice(''); break;
     case 'pair_link': showPair(m); break;
     case 'share_req': askShare(); break;
@@ -423,9 +418,6 @@ function handle(m){
       S.latest=m.text;
       if(prio>=3) flash('warn', m.text); else if(prio===2) flash('caut', m.text); else calmView();
       break; }
-    case 'desc': if(S.scene){ S.latest=m.text; speech.push('desc', m.text); calmView(); } break;
-    case 'scene': if(S.scene){ S.latest=m.text; speech.push('scene', m.text);
-                    if(!document.body.classList.contains('warn') && !document.body.classList.contains('caut')) say3(m.label||'특별한 장면', '주변을<br>살피고 있어요', m.text); } break;
     case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok' && S.mode!=='pi') notice(''); break;
     case 'status': S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
   }
@@ -644,16 +636,15 @@ document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
 
 /* ── 설정 ── */
 function applySettings(){
-  $('#oGuide').checked=S.guide; $('#oFall').checked=S.fall; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oScene').checked=S.scene; $('#oHc').checked=S.hc;
+  $('#oGuide').checked=S.guide; $('#oFall').checked=S.fall; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oHc').checked=S.hc;
   $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
   document.documentElement.dataset.hc = S.hc?'1':'';
   setGo();
 }
 const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key]=conv(e.target.type==='checkbox'?e.target.checked:e.target.value); save(); applySettings();
-  if(key==='scene') sendCmd({type:'set_scene',on:S.scene});
   if(key==='listen'){ S.listen ? ears.start() : ears.stop(); }
   if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
-bind('oGuide','guide'); bind('oFall','fall'); bind('oBeep','beep'); bind('oVib','vib'); bind('oScene','scene'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
+bind('oGuide','guide'); bind('oFall','fall'); bind('oBeep','beep'); bind('oVib','vib'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
 bind('oListen','listen'); bind('oGps','gps');
 $('#oSrc').addEventListener('input',e=>{ if(S.running) stop(); S.mode=e.target.value; save(); applySettings();
   say(S.mode==='pi' ? '카메라를 라즈베리파이로 바꿨어요.' : '카메라를 폰 카메라로 바꿨어요.'); });

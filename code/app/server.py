@@ -1,7 +1,7 @@
 """SayEye 서버 — 노트북(또는 GPU 서버)에서 돌리고, 보행자 · 보호자는 폰 브라우저로 접속한다.
 
-    python server.py --device 0                 # weights/ 의 팀 가중치 + v5_29 히트박스 + VLM(localhost:8000)
-    python server.py --device cpu --vlm none    # GPU 없는 노트북: VLM 설명 없이 경고만
+    python server.py --device 0                 # GPU: weights/ 의 팀 가중치 + 임태규 v12.1 트리거
+    python server.py --device cpu               # GPU 없는 노트북
 
 카메라는 두 가지: 보행자 폰 카메라, 라즈베리파이 카메라(pi_camera.py). 폰 카메라는 HTTPS 주소가 필요하다
 (Cloudflare 터널 주소를 쓰거나 --https).
@@ -323,7 +323,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     async def health():
         p, s = state["pipe"], state["src"]
         return {"ok": True, "source": s.mode, "url": s.url, "perception": p.perception.name,
-                "trigger": getattr(p.trigger, "name", "?"), "vlm": p.vlm_name, "scene": p.scene_name}
+                "trigger": getattr(p.trigger, "name", "?")}
 
     @app.get("/api/sensors")
     async def api_sensors():
@@ -486,7 +486,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             state["cams"] += 1
             hub.broadcast({"type": "camera", "connected": state["cams"]})
         await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
-                                       "vlm": p.vlm_name, "scene": p.scene_name, "pi": state["cams"],
+                                       "pi": state["cams"],
                                        "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
                                        "weights": Path(str(p.cfg.weights)).name,
                                        # 보호자 확인번호는 보행자 화면에만 보낸다 (앱 열 때마다 화면에 띄움)
@@ -527,8 +527,6 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                             await asyncio.to_thread(s.use_phone)
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
-                    elif cmd.get("type") == "set_scene":
-                        p.set_scene(bool(cmd.get("on", True)))
                     elif cmd.get("type") == "sos" and role != "guardian":
                         state["alerts"].on_sos(p.last_frame)
                     elif cmd.get("type") == "client_event" and role != "guardian":
@@ -601,15 +599,6 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     return app
 
 
-def vlm_alive(url: str) -> bool:
-    import urllib.request
-    try:
-        with urllib.request.urlopen(url.rstrip("/") + "/models", timeout=3) as r:
-            return r.status == 200
-    except Exception:
-        return False
-
-
 def main():
     ap = argparse.ArgumentParser(description="SayEye 서버")
     ap.add_argument("--host", default="0.0.0.0")
@@ -623,10 +612,7 @@ def main():
     ap.add_argument("--no-crop", action="store_true", help="nav 의 잘라 보기(추가 추론)를 끈다 — 느린 CPU 에서")
     ap.add_argument("--no-face-blur", action="store_true", help="보호자 영상 · 저장 사진의 얼굴 가리기를 끈다")
     ap.add_argument("--cam-h", type=float, default=None, help="(b0 · 예전 hitbox 용, nav 는 쓰지 않음)")
-    ap.add_argument("--vlm", default="server", choices=["server", "none"], help="server: vLLM(Qwen2.5-VL) 설명 · 특별 상황")
-    ap.add_argument("--vlm-url", default="http://localhost:8000/v1", help="SJ 브랜치 code/p0/serve_vllm.py 가 띄운 주소")
-    ap.add_argument("--vlm-model", default="qwen2_5-vl-7b")
-    ap.add_argument("--scene-interval", type=float, default=5.0, help="특별 상황을 묻는 최소 간격(초)")
+    ap.add_argument("--vlm", default="none", help=argparse.SUPPRESS)          # 예전 명령 호환용 (경고 VLM 기능은 뺐다)
     ap.add_argument("--max-fps", type=float, default=15.0)
     ap.add_argument("--guardian-pin", default=os.environ.get("GUARDIAN_PIN") or None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
     ap.add_argument("--session-dir", default=None, help="센서 기록 폴더 (기본 code/app/sessions)")
@@ -642,17 +628,10 @@ def main():
               f"  {APP / 'weights'} 폴더에 final_10class_best.pt 를 넣고 다시 실행하세요.\n"
               "  (또는 --weights 경로/파일.pt)\n")
         sys.exit(1)
-    vlm, scene = a.vlm, ("openai" if a.vlm == "server" else "none")
-    if a.vlm == "server" and not vlm_alive(a.vlm_url):
-        print(f"[알림] VLM 서버({a.vlm_url})가 응답하지 않아요 → 상황 설명 · 특별 상황 없이 경고만 냅니다.\n"
-              "       GPU 서버에서 SJ 브랜치의 code/p0/serve_vllm.py 를 먼저 띄우면 켜져요.")
-        vlm, scene = "none", "none"
     if a.no_face_blur:
         os.environ["FACE_BLUR"] = "0"
-    cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger, vlm=vlm,
-                 nav_imgsz=a.imgsz, nav_crop=not a.no_crop,
-                 vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=scene, scene_url=a.vlm_url,
-                 scene_interval=a.scene_interval, max_fps=a.max_fps)
+    cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger,
+                 nav_imgsz=a.imgsz, nav_crop=not a.no_crop, max_fps=a.max_fps)
     port = a.port or (8443 if a.https else 8080)
     ips = lan_ips()
     kw = {}
@@ -673,7 +652,7 @@ def main():
         print(f"접속 키가 켜져 있어요. 주소 뒤에 ?k={a.key} 를 붙여 여세요.")
     if not a.https:
         print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → cloudflared tunnel --url " + f"http://localhost:{port}")
-    print(f"\n가중치={w.name} · 트리거={a.trigger} · VLM={'켜짐' if vlm == 'server' else '꺼짐'} · 장치={a.device}\n")
+    print(f"\n가중치={w.name} · 트리거={a.trigger} · 장치={a.device}\n")
     app = build_app(cfg, None, pin, session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
     uvicorn.run(app, host=a.host, port=port, log_level="warning", **kw)
 

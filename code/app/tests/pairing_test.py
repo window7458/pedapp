@@ -11,7 +11,7 @@ from fakes import FakePerception  # noqa: E402
 from pipeline import Config
 from server import build_app
 
-cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", max_fps=30.0)
 def app(): return build_app(cfg, None, pin="424242", alerts_dir=Path(d) / "alerts")
 
 with TestClient(app()) as c:
