@@ -390,13 +390,13 @@ function connect(){
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok && !S.sleeping); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : S.sleeping ? '절전' : (S.everOk?'연결 끊김':'연결 중'); }
 function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); else if(o.type!=='set_scene'){ S.pending.push(o); wake(); } }
-/* ── 절전: 안내 중이 아니고 90초 동안 아무것도 안 하면 서버 연결을 끊는다.
+/* ── 절전: 안내 중이 아니고 5분 동안 아무것도 안 하면 서버 연결을 끊는다.
      GPU 서버는 연결이 하나라도 있으면 켜진 채 요금이 나가므로, 앱을 켜 두기만 해도 GPU 가 도는 일을 막는다.
      시작 · 음성 명령 · 화면 터치가 오면 바로 다시 연결 (서버가 자고 있었다면 깨어나는 데 수십 초) ── */
 function wake(){ S.lastAct=performance.now(); if(!S.sleeping && S.ws && S.ws.readyState<=1) return; S.sleeping=false; connect(); setConn(false); }
 function sleepWs(){ if(S.running || S.sleeping || !S.ws) return; S.sleeping=true; const ws=S.ws; S.ws=null; try{ ws.close(); }catch(e){} S.wsOk=false; setConn(false); }
 setInterval(()=>{ const busy = S.running || Ask.kind || !$('#pairView').hidden || !$('#setupView').hidden;
-  if(busy) S.lastAct=performance.now(); else if(performance.now()-S.lastAct>90000) sleepWs(); }, 10000);
+  if(busy) S.lastAct=performance.now(); else if(performance.now()-S.lastAct>300000) sleepWs(); }, 10000);
 addEventListener('pointerdown', ()=>wake(), {capture:true});
 SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 

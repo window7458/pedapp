@@ -386,12 +386,12 @@ document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',
 $('#toLog').onclick=()=>go('log');
 
 addEventListener('splashdone', ()=>document.body.classList.add('enter'));
-/* 절전: 화면을 닫거나 다른 앱으로 가면 1분 뒤 서버 연결을 끊어 GPU 가 혼자 돌지 않게 한다. 돌아오면 다시 연결.
+/* 절전: 화면을 닫거나 다른 앱으로 가면 5분 뒤 서버 연결을 끊어 GPU 가 혼자 돌지 않게 한다. 돌아오면 다시 연결.
    (보호자 알림은 푸시로 오므로 연결이 없어도 받는다) */
 let hideT=null;
 document.addEventListener('visibilitychange', ()=>{
   clearTimeout(hideT);
-  if(document.hidden){ hideT=setTimeout(()=>{ const ws=G.ws; G.ws=null; try{ ws && ws.close(); }catch(e){} $('#liveClose').click(); }, 60000); }
+  if(document.hidden){ hideT=setTimeout(()=>{ const ws=G.ws; G.ws=null; try{ ws && ws.close(); }catch(e){} $('#liveClose').click(); }, 300000); }
   else if(G.pin && (!G.ws || G.ws.readyState>1)){ connect(); resync(); }
 });
 load(); applyOpts();
