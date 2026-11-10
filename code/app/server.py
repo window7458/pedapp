@@ -412,6 +412,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         if not key_ok(request.query_params, request.cookies):
             return JSONResponse({"error": "접속 키가 필요해요"}, status_code=401)
         resp = await call_next(request)
+        path = request.url.path
+        if path in ("/", "/guardian", "/dev") or path.endswith((".html", ".js", ".css", ".webmanifest")):
+            # 폰 브라우저가 옛 화면을 그대로 쓰지 않게 매번 새 버전인지 확인 (옛 화면은 사용자 번호를 안 보내 모두가 한 사람으로 묶였다)
+            resp.headers["Cache-Control"] = "no-cache"
         if key and request.query_params.get("k"):
             resp.set_cookie("sayeye_k", key, httponly=True, secure=True, samesite="strict", max_age=86400 * 7)
         return resp
