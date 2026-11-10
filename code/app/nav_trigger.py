@@ -69,10 +69,16 @@ class NavTrigger:
 
     def set_cam_h(self, h: float):
         """보행자 처음 설정(키 × 카메라 위치)으로 카메라 높이를 바꾼다. 원본 ego_motion 은 고치지 않고 모듈 값만 바꾼다."""
+        if not 0.5 <= h <= 2.2:
+            return
         em = sys.modules.get("ego_motion")
-        if em is not None and 0.5 <= h <= 2.2:
-            em.CAM_H = float(h)
-            self.info["cam_h"] = round(float(h), 2)
+        if em is not None:
+            em.CAM_H = float(h)                                   # 보행 속도 · 경로 추정
+        # 위험 판정의 거리 · 통로 폭은 HazardConfig.camera_height_m 을 따로 쓴다 → 같이 바꾼다 (설정 객체만 교체)
+        from dataclasses import replace
+        self.p.config = replace(self.p.config, camera_height_m=float(h))
+        self.p.core.policy.config = replace(self.p.core.policy.config, camera_height_m=float(h))
+        self.info["cam_h"] = round(float(h), 2)
 
     # ── 인식기 쪽 ──
     def warmup(self, image, n=2):
