@@ -3,9 +3,11 @@
 #   .\deploy\deploy_gpu.ps1 -Project 내프로젝트ID -Key 접속키
 # - 보호자 연결 · 처음 설정 · 알림 기록은 CPU 판과 같은 버킷을 써서 그대로 이어진다.
 # - 지역은 싱가포르(asia-southeast1): L4 GPU 는 asia-southeast1 · europe-west1/4 · us-central1 · us-east4 만 된다 (도쿄 · 서울 안 됨)
-# - 마지막 접속 뒤 몇 분 동안은 켜진 채 기다리다가(그동안은 요금이 나감) 0대로 줄어든다.
+# - 마지막 접속 뒤 몇 분 동안은 켜진 채 기다리다가(그동안은 요금이 나감) 0대로 줄어든다. 깨어나는 데 약 20초.
+# - 시연 때 깨어나는 시간이 싫으면 -MinInstances 1 (항상 켜 둠, 켜 둔 시간만큼 요금). 끝나면 -MinInstances 0 으로 다시.
 param([Parameter(Mandatory)][string]$Project, [Parameter(Mandatory)][string]$Key, [string]$Pin = "",
-      [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3")
+      [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3",
+      [int]$MinInstances = 0)
 $ErrorActionPreference = "Stop"
 gcloud config set project $Project
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com
@@ -29,7 +31,7 @@ $envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data"
 if ($Pin) { $envs += ",GUARDIAN_PIN=$Pin" }
 gcloud run deploy $Name --image $image --region $Region `
   --gpu 1 --gpu-type nvidia-l4 --no-gpu-zonal-redundancy --cpu 4 --memory 16Gi --no-cpu-throttling `
-  --min-instances 0 --max-instances 1 --concurrency 20 --timeout 3600 --session-affinity --no-invoker-iam-check `
+  --min-instances $MinInstances --max-instances 1 --concurrency 20 --timeout 3600 --session-affinity --no-invoker-iam-check `
   --add-volume "name=data,type=cloud-storage,bucket=$bucket" --add-volume-mount "volume=data,mount-path=/data" `
   --update-env-vars $envs
 $url = gcloud run services describe $Name --region $Region --format "value(status.url)"

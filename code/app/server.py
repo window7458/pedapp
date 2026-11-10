@@ -416,6 +416,41 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             resp.set_cookie("sayeye_k", key, httponly=True, secure=True, samesite="strict", max_age=86400 * 7)
         return resp
 
+    def boot(user: User):
+        """판단 장치를 뒤에서 켜고, 다 되면 그 보행자 화면에 'ready' 를 보낸다 (그때부터 영상을 받는다)."""
+        if user.pipe is not None or user.state.get("booting"):
+            if user.pipe is not None:
+                user.hub.broadcast({"type": "ready"})
+            return
+        user.state["booting"] = True
+
+        async def run():
+            try:
+                await asyncio.to_thread(user.start_pipe)
+                p = user.pipe
+                if user.state.pop("want_source", None) == "phone":
+                    await asyncio.to_thread(user.src.use_phone)
+                user.hub.broadcast({"type": "ready", "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?")})
+            except Exception as e:
+                print(f"[boot] {user.uid[:8]} 실패: {e!r}")
+            finally:
+                user.state["booting"] = False
+        asyncio.get_running_loop().create_task(run())
+
+    def warm_gpu():
+        """서버가 켜질 때 한 번: GPU(CUDA) 준비와 모델 첫 추론을 미리 해 둔다 → 첫 보행자의 판단 장치가 빨리 켜진다."""
+        try:
+            if str(cfg.device) == "cpu":
+                return
+            import numpy as np
+            from ultralytics import YOLO
+            m = YOLO(str(cfg.weights))
+            for _ in range(2):
+                m.predict(np.zeros((960, 540, 3), np.uint8), imgsz=960, device=cfg.device, verbose=False)
+            print("[warm] GPU 준비 끝", flush=True)
+        except Exception as e:
+            print(f"[warm] 건너뜀: {e!r}", flush=True)
+
     async def _janitor():
         """10분 동안 보행자 연결이 없는 사람의 판단 장치를 내린다 (GPU 메모리 · 계산을 비움). 기록 · 보호자 연결은 그대로."""
         while True:
@@ -436,6 +471,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     get_user(d.name)
         shared["prewarm"] = asyncio.create_task(tts.prewarm())   # 경고 문장 음성을 미리 (처음 한 번만 1~2분)
         shared["janitor"] = asyncio.create_task(_janitor())
+        shared["warm"] = asyncio.get_running_loop().run_in_executor(None, warm_gpu)
         if source:
             u = get_user("default")
             await asyncio.to_thread(u.start_pipe)
@@ -647,7 +683,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 await ws.send_text(json.dumps({"type": "server_busy"}))
                 await ws.close(code=4429)
                 return
-            await asyncio.to_thread(user.start_pipe)
+            boot(user)                  # 판단 장치는 뒤에서 준비 (모델 올리기에 수 초~수십 초) — 그동안에도 연결 · 인사는 바로
             user.ped += 1
             user.last_ped = time.time()
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
@@ -676,11 +712,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 if role != "guardian":
                     user.last_ped = time.time()
                     p, s = user.pipe, user.src
-                    if p is None:                    # 오래 비어서 내려간 뒤 다시 쓰기 시작
-                        await asyncio.to_thread(user.start_pipe)
-                        p, s = user.pipe, user.src
+                    if p is None:                    # 아직 준비 중이거나, 오래 비어서 내려간 뒤 다시 쓰기 시작
+                        boot(user)
                 if m.get("bytes") is not None:
-                    if role != "guardian":
+                    if role != "guardian" and s is not None:
                         await wake_scene()                           # 걷는 동안 4분마다 (잠들지 않게)
                         got = s.on_phone_frame(m["bytes"])
                         user.sensors.frame("phone", got[0] if got else None, got[1] if got else len(m["bytes"]))
@@ -693,6 +728,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     if t == "sensors" and role != "guardian":
                         user.sensors.add(cmd)
                         user.imu.add(cmd.get("motion"))      # 자이로 · 가속도 → 프레임 시각에 맞춰 이 사람의 트리거에
+                    elif t == "set_source" and role != "guardian" and s is None:
+                        user.state["want_source"] = cmd.get("mode")   # 준비가 끝나면 적용
+                        if cmd.get("mode") == "phone":
+                            await wake_scene(force=True)
                     elif t == "set_source" and role != "guardian":
                         if cmd.get("mode") == "phone":
                             await asyncio.to_thread(s.use_phone)
@@ -700,9 +739,9 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
                     elif t == "sos" and role != "guardian":
-                        user.alerts.on_sos(p.last_frame)
+                        user.alerts.on_sos(p.last_frame if p else None)
                     elif t == "client_event" and role != "guardian":
-                        user.alerts.on_client_event(cmd, p.last_frame)
+                        user.alerts.on_client_event(cmd, p.last_frame if p else None)
                     elif t == "profile" and role in ("pedestrian", "guardian"):
                         why = user.profile.update(cmd, by_guardian=(role == "guardian"))
                         if why:

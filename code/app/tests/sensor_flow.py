@@ -34,6 +34,8 @@ with TestClient(app, base_url="https://testserver") as c:
     assert c.get("/sensors.js").status_code == 200, "쿠키로 기억"
     with c.websocket_connect("/ws?role=pedestrian&k=abc") as phone:
         assert json.loads(phone.receive_text())["type"] == "hello"
+        for _ in range(100):                                         # 판단 장치가 뒤에서 준비될 때까지
+            if json.loads(phone.receive_text())["type"] == "ready": break
         now = time.time() * 1000
         phone.send_text(json.dumps({"type": "sensors", "now": now, "meta": {"ua": "t"},
                                     "motion": [[now + i * 10, .1, .2, .3, .1, -9.6, .3, 10, 20, 30] for i in range(100)],

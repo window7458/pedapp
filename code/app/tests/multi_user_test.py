@@ -29,6 +29,7 @@ A, B = "userAAAA1111", "userBBBB2222"
 app = build_app(cfg, None, pin="424242")
 with TestClient(app) as c, c.websocket_connect(f"/ws?u={A}") as pa, c.websocket_connect(f"/ws?u={B}") as pb:
     ha, hb = pa.receive_json(), pb.receive_json()
+    until(pa, "ready"); until(pb, "ready")          # 판단 장치는 뒤에서 준비된다
     assert ha["pin"] != hb["pin"], "확인번호가 사람마다 달라야"
     users = app.state.users
     assert users[A].pipe is not None and users[B].pipe is not None and users[A].pipe is not users[B].pipe

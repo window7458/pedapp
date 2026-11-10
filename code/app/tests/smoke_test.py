@@ -43,6 +43,12 @@ async def run(seconds: float, img: Path):
         hello = json.loads(await ped.recv())
         print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights")})
         await gd.recv()
+        t_boot = time.time()
+        while True:                                                   # 판단 장치는 뒤에서 준비된다 (모델 올리기)
+            m = json.loads(await asyncio.wait_for(ped.recv(), 180))
+            if m["type"] == "ready":
+                print(f"준비까지 {time.time() - t_boot:.1f}s")
+                break
         await ped.send(json.dumps({"type": "set_source", "mode": "phone"}))
         await ped.send(json.dumps({"type": "share_allow"}))      # 보행자가 공유를 허락한 상황 (평소엔 위치 · 영상이 막혀 있음)
         await ped.send(json.dumps({"type": "gps", "lat": 37.4502, "lon": 126.6535, "acc": 8}))

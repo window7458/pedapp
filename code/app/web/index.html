@@ -260,8 +260,9 @@ const speech = (() => {
     if(cur!==it) return;                            // 기다리는 사이 더 급한 경고가 끼어듦
     if(url){
       aud.src=url; aud.playbackRate=Math.max(.6, Math.min(1.8, S.rate/1.1)); aud.volume=S.vol;
-      aud.onended=done; aud.onerror=()=>speakSynth(it, done);
-      aud.play().catch(()=>speakSynth(it, done));
+      let fell=false; const fb=()=>{ if(fell) return; fell=true; speakSynth(it, done); };   /* 재생 실패가 두 번 잡혀 같은 말을 두 번 하던 문제 */
+      aud.onended=done; aud.onerror=fb;
+      aud.play().catch(fb);
     } else speakSynth(it, done);
   }
   function speakSynth(it, done){
@@ -410,7 +411,8 @@ SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.strin
 function handle(m){
   switch(m.type){
     case 'server_busy': notice('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); say('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); break;
-    case 'hello': if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
+    case 'ready': notice(''); if(S.running) sendCmd({type:'set_source', mode:S.mode}); break;
+    case 'hello': if(!m.trigger) notice('서버를 준비하고 있어요. 잠시만 기다려 주세요.'); if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
     case 'pair_link': showPair(m); break;
     case 'share_req': askShare(); break;
     case 'profile': S.profile=m; if(m.set){ try{ localStorage.setItem('sayeye-profile', JSON.stringify({age:m.age, height_cm:m.height_cm, mount:m.mount})); }catch(e){} }   /* 서버 값(보호자가 바꾼 나이 포함)에 맞춤 */
@@ -488,7 +490,7 @@ function startSending(){
       if(!(S.ws && S.ws.readyState===1)) return;
       const out=new Uint8Array(12+buf.byteLength), dv=new DataView(out.buffer);
       out.set([83,69,70,49],0); dv.setFloat64(4,cap,false); out.set(new Uint8Array(buf),12);   /* 'SEF1' + 시각 + JPEG */
-      S.ws.send(out.buffer); }); }, 'image/jpeg', 0.6);
+      S.ws.send(out.buffer); }); }, 'image/jpeg', 0.5);   /* 화질을 조금 낮춰 업로드 시간을 줄임 (해상도는 그대로) */
   }, 100);
 }
 setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){
