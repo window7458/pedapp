@@ -17,9 +17,11 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import socket
 import sys
 import secrets
+import threading
 import time
 from pathlib import Path
 
@@ -36,7 +38,7 @@ sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
-from imu_fusion import IMU  # noqa: E402
+from imu_fusion import ImuBuffer  # noqa: E402
 from push import Push  # noqa: E402
 from sensors import SensorLog  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
@@ -244,15 +246,126 @@ def load_pin(arg: str | None) -> str:
     return pin
 
 
+UID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+MAX_ACTIVE = int(os.environ.get("MAX_USERS", "8"))      # 동시에 판단 장치를 돌리는 보행자 수 상한 (GPU 하나 기준)
+IDLE_S = 600                                            # 보행자가 10분 동안 연결이 없으면 그 사람의 판단 장치를 내린다
+
+
+def _pin_file(path: Path, given: str | None = None) -> str:
+    if given:
+        return str(given)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.read_text().strip():
+        return path.read_text().strip()
+    pin = "".join(secrets.choice("0123456789") for _ in range(6))
+    path.write_text(pin)
+    return pin
+
+
+class User:
+    """보행자 한 명. 판단 장치(YOLO + 트리거) · 센서 · 처음 설정 · 보호자 연결 · 알림 · 푸시 · 공유 · 메시지 통로가 모두 따로다.
+    'default' 는 예전 단일 사용자 자리(이전 데이터 · 테스트 호환) — DATA 바로 아래를 그대로 쓴다."""
+
+    def __init__(self, uid: str, cfg: Config, loop, pin: str | None = None,
+                 alerts_dir: Path | None = None, session_dir: Path | None = None):
+        self.uid, self.cfg = uid, cfg
+        self.root = DATA if uid == "default" else DATA / "users" / uid
+        self.hub = Hub()
+        self.hub.loop = loop
+        self.gws: set = set()
+        self.state: dict = {}
+        self.pairing = Pairing(self.root / "certs" / "guardians.json")
+        self.profile = Profile(self.root / "certs" / "profile.json")
+        self.pin = _pin_file(self.root / "certs" / "guardian_pin.txt", pin)
+        self.imu = ImuBuffer()
+        self.sensors = SensorLog(session_dir or (self.root / "sessions"))
+        self.alerts = AlertCenter(alerts_dir or (self.root / "alerts"), self.hub.broadcast)
+        self.push = Push(DATA / "certs", self.alerts.dir)          # 푸시 키는 서버 하나, 구독은 사람마다
+        self.alerts.on_new = self.push.on_alert
+        self.alerts.set_always(self.profile.child())      # 서버가 다시 켜져도 13세 미만 보호는 바로 (보행자 연결 전에도)
+        self.imu.set_height(self.profile.d.get("height_cm"))
+        self.pipe = self.src = None
+        self.ped = 0                        # 지금 연결된 보행자 화면 수
+        self.last_ped = time.time()
+        self.lock = threading.Lock()
+
+    # 판단 장치 (무거움: 모델을 올림) — 보행자가 연결하면 켜고, 오래 비면 내린다
+    def start_pipe(self):
+        with self.lock:
+            if self.pipe is not None:
+                return
+
+            def emit(msg):
+                if msg.get("type") == "status":
+                    msg["sensors"] = self.sensors.summary()
+                    self.alerts.on_status(msg)
+                self.hub.broadcast(msg)
+            pipe = LivePipeline(self.cfg, emit)
+            pipe.on_warn = self.alerts.on_warn
+            pipe.on_frame = self.alerts.clips.push
+            if hasattr(pipe.perception, "imu"):
+                pipe.perception.imu = self.imu          # 이 사람 폰의 센서만 이 사람 판단에
+            self.src = SourceManager(pipe, self.hub.broadcast)
+            self.pipe = pipe
+        self.apply_profile()
+
+    def stop_pipe(self):
+        with self.lock:
+            if self.src is not None:
+                self.src.close()
+            if self.pipe is not None:
+                self.pipe.stop()
+            self.pipe = self.src = None
+
+    def apply_profile(self):
+        self.imu.set_height(self.profile.d.get("height_cm"))       # 보폭 = 키 × 0.415
+        h = self.profile.cam_h()
+        trig = getattr(self.pipe, "trigger", None)
+        if h and hasattr(trig, "set_cam_h"):
+            trig.set_cam_h(h)
+        self.alerts.set_always(self.profile.child())
+        self.hub.broadcast(self.profile.public())
+
+    def guardian_ok(self, given: str | None) -> bool:
+        """보호자 인증: 연결 링크(QR)로 받은 토큰, 또는 보조 6자리 확인번호."""
+        return bool(given) and (hmac.compare_digest(str(given), str(self.pin)) or self.pairing.ok(str(given)))
+
+
 def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alerts_dir: Path | None = None,
               session_dir: Path | None = None, key: str | None = None):
-    hub = Hub()
     app = FastAPI(title="SayEye")
-    state = {"gws": set()}
-    pairing = Pairing(DATA / "certs" / "guardians.json")
-    profile = Profile(DATA / "certs" / "profile.json")
+    users: dict[str, User] = {}
+    shared = {}
     tts = AppTTS(DATA / "tts_cache")
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
+
+    def get_user(uid: str | None, create: bool = True) -> User | None:
+        uid = uid if uid and UID_RE.match(uid) else "default"
+        u = users.get(uid)
+        if u is None and create:
+            loop = shared.get("loop")
+            u = users[uid] = User(uid, cfg, loop, pin if uid == "default" else None,
+                                  alerts_dir if uid == "default" else None, session_dir if uid == "default" else None)
+        return u
+
+    def find_guardian(given: str | None) -> User | None:
+        """보호자 토큰 · 확인번호 → 그 보행자."""
+        if not given:
+            return None
+        for u in list(users.values()):
+            if u.guardian_ok(given):
+                return u
+        return None
+
+    def guardian_user(given: str | None) -> User:
+        u = find_guardian(given)
+        if u is None:
+            raise HTTPException(401, "확인번호가 달라요")
+        return u
+
+    def need_share(u: User):
+        if not u.alerts.sharing():
+            raise HTTPException(403, "보행자가 공유를 허락해야 볼 수 있어요")
 
     _tok = {"v": None, "exp": 0.0}
 
@@ -271,43 +384,31 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         return {"Authorization": "Bearer " + _tok["v"]}
 
     async def wake_scene(force=False):
-        """보행을 시작하면 풍경 서버(VLM)도 같이 깨운다. 걷는 동안 4분마다 다시 불러 잠들지 않게 한다.
-        풍경 서버는 큰 모델을 올리느라 깨어나는 데 몇 분 걸리므로, 정작 "주변 설명해줘"라고 할 때 바로 답하게 하려는 것."""
+        """보행을 시작하면 풍경 서버(VLM)도 같이 깨운다. 누군가 걷는 동안 4분마다 다시 불러 잠들지 않게 한다 (풍경 서버는 모두가 같이 씀)."""
         if not scene_url:
             return
         now = time.time()
-        if not force and now - state.get("scene_ping", 0) < 240:
+        if not force and now - shared.get("scene_ping", 0) < 240:
             return
-        state["scene_ping"] = now
+        shared["scene_ping"] = now
 
         def ping():
             import urllib.request
             try:
                 req = urllib.request.Request(scene_url + "/api/health", headers=scene_headers())
                 with urllib.request.urlopen(req, timeout=600) as r:
-                    state["scene_ready"] = json.loads(r.read() or b"{}").get("vlm", True)
+                    shared["scene_ready"] = json.loads(r.read() or b"{}").get("vlm", True)
             except Exception as e:
-                state["scene_ready"] = False
+                shared["scene_ready"] = False
                 print(f"[풍경 서버] 깨우기 실패: {e!r}")
         asyncio.get_running_loop().run_in_executor(None, ping)
-
-    def apply_profile():
-        IMU.set_height(profile.d.get("height_cm"))       # 보폭 = 키 × 0.415
-        h = profile.cam_h()
-        trig = getattr(state.get("pipe"), "trigger", None)
-        if h and hasattr(trig, "set_cam_h"):
-            trig.set_cam_h(h)
-        if "alerts" in state:
-            state["alerts"].set_always(profile.child())
-        hub.broadcast(profile.public())
-    sensors = SensorLog(session_dir or (APP / "sessions"))
 
     def key_ok(q, cookies):
         return not key or hmac.compare_digest(str(q.get("k") or cookies.get("sayeye_k") or ""), key)
 
     @app.middleware("http")
     async def _key_guard(request: Request, call_next):
-        """공개 주소(터널)에서 영상 · 위치가 새지 않게 접속 키를 요구한다. ?k=키 로 한 번 열면 쿠키로 기억."""
+        """공개 주소에서 영상 · 위치가 새지 않게 접속 키를 요구한다. ?k=키 로 한 번 열면 쿠키로 기억."""
         if not key_ok(request.query_params, request.cookies):
             return JSONResponse({"error": "접속 키가 필요해요"}, status_code=401)
         resp = await call_next(request)
@@ -315,61 +416,55 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             resp.set_cookie("sayeye_k", key, httponly=True, secure=True, samesite="strict", max_age=86400 * 7)
         return resp
 
-    def check_pin(given: str | None):
-        if not guardian_ok(given):
-            raise HTTPException(401, "확인번호가 달라요")
-
-    def need_share():
-        if not state["alerts"].sharing():
-            raise HTTPException(403, "보행자가 공유를 허락해야 볼 수 있어요")
-
-    def guardian_ok(given: str | None) -> bool:
-        """보호자 인증: 연결 링크로 받은 토큰, 또는 보조로 남긴 6자리 확인번호."""
-        return bool(given) and (hmac.compare_digest(str(given), str(pin)) or pairing.ok(str(given)))
+    async def _janitor():
+        """10분 동안 보행자 연결이 없는 사람의 판단 장치를 내린다 (GPU 메모리 · 계산을 비움). 기록 · 보호자 연결은 그대로."""
+        while True:
+            await asyncio.sleep(60)
+            now = time.time()
+            for u in list(users.values()):
+                if u.pipe is not None and u.ped == 0 and now - u.last_ped > IDLE_S:
+                    await asyncio.to_thread(u.stop_pipe)
 
     @app.on_event("startup")
     async def _start():
-        hub.loop = asyncio.get_running_loop()
-        alerts = AlertCenter(alerts_dir or (DATA / "alerts"), hub.broadcast)
-        push = Push(DATA / "certs", alerts.dir)
-        alerts.on_new = push.on_alert
-
-        def emit(msg):
-            if msg.get("type") == "status":
-                msg["sensors"] = sensors.summary()
-                alerts.on_status(msg)
-            hub.broadcast(msg)
-        pipe = LivePipeline(cfg, emit)
-        pipe.on_warn = alerts.on_warn
-        pipe.on_frame = alerts.clips.push
-        src = SourceManager(pipe, hub.broadcast)
-        state.update(pipe=pipe, src=src, alerts=alerts, push=push)
-        apply_profile()          # 저장된 처음 설정: 카메라 높이 · 만 13세 미만 보호
-        state["prewarm"] = asyncio.create_task(tts.prewarm())   # 경고 문장 음성을 미리 (처음 한 번만 1~2분)
+        shared["loop"] = asyncio.get_running_loop()
+        get_user("default")
+        root = DATA / "users"
+        if root.is_dir():                    # 이전에 쓰던 사람들 (보호자 토큰 · 확인번호로 찾을 수 있게, 가벼운 부분만)
+            for d in root.iterdir():
+                if d.is_dir() and UID_RE.match(d.name):
+                    get_user(d.name)
+        shared["prewarm"] = asyncio.create_task(tts.prewarm())   # 경고 문장 음성을 미리 (처음 한 번만 1~2분)
+        shared["janitor"] = asyncio.create_task(_janitor())
         if source:
-            src.use_url(source)
+            u = get_user("default")
+            await asyncio.to_thread(u.start_pipe)
+            u.src.use_url(source)
 
     @app.on_event("shutdown")
     async def _stop():
-        state["src"].close()
-        state["pipe"].stop()
+        for u in list(users.values()):
+            u.stop_pipe()
 
     @app.get("/api/health")
     async def health():
-        p, s = state["pipe"], state["src"]
-        return {"ok": True, "source": s.mode, "url": s.url, "perception": p.perception.name,
-                "trigger": getattr(p.trigger, "name", "?")}
+        active = [u for u in users.values() if u.pipe is not None]
+        p = active[0].pipe if active else None
+        return {"ok": True, "users": len(users), "active": len(active),
+                "perception": p.perception.name if p else None, "trigger": getattr(p.trigger, "name", None) if p else None}
 
     @app.get("/api/sensors")
-    async def api_sensors():
-        return sensors.summary()
+    async def api_sensors(u: str | None = None):
+        return get_user(u).sensors.summary()
 
     @app.get("/preview.mjpg")
-    async def preview():
+    async def preview(u: str | None = None):
+        user = get_user(u)
+
         async def gen():
             last = None
             while True:
-                jpg = state["pipe"].preview_jpeg
+                jpg = user.pipe.preview_jpeg if user.pipe else None
                 if jpg is not None and jpg is not last:
                     last = jpg
                     yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
@@ -379,20 +474,22 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
 
     @app.get("/api/live.mjpg")
     async def live(pin: str | None = None):
-        """보호자 실시간 영상 (인식 박스 포함, 약 7 fps). 보는 동안만 서버가 미리보기를 만든다.
-        보행자가 공유 중일 때만 열리고(SOS 30분 / 허락 10분), 보는 동안 보행자 앱이 '보호자가 보고 있어요'라고 알린다."""
-        check_pin(pin)
-        need_share()
-        pipe = state["pipe"]
+        """보호자 실시간 영상 (인식 박스 포함, 약 7 fps). 그 보행자가 공유 중일 때만 (SOS 30분 / 허락 10분 / 13세 미만),
+        보는 동안 보행자 앱이 '보호자가 보고 있어요'라고 알린다."""
+        user = guardian_user(pin)
+        need_share(user)
+        pipe = user.pipe
+        if pipe is None:
+            raise HTTPException(404, "보행자가 지금 안내를 쓰고 있지 않아요")
 
         async def gen():
             pipe.live_viewers += 1
             if pipe.live_viewers == 1:
-                hub.broadcast({"type": "viewing", "on": True})
+                user.hub.broadcast({"type": "viewing", "on": True})
             last = None
             try:
                 while True:
-                    if not guardian_ok(pin) or not state["alerts"].sharing():   # 연결을 끊거나 공유가 끝나면 끊는다
+                    if not user.guardian_ok(pin) or not user.alerts.sharing():   # 연결을 끊거나 공유가 끝나면 끊는다
                         break
                     jpg = pipe.preview_jpeg
                     if jpg is not None and jpg is not last:
@@ -403,76 +500,73 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             finally:
                 pipe.live_viewers = max(0, pipe.live_viewers - 1)
                 if pipe.live_viewers == 0:
-                    hub.broadcast({"type": "viewing", "on": False})
+                    user.hub.broadcast({"type": "viewing", "on": False})
         return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})
 
     @app.get("/api/location")
     async def api_location(pin: str | None = None):
-        check_pin(pin)
-        al = state["alerts"]
+        al = guardian_user(pin).alerts
         return {"loc": al.loc if al.sharing() else None, "share": al.share_state()}
 
     @app.post("/api/share/request")
     async def share_request(pin: str | None = None):
         """보호자가 '위치 · 영상 보기'를 누르면 보행자 폰이 음성으로 허락을 묻는다."""
-        check_pin(pin)
-        al = state["alerts"]
+        user = guardian_user(pin)
+        al = user.alerts
         if al.sharing():
             return {"ok": True, "share": al.share_state()}
         now = time.time()
-        if now - state.get("ask_ts", 0) < 30:
+        if now - user.state.get("ask_ts", 0) < 30:
             return {"ok": True, "asked": True}
-        state["ask_ts"] = now
-        hub.broadcast({"type": "share_req"})
+        user.state["ask_ts"] = now
+        user.hub.broadcast({"type": "share_req"})
         return {"ok": True, "asked": True}
 
     @app.get("/api/push/key")
     async def push_key():
-        p = state["push"]
+        p = get_user("default").push
         return {"ok": p.ok, "key": p.public if p.ok else None}
 
     @app.post("/api/push/subscribe")
     async def push_sub(request: Request, pin: str | None = None):
-        check_pin(pin)
+        user = guardian_user(pin)
         j = await request.json()
         try:
-            state["push"].subscribe(j.get("sub") or {}, j.get("sens", "caution"))
+            user.push.subscribe(j.get("sub") or {}, j.get("sens", "caution"))
         except ValueError as e:
             raise HTTPException(400, str(e))
         return {"ok": True}
 
     @app.post("/api/push/unsubscribe")
     async def push_unsub(request: Request, pin: str | None = None):
-        check_pin(pin)
+        user = guardian_user(pin)
         j = await request.json()
-        state["push"].unsubscribe(j.get("endpoint", ""))
+        user.push.unsubscribe(j.get("endpoint", ""))
         return {"ok": True}
 
     @app.get("/api/alerts")
     async def api_alerts(pin: str | None = None, since: int = 0):
-        check_pin(pin)
-        return {"alerts": state["alerts"].list(since), "active": state["alerts"].active}
+        al = guardian_user(pin).alerts
+        return {"alerts": al.list(since), "active": al.active}
 
     @app.get("/api/alerts/{aid}.jpg")
     async def api_alert_snap(aid: int, pin: str | None = None):
-        check_pin(pin)
-        b = state["alerts"].snap(aid)
+        b = guardian_user(pin).alerts.snap(aid)
         if b is None:
             raise HTTPException(404)
         return Response(b, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
     @app.get("/api/alerts/{aid}.mp4")
     async def api_alert_clip(aid: int, pin: str | None = None):
-        check_pin(pin)
-        p = state["alerts"].clips.path(aid)
+        p = guardian_user(pin).alerts.clips.path(aid)
         if not p.exists():
             raise HTTPException(404)
         return FileResponse(p, media_type="video/mp4", headers={"Cache-Control": "private, max-age=86400"})
 
     @app.get("/api/tts")
     async def api_tts(t: str):
-        """앱이 말할 문장 → 자연스러운 음성(MP3). 같은 문장은 저장해 두었다가 바로 준다. 실패하면 앱이 폰 기본 음성으로 말한다."""
+        """앱이 말할 문장 → 자연스러운 음성(MP3). 모두가 같이 쓰는 저장본. 실패하면 앱이 폰 기본 음성으로 말한다."""
         p = await tts.get(t)
         if p is None:
             raise HTTPException(503, "음성을 만들 수 없어요")
@@ -481,10 +575,11 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     @app.post("/api/scene")
     async def api_scene(request: Request):
         """"주변 설명해줘" — 보행자 폰이 알아들은 말 + 그 순간 사진을 보내면 풍경 서버(SJ 말로 듣는 풍경)의 /api/text 로 넘긴다.
-        같은 보행자는 같은 session 이라 "더 자세히" · "간판에 뭐라고 써 있어?" 가 앞 사진 · 설명에 이어진다."""
+        보행자마다 session 이 달라서 "더 자세히" · "간판에 뭐라고 써 있어?" 가 그 사람의 앞 사진 · 설명에 이어진다."""
         if not scene_url:
             raise HTTPException(503, "풍경 서버가 아직 연결되지 않았어요")
         form = await request.form()
+        user = get_user(str(form.get("u") or request.query_params.get("u") or ""))
         text = " ".join(str(form.get("text") or "").split())[:200]
         if not text:
             raise HTTPException(400, "말이 비었어요")
@@ -492,7 +587,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         img = form.get("image")
         if img is not None and hasattr(img, "read"):
             files["image"] = ("frame.jpg", await img.read(), "image/jpeg")
-        sid = state.setdefault("scene_session", secrets.token_hex(8))
+        sid = user.state.setdefault("scene_session", hashlib.sha256((user.uid + secrets.token_hex(4)).encode()).hexdigest()[:16])
         import httpx
         try:
             async with httpx.AsyncClient(timeout=90) as cl:
@@ -510,18 +605,20 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
 
     @app.post("/api/pair")
     async def api_pair(code: str):
-        """보호자가 연결 링크를 열면 1회용 코드를 오래 쓰는 토큰으로 바꿔 준다."""
-        tok = pairing.redeem(code)
-        if not tok:
-            raise HTTPException(410, "연결 링크가 만료됐거나 이미 쓰였어요")
-        hub.broadcast({"type": "paired", "count": len(pairing.tokens)})   # 보행자 앱이 "보호자가 연결됐어요" 라고 말한다
-        return {"token": tok}
+        """보호자가 연결 링크(QR)를 열면 1회용 코드를 그 보행자의 토큰으로 바꿔 준다."""
+        for user in list(users.values()):
+            if code in user.pairing.codes:
+                tok = user.pairing.redeem(code)
+                if tok:
+                    user.hub.broadcast({"type": "paired", "count": len(user.pairing.tokens)})   # "보호자가 연결됐어요"
+                    return {"token": tok}
+        raise HTTPException(410, "연결 링크가 만료됐거나 이미 쓰였어요")
 
     @app.get("/api/latest.jpg")
     async def api_latest(pin: str | None = None):
-        check_pin(pin)
-        need_share()
-        im = state["pipe"].last_frame
+        user = guardian_user(pin)
+        need_share(user)
+        im = user.pipe.last_frame if user.pipe else None
         if im is None:
             raise HTTPException(404, "아직 영상이 없어요")
         s_ = min(1.0, 640 / max(im.shape[:2]))
@@ -537,21 +634,33 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
-        if role == "guardian" and not guardian_ok(ws.query_params.get("pin")):
-            await ws.send_text(json.dumps({"type": "auth_error"}))
-            await ws.close(code=4401)
-            return
         if role == "guardian":
-            state["gws"].add(ws)
+            user = find_guardian(ws.query_params.get("pin"))
+            if user is None:
+                await ws.send_text(json.dumps({"type": "auth_error"}))
+                await ws.close(code=4401)
+                return
+            user.gws.add(ws)
+        else:
+            user = get_user(ws.query_params.get("u"))
+            if user.pipe is None and sum(1 for x in users.values() if x.pipe is not None) >= MAX_ACTIVE:
+                await ws.send_text(json.dumps({"type": "server_busy"}))
+                await ws.close(code=4429)
+                return
+            await asyncio.to_thread(user.start_pipe)
+            user.ped += 1
+            user.last_ped = time.time()
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
-        hub.clients[q] = role
-        p, s = state["pipe"], state["src"]
-        await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
-                                       "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
-                                       "weights": Path(str(p.cfg.weights)).name,
-                                       # 보호자 확인번호는 보행자 화면에만 보낸다 (앱 열 때마다 화면에 띄움)
-                                       **({"pin": str(pin), "paired": len(pairing.tokens)} if role == "pedestrian" else {}),
-                                       "share": state["alerts"].share_state(), "profile": profile.public()},
+        user.hub.clients[q] = role
+        p, s = user.pipe, user.src
+        await ws.send_text(json.dumps({"type": "hello", "source": s.mode if s else None, "url": s.url if s else None,
+                                       "default_url": source,
+                                       "perception": p.perception.name if p else None,
+                                       "trigger": getattr(p.trigger, "name", "?") if p else None,
+                                       "weights": Path(str(cfg.weights)).name,
+                                       # 보호자 확인번호는 보행자 화면에만 보낸다
+                                       **({"pin": str(user.pin), "paired": len(user.pairing.tokens)} if role == "pedestrian" else {}),
+                                       "share": user.alerts.share_state(), "profile": user.profile.public()},
                                       ensure_ascii=False))
 
         async def sender():
@@ -564,77 +673,87 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 m = await ws.receive()
                 if m["type"] == "websocket.disconnect":
                     break
+                if role != "guardian":
+                    user.last_ped = time.time()
+                    p, s = user.pipe, user.src
+                    if p is None:                    # 오래 비어서 내려간 뒤 다시 쓰기 시작
+                        await asyncio.to_thread(user.start_pipe)
+                        p, s = user.pipe, user.src
                 if m.get("bytes") is not None:
                     if role != "guardian":
                         await wake_scene()                           # 걷는 동안 4분마다 (잠들지 않게)
                         got = s.on_phone_frame(m["bytes"])
-                        sensors.frame("phone", got[0] if got else None, got[1] if got else len(m["bytes"]))
+                        user.sensors.frame("phone", got[0] if got else None, got[1] if got else len(m["bytes"]))
                 elif m.get("text"):
                     try:
                         cmd = json.loads(m["text"])
                     except json.JSONDecodeError:
                         continue
-                    if cmd.get("type") == "sensors" and role != "guardian":
-                        sensors.add(cmd)
-                        IMU.add(cmd.get("motion"))           # 자이로 · 가속도 → 프레임 시각에 맞춰 트리거에
-                    elif cmd.get("type") == "set_source":
+                    t = cmd.get("type")
+                    if t == "sensors" and role != "guardian":
+                        user.sensors.add(cmd)
+                        user.imu.add(cmd.get("motion"))      # 자이로 · 가속도 → 프레임 시각에 맞춰 이 사람의 트리거에
+                    elif t == "set_source" and role != "guardian":
                         if cmd.get("mode") == "phone":
                             await asyncio.to_thread(s.use_phone)
                             await wake_scene(force=True)             # 보행 시작 → 풍경 서버(VLM)도 같이 깨우기
                         elif cmd.get("mode") == "url" and cmd.get("url"):
                             await asyncio.to_thread(s.use_url, cmd["url"])
-                    elif cmd.get("type") == "sos" and role != "guardian":
-                        state["alerts"].on_sos(p.last_frame)
-                    elif cmd.get("type") == "client_event" and role != "guardian":
-                        state["alerts"].on_client_event(cmd, p.last_frame)
-                    elif cmd.get("type") == "profile" and role in ("pedestrian", "guardian"):
-                        why = profile.update(cmd, by_guardian=(role == "guardian"))
+                    elif t == "sos" and role != "guardian":
+                        user.alerts.on_sos(p.last_frame)
+                    elif t == "client_event" and role != "guardian":
+                        user.alerts.on_client_event(cmd, p.last_frame)
+                    elif t == "profile" and role in ("pedestrian", "guardian"):
+                        why = user.profile.update(cmd, by_guardian=(role == "guardian"))
                         if why:
                             await ws.send_text(json.dumps({"type": "profile_denied", "why": why}, ensure_ascii=False))
                         else:
-                            apply_profile()
+                            user.apply_profile()
                             if role == "guardian":
-                                await ws.send_text(json.dumps(profile.public(), ensure_ascii=False))
-                    elif cmd.get("type") == "share_allow" and role == "pedestrian":
+                                await ws.send_text(json.dumps(user.profile.public(), ensure_ascii=False))
+                    elif t == "share_allow" and role == "pedestrian":
                         from alerts import SHARE_ASK_S
-                        state["alerts"].share(SHARE_ASK_S, "allowed")
-                    elif cmd.get("type") == "share_deny" and role == "pedestrian":
-                        hub.broadcast({"type": "share_denied"})
-                    elif cmd.get("type") == "share_stop" and role == "pedestrian":
-                        state["alerts"].share_stop()
-                    elif cmd.get("type") == "g_msg" and role == "guardian":
-                        text = " ".join(str(cmd.get("text") or "").split())[:120]   # 보호자 → 보행자 음성 메시지
+                        user.alerts.share(SHARE_ASK_S, "allowed")
+                    elif t == "share_deny" and role == "pedestrian":
+                        user.hub.broadcast({"type": "share_denied"})
+                    elif t == "share_stop" and role == "pedestrian":
+                        user.alerts.share_stop()
+                    elif t == "g_msg" and role == "guardian":
+                        text = " ".join(str(cmd.get("text") or "").split())[:120]   # 보호자 → 그 보행자에게만 음성 메시지
                         now = time.time()
-                        if text and now - state.get("gmsg_ts", 0) >= 3:
-                            state["gmsg_ts"] = now
-                            hub.broadcast({"type": "g_msg", "text": text})
+                        if text and now - user.state.get("gmsg_ts", 0) >= 3:
+                            user.state["gmsg_ts"] = now
+                            user.hub.broadcast({"type": "g_msg", "text": text})
                             await ws.send_text(json.dumps({"type": "g_msg_ok"}))
-                    elif cmd.get("type") == "pair_new" and role == "pedestrian":
+                    elif t == "pair_new" and role == "pedestrian":
                         # 보행자 화면에 QR 로 띄워 보호자가 자기 폰 카메라로 찍게 한다 (멀리 있으면 같은 링크를 공유)
                         proto = ws.headers.get("x-forwarded-proto") or ("https" if ws.url.scheme == "wss" else "http")
-                        url = f"{proto}://{ws.headers.get('host')}/guardian?pair={pairing.new_code()}" + (f"&k={key}" if key else "")
+                        url = f"{proto}://{ws.headers.get('host')}/guardian?pair={user.pairing.new_code()}" + (f"&k={key}" if key else "")
                         buf = io.BytesIO()
                         segno.make(url, error="m").save(buf, kind="svg", scale=8, border=3, dark="#000", light="#fff")
                         await ws.send_text(json.dumps({"type": "pair_link", "url": url, "ttl": Pairing.TTL,
                                                        "qr": buf.getvalue().decode()}))
-                    elif cmd.get("type") == "unpair_all" and role == "pedestrian":
-                        pairing.clear()
-                        for g in list(state["gws"]):
+                    elif t == "unpair_all" and role == "pedestrian":
+                        user.pairing.clear()
+                        for g in list(user.gws):
                             try:
                                 await g.send_text(json.dumps({"type": "auth_error", "reason": "unpaired"}))
                                 await g.close(code=4401)
                             except Exception:
                                 pass
-                        state["gws"].clear()
+                        user.gws.clear()
                         await ws.send_text(json.dumps({"type": "unpaired"}))
-                    elif cmd.get("type") == "gps" and role == "pedestrian":
-                        state["alerts"].on_location(cmd)
+                    elif t == "gps" and role == "pedestrian":
+                        user.alerts.on_location(cmd)
         except Exception:
             pass
         finally:
             task.cancel()
-            hub.clients.pop(q, None)
-            state["gws"].discard(ws)
+            user.hub.clients.pop(q, None)
+            user.gws.discard(ws)
+            if role != "guardian":
+                user.ped = max(0, user.ped - 1)
+                user.last_ped = time.time()
 
     @app.get("/")
     async def index():
@@ -649,6 +768,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         return FileResponse(APP / "web" / "dev.html")
 
     app.mount("/", StaticFiles(directory=APP / "web"), name="web")
+    app.state.users = users
     return app
 
 

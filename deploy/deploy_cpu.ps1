@@ -24,6 +24,6 @@ gcloud run deploy $Name --source . --region $Region `
   --cpu 2 --memory 2Gi --min-instances 0 --max-instances 1 --concurrency 20 `
   --timeout 3600 --session-affinity --no-invoker-iam-check --execution-environment gen2 `
   --add-volume "name=data,type=cloud-storage,bucket=$bucket" --add-volume-mount "volume=data,mount-path=/data" `
-  --set-env-vars $envs
+  --update-env-vars $envs
 $url = gcloud run services describe $Name --region $Region --format "value(status.url)"
 Write-Host "`n보행자: $url/?k=$Key`n보호자: $url/guardian?k=$Key  (보행자 앱에서 '보호자 연결해줘' → QR 을 보호자 폰으로 찍기)"

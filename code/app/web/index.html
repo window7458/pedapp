@@ -167,6 +167,8 @@
 <script src="sensors.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
+/* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
+const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
 const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
@@ -381,7 +383,7 @@ function runCommand(cmd){
 
 /* ── 서버 연결 ── */
 function connect(){
-  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
+  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?u=${encodeURIComponent(UID)}`);
   ws.binaryType='arraybuffer'; S.ws=ws;
   ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true);
                       { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden) showSetup(); }
@@ -407,6 +409,7 @@ SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.strin
 
 function handle(m){
   switch(m.type){
+    case 'server_busy': notice('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); say('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); break;
     case 'hello': if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
     case 'pair_link': showPair(m); break;
     case 'share_req': askShare(); break;
@@ -627,7 +630,7 @@ async function sceneAsk(text, withImage){   /* 새로 묘사할 때만 사진을
   say('주변을 보고 있어요.');
   const slow=setTimeout(()=>say('조금만 기다려 주세요.'), 7000);
   try{
-    const fd=new FormData(); fd.append('text', text||'주변 설명해줘');
+    const fd=new FormData(); fd.append('u', UID); fd.append('text', text||'주변 설명해줘');
     if(withImage){ const img=await grabFrame(); if(img) fd.append('image', img, 'frame.jpg'); }
     const r=await fetch('/api/scene', {method:'POST', body:fd});
     clearTimeout(slow);

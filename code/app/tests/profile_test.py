@@ -32,7 +32,12 @@ with TestClient(build_app(cfg, None, pin="424242", alerts_dir=Path(d) / "alerts"
     with c.websocket_connect("/ws?role=guardian&" + P) as g, c.websocket_connect("/ws") as ped:
         assert g.receive_json()["profile"]["set"] is False; ped.receive_json()
         ped.send_json({"type": "profile", "age": 10, "height_cm": 140, "mount": "neck"})
-        pr, s = both(g, "profile", "share")
+        pr = s = None
+        for _ in range(400):                        # 보행자가 연결될 때 설정을 한 번 더 알리므로, 바뀐 값이 올 때까지 읽는다
+            m = g.receive_json()
+            if m["type"] == "profile" and m.get("child"): pr = m
+            if m["type"] == "share" and m.get("on"): s = m
+            if pr and s: break
         assert pr["child"] and pr["cam_h"] == 1.15 and s["on"] and s["reason"] == "child"
         ped.send_json({"type": "gps", "lat": 37.1, "lon": 127.1, "acc": 5}); time.sleep(0.3)
         assert c.get("/api/location?" + P).json()["loc"]["lat"] == 37.1          # 항상 위치 보임

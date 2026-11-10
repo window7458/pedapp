@@ -35,6 +35,9 @@ NAME_FIX = {"traffic light": "traffic_light", "e_scooter": "scooter", "kickboard
 #   · 카메라 흔들림: 직전 프레임 뒤 12° 넘게 돌았거나 순간 150°/s 넘으면 흔들림으로 (원래 판정에 더하기만)
 #   · 보행 속도 · 멈춤: 걸음 빈도 × 보폭으로 (원래는 바닥 광류, 실패하면 1.2 m/s 가정)
 _IMU_NOW: dict | None = None
+# 여러 보행자가 서버 하나를 같이 쓸 때: 태규 코드의 모듈 값(ego_motion.CAM_H)과 _IMU_NOW 는 하나뿐이라,
+# 한 사람의 프레임을 처리하는 동안은 다른 사람이 끼어들지 못하게 한 번에 한 명씩 돌린다 (GPU 추론도 어차피 하나씩).
+_STEP_LOCK = threading.Lock()
 SHOCK_DEG, SHOCK_DPS = 12.0, 150.0
 
 
@@ -110,6 +113,8 @@ class NavTrigger:
         _install_imu_hooks()
         self._cap_ms = None          # 이번 프레임을 폰이 찍은 시각(폰 시계 ms). 없으면 서버 시계
         self._cap0 = None
+        self.imu = None              # 이 보행자 폰의 센서 (서버가 사람마다 넣어 줌). 없으면 공용
+        self._cam_h = None           # 이 보행자의 카메라 높이 (처음 설정)
         self.imgsz, self.crop = imgsz, crop
         self.path = Path(weights)
         self._origin = time.perf_counter()
@@ -123,9 +128,7 @@ class NavTrigger:
         """보행자 처음 설정(키 × 카메라 위치)으로 카메라 높이를 바꾼다. 원본 ego_motion 은 고치지 않고 모듈 값만 바꾼다."""
         if not 0.5 <= h <= 2.2:
             return
-        em = sys.modules.get("ego_motion")
-        if em is not None:
-            em.CAM_H = float(h)                                   # 보행 속도 · 경로 추정
+        self._cam_h = float(h)                                    # ego_motion.CAM_H 는 처리할 때마다 이 사람 값으로 (아래 __call__)
         # 위험 판정의 거리 · 통로 폭은 HazardConfig.camera_height_m 을 따로 쓴다 → 같이 바꾼다 (설정 객체만 교체)
         from dataclasses import replace
         self.p.config = replace(self.p.config, camera_height_m=float(h))
@@ -138,16 +141,19 @@ class NavTrigger:
 
     # ── 인식기 쪽 ──
     def warmup(self, image, n=2):
-        with self._lock:
+        with _STEP_LOCK:
             for i in range(n):
                 self.p.step(np.zeros_like(image), i + 1, i * 0.1)
             self.p.reset()
             self._last_t = None
 
     def __call__(self, fidx, image):
-        with self._lock:
+        with _STEP_LOCK:
             global _IMU_NOW
             from imu_fusion import IMU
+            em = sys.modules.get("ego_motion")
+            if em is not None:
+                em.CAM_H = self._cam_h or 1.70                    # 보행 속도 · 경로 추정: 이 사람의 카메라 높이
             cap = self._cap_ms
             self._cap_ms = None
             if cap is not None:
@@ -157,7 +163,7 @@ class NavTrigger:
                 t = (cap - self._cap0) / 1000
             else:
                 t = time.perf_counter() - self._origin
-            _IMU_NOW = IMU.estimate(cap)
+            _IMU_NOW = (self.imu or IMU).estimate(cap)              # 이 사람 폰의 센서
             if self._last_t is not None and t <= self._last_t:
                 t = self._last_t + 1e-3
             self._last_t = t

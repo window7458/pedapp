@@ -31,6 +31,6 @@ gcloud run deploy $Name --image $image --region $Region `
   --gpu 1 --gpu-type nvidia-l4 --no-gpu-zonal-redundancy --cpu 4 --memory 16Gi --no-cpu-throttling `
   --min-instances 0 --max-instances 1 --concurrency 20 --timeout 3600 --session-affinity --no-invoker-iam-check `
   --add-volume "name=data,type=cloud-storage,bucket=$bucket" --add-volume-mount "volume=data,mount-path=/data" `
-  --set-env-vars $envs
+  --update-env-vars $envs
 $url = gcloud run services describe $Name --region $Region --format "value(status.url)"
 Write-Host "`nGPU 보행자: $url/?k=$Key`nGPU 보호자: $url/guardian?k=$Key  (보행자 앱에서 '보호자 연결해줘' → QR 을 보호자 폰으로 찍기)"
