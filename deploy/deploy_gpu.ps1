@@ -2,10 +2,10 @@
 # 사용: PowerShell 에서 pedapp 폴더로 가서
 #   .\deploy\deploy_gpu.ps1 -Project 내프로젝트ID -Key 접속키
 # - 보호자 연결 · 처음 설정 · 알림 기록은 CPU 판과 같은 버킷을 써서 그대로 이어진다.
-# - 기본 지역은 도쿄(asia-northeast1). GPU 를 안 주는 지역이라고 나오면 -Region asia-southeast1 (싱가포르)
+# - 지역은 싱가포르(asia-southeast1): L4 GPU 는 asia-southeast1 · europe-west1/4 · us-central1 · us-east4 만 된다 (도쿄 · 서울 안 됨)
 # - 마지막 접속 뒤 몇 분 동안은 켜진 채 기다리다가(그동안은 요금이 나감) 0대로 줄어든다.
 param([Parameter(Mandatory)][string]$Project, [Parameter(Mandatory)][string]$Key, [string]$Pin = "",
-      [string]$Region = "asia-northeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3")
+      [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3")
 $ErrorActionPreference = "Stop"
 gcloud config set project $Project
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com
