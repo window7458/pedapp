@@ -12,3 +12,4 @@ code/app/certs/
 code/app/tests/
 code/app/navigation_trigger/tts_cache/
 code/app/weights/signal_state_cls_best.pt
+scene_server/

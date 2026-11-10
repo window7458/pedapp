@@ -254,6 +254,22 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     tts = AppTTS(DATA / "tts_cache")
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
 
+    _tok = {"v": None, "exp": 0.0}
+
+    def scene_headers() -> dict:
+        """풍경 서버는 공개하지 않고 앱 서버만 부를 수 있게 닫아 둔다 → Cloud Run 에선 서버 계정의 신분 토큰을 붙인다.
+        (PC 에서 직접 띄운 풍경 서버는 토큰 없이)"""
+        if not os.environ.get("K_SERVICE") or not scene_url:
+            return {}
+        if time.time() > _tok["exp"]:
+            import urllib.parse
+            import urllib.request
+            u = ("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience="
+                 + urllib.parse.quote(scene_url, safe=""))
+            with urllib.request.urlopen(urllib.request.Request(u, headers={"Metadata-Flavor": "Google"}), timeout=5) as r:
+                _tok["v"], _tok["exp"] = r.read().decode(), time.time() + 3000
+        return {"Authorization": "Bearer " + _tok["v"]}
+
     async def wake_scene(force=False):
         """보행을 시작하면 풍경 서버(VLM)도 같이 깨운다. 걷는 동안 4분마다 다시 불러 잠들지 않게 한다.
         풍경 서버는 큰 모델을 올리느라 깨어나는 데 몇 분 걸리므로, 정작 "주변 설명해줘"라고 할 때 바로 답하게 하려는 것."""
@@ -267,7 +283,8 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         def ping():
             import urllib.request
             try:
-                with urllib.request.urlopen(scene_url + "/api/health", timeout=600) as r:
+                req = urllib.request.Request(scene_url + "/api/health", headers=scene_headers())
+                with urllib.request.urlopen(req, timeout=600) as r:
                     state["scene_ready"] = json.loads(r.read() or b"{}").get("vlm", True)
             except Exception as e:
                 state["scene_ready"] = False
@@ -460,6 +477,36 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         if p is None:
             raise HTTPException(503, "음성을 만들 수 없어요")
         return FileResponse(p, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    @app.post("/api/scene")
+    async def api_scene(request: Request):
+        """"주변 설명해줘" — 보행자 폰이 알아들은 말 + 그 순간 사진을 보내면 풍경 서버(SJ 말로 듣는 풍경)의 /api/text 로 넘긴다.
+        같은 보행자는 같은 session 이라 "더 자세히" · "간판에 뭐라고 써 있어?" 가 앞 사진 · 설명에 이어진다."""
+        if not scene_url:
+            raise HTTPException(503, "풍경 서버가 아직 연결되지 않았어요")
+        form = await request.form()
+        text = " ".join(str(form.get("text") or "").split())[:200]
+        if not text:
+            raise HTTPException(400, "말이 비었어요")
+        files = {}
+        img = form.get("image")
+        if img is not None and hasattr(img, "read"):
+            files["image"] = ("frame.jpg", await img.read(), "image/jpeg")
+        sid = state.setdefault("scene_session", secrets.token_hex(8))
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=90) as cl:
+                r = await cl.post(scene_url + "/api/text", headers=await asyncio.to_thread(scene_headers),
+                                  data={"session": sid, "text": text, "want_image": "false"}, files=files or None)
+        except Exception as e:
+            asyncio.get_running_loop().create_task(wake_scene(force=True))
+            raise HTTPException(503, f"풍경 서버가 준비 중이에요 ({type(e).__name__})")
+        if r.status_code != 200:
+            asyncio.get_running_loop().create_task(wake_scene(force=True))
+            raise HTTPException(503, f"풍경 서버가 준비 중이에요 ({r.status_code})")
+        j = r.json()
+        return {"answer": j.get("answer") or "", "intent": (j.get("intent") or {}).get("intent"),
+                "level": j.get("level"), "timing": j.get("timing")}
 
     @app.post("/api/pair")
     async def api_pair(code: str):
