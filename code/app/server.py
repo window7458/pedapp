@@ -308,6 +308,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         src = SourceManager(pipe, hub.broadcast)
         state.update(pipe=pipe, src=src, alerts=alerts, push=push)
         apply_profile()          # 저장된 처음 설정: 카메라 높이 · 만 13세 미만 보호
+        state["prewarm"] = asyncio.create_task(tts.prewarm())   # 경고 문장 음성을 미리 (처음 한 번만 1~2분)
         if source:
             src.use_url(source)
 

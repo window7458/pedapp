@@ -1,4 +1,5 @@
 """테스트 전용 가짜 인식기 (서버에서는 쓰지 않음): 오른쪽에서 자동차 하나가 계속 커진다 (5 s 주기)."""
+import os; os.environ.setdefault("TTS_OFF", "1")   # 테스트는 클라우드 음성 API 를 부르지 않는다
 import sys
 from pathlib import Path
 

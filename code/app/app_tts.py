@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -71,6 +72,12 @@ class _Token:
         return self.tok, self.project
 
 
+# 트리거가 내는 문장 전부 (navigation_trigger 의 risk_message.py · single_model.py 형식과 같게). 206개, 4355자.
+# 문구가 바뀌면 여기만 고치면 된다 — 없는 문장은 처음 한 번만 0.8초쯤 걸리고 그 뒤로는 저장본을 쓴다.
+_LABELS = ["사람", "장애물"] + [p + v for v in ["자전거", "킥보드", "오토바이"] for p in ("", "세워진 ", "이동 중인 ")]           + [p + v for v in ["차량", "버스"] for p in ("", "멈춰 있는 ", "이동 중인 ")]
+TRIGGER_SENTENCES = [f"{c}시 방향, {l}에 유의하세요." for c in (12, 1, 11, 2, 10, 3, 9, 4, 8, 5, 7, 6) for l in _LABELS]                     + ["신호가 초록불로 바뀌었습니다.", "신호가 빨간불로 바뀌었습니다."]
+
+
 class AppTTS:
     def __init__(self, cache_dir: Path, log=print, voice: str = VOICE, rate: float = RATE):
         self.dir, self.log, self.voice, self.rate = Path(cache_dir), log, voice, rate
@@ -90,7 +97,14 @@ class AppTTS:
         h = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
         if proj:
             h["x-goog-user-project"] = proj
-        r = json.loads(urllib.request.urlopen(urllib.request.Request(API, data=json.dumps(body).encode(), headers=h), timeout=15).read())
+        for attempt in range(4):                # 분당 요청 한도(429)에 걸리면 잠깐 쉬었다가 다시
+            try:
+                r = json.loads(urllib.request.urlopen(urllib.request.Request(API, data=json.dumps(body).encode(), headers=h), timeout=15).read())
+                break
+            except urllib.error.HTTPError as e:
+                if e.code != 429 or attempt == 3:
+                    raise
+                time.sleep(2.0 * (attempt + 1))
         data = base64.b64decode(r["audioContent"])
         if not data:
             raise RuntimeError("빈 음성")
@@ -98,6 +112,21 @@ class AppTTS:
         tmp = target.with_suffix(".part")
         tmp.write_bytes(data)
         tmp.replace(target)
+
+    async def prewarm(self, sentences=TRIGGER_SENTENCES, gap_s: float = 0.25):
+        """서버가 켜질 때 한 번: 경고 문장을 앞쪽 방향부터 미리 만들어 둔다. 이미 있으면 건너뛴다 (버킷이라 다음엔 바로 끝남).
+        분당 요청 한도에 걸리지 않게 하나씩 천천히."""
+        made = 0
+        for s in sentences:
+            if not self.ok:
+                return
+            if self._key(self.speak_text(s)).is_file():
+                continue
+            if await self.get(s) is not None:
+                made += 1
+            await asyncio.sleep(gap_s)
+        if made:
+            self.log(f"[tts] 경고 문장 {made}개 미리 만듦")
 
     async def get(self, text: str) -> Path | None:
         text = " ".join(str(text or "").split())[:MAX_CHARS]
