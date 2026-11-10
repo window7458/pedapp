@@ -484,7 +484,12 @@ function startSending(){
     const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
     const s=Math.min(1, 960/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
     ctx.drawImage(v,0,0,c.width,c.height); busy=true;
-    c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{ if(S.ws && S.ws.readyState===1) S.ws.send(buf); }); }, 'image/jpeg', 0.6);
+    const cap=Date.now();      /* 찍은 시각(폰 시계) — 센서 기록과 같은 시계라 서버에서 그 순간의 자이로 · 가속도를 찾는다 */
+    c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{
+      if(!(S.ws && S.ws.readyState===1)) return;
+      const out=new Uint8Array(12+buf.byteLength), dv=new DataView(out.buffer);
+      out.set([83,69,70,49],0); dv.setFloat64(4,cap,false); out.set(new Uint8Array(buf),12);   /* 'SEF1' + 시각 + JPEG */
+      S.ws.send(out.buffer); }); }, 'image/jpeg', 0.6);
   }, 100);
 }
 setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){

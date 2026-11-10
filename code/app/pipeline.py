@@ -290,6 +290,8 @@ class LivePipeline:
         t = self.clock.now()
         self._fidx += 1
         tp = time.perf_counter()
+        if hasattr(self.perception, "set_capture"):
+            self.perception.set_capture((meta or {}).get("c"))   # 폰이 찍은 시각 → 센서와 시간 맞추기
         dets = self.perception(self._fidx, im)              # 인식 · 판단은 원본으로
         self._perc.append(time.perf_counter() - tp)
         tb = time.perf_counter()

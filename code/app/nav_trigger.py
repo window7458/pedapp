@@ -28,6 +28,55 @@ if str(NAV / "trigger") not in sys.path:
 
 NAME_FIX = {"traffic light": "traffic_light", "e_scooter": "scooter", "kickboard": "scooter"}
 
+# ── 폰 센서(자이로 · 가속도) 넣기 ─────────────────────────────────────────
+# 태규 코드는 고치지 않는다. 그 코드의 두 함수(EgoMotion.step, SceneContext.step)가 돌려주는 값 위에
+# 센서로 구한 값을 덮어쓰는 포장만 씌운다. 이번 프레임의 센서 추정은 _IMU_NOW 에 둔다(없으면 원래 값 그대로).
+#   · 지평선: 중력 기울기로 계산 (원래는 영상 확장 중심 → 화면 20~70% 로 제한) → 거리 · 보행 통로가 정확해진다
+#   · 카메라 흔들림: 직전 프레임 뒤 12° 넘게 돌았거나 순간 150°/s 넘으면 흔들림으로 (원래 판정에 더하기만)
+#   · 보행 속도 · 멈춤: 걸음 빈도 × 보폭으로 (원래는 바닥 광류, 실패하면 1.2 m/s 가정)
+_IMU_NOW: dict | None = None
+SHOCK_DEG, SHOCK_DPS = 12.0, 150.0
+
+
+def _apply_imu(d: dict, w: int, h: int, ctx: bool):
+    est = _IMU_NOW
+    if not est:
+        return d
+    from imu_fusion import horizon_from
+    hz = horizon_from(est, h, d.get("focal_px") or 26 / 36 * max(w, h))
+    if hz is not None:
+        d["horizon"] = hz
+    if not ctx and (est.get("rot_deg", 0) > SHOCK_DEG or est.get("rate_peak_dps", 0) > SHOCK_DPS):
+        d["camera_shock"] = True
+    if est.get("walking"):
+        d["walk_mps"], d["walk_valid"] = float(est["walk_mps"]), True
+        if ctx:
+            d["stationary"] = False
+    elif est.get("stationary"):
+        d["walk_mps"], d["walk_valid"] = 0.0, True
+        if ctx:
+            d["stationary"] = True
+    d["imu"] = True
+    return d
+
+
+def _install_imu_hooks():
+    import ego_motion
+    import scene_context
+    if getattr(ego_motion.EgoMotion, "_imu_hooked", False):
+        return
+    ego_step, scene_step = ego_motion.EgoMotion.step, scene_context.SceneContext.step
+
+    def ego_with_imu(self, frame, pairs):
+        return _apply_imu(ego_step(self, frame, pairs), frame["width"], frame["height"], ctx=False)
+
+    def scene_with_imu(self, f, new=None, backflow=None):
+        return _apply_imu(scene_step(self, f, new, backflow), f["width"], f["height"], ctx=True)
+
+    ego_motion.EgoMotion.step = ego_with_imu
+    scene_context.SceneContext.step = scene_with_imu
+    ego_motion.EgoMotion._imu_hooked = True
+
 
 def _scenario(e: dict) -> str:
     if e["event"].startswith("light_"):
@@ -58,6 +107,9 @@ class NavTrigger:
             imgsz = 640 if dev == "cpu" else 960            # 원본 기본 960. 노트북 CPU 에서는 640 이어야 실시간에 가깝다
         self.log = log
         self.p = Pipeline(str(weights), device=dev, camera_mode="egocentric", imgsz=imgsz, crop=crop)
+        _install_imu_hooks()
+        self._cap_ms = None          # 이번 프레임을 폰이 찍은 시각(폰 시계 ms). 없으면 서버 시계
+        self._cap0 = None
         self.imgsz, self.crop = imgsz, crop
         self.path = Path(weights)
         self._origin = time.perf_counter()
@@ -80,6 +132,10 @@ class NavTrigger:
         self.p.core.policy.config = replace(self.p.core.policy.config, camera_height_m=float(h))
         self.info["cam_h"] = round(float(h), 2)
 
+    def set_capture(self, cap_ms):
+        """pipeline 이 프레임마다 부른다: 폰이 붙여 보낸 찍은 시각."""
+        self._cap_ms = float(cap_ms) if cap_ms is not None else None
+
     # ── 인식기 쪽 ──
     def warmup(self, image, n=2):
         with self._lock:
@@ -90,7 +146,18 @@ class NavTrigger:
 
     def __call__(self, fidx, image):
         with self._lock:
-            t = time.perf_counter() - self._origin
+            global _IMU_NOW
+            from imu_fusion import IMU
+            cap = self._cap_ms
+            self._cap_ms = None
+            if cap is not None:
+                # 폰이 찍은 시각으로 시간을 잰다 → 네트워크가 출렁여도 물체 크기 증가율 · 속도가 실제 시간 간격으로 계산된다
+                if self._cap0 is None or (self._last_t is not None and cap - self._cap0 < self._last_t * 1000 - 5000):
+                    self._cap0 = cap - (self._last_t or 0) * 1000
+                t = (cap - self._cap0) / 1000
+            else:
+                t = time.perf_counter() - self._origin
+            _IMU_NOW = IMU.estimate(cap)
             if self._last_t is not None and t <= self._last_t:
                 t = self._last_t + 1e-3
             self._last_t = t
@@ -107,6 +174,10 @@ class NavTrigger:
                          "ms": round(debug.get("processing_s", 0) * 1000, 1),
                          "walk": round(float(debug.get("ego", {}).get("walk_mps") or 0), 2),
                          "cam_ok": bool(debug.get("camera", {}).get("camera_ok"))}
+            if _IMU_NOW:
+                self.info.update(imu=True, pitch=round(np.degrees(_IMU_NOW.get("pitch_rad", 0)), 1),
+                                 step_hz=_IMU_NOW.get("step_hz"), walking=_IMU_NOW.get("walking"),
+                                 horizon=round(float(debug.get("context", {}).get("horizon") or 0), 1))
             out = []
             for d in debug.get("detections", []):
                 if d.get("veto"):

@@ -21,6 +21,13 @@ import cv2
 import numpy as np
 
 
+def split_stamp(data: bytes):
+    """'SEF1' + 찍은 시각(ms, 8바이트 big-endian double) + JPEG → (시각, JPEG). 시각이 없으면 (None, 그대로)."""
+    if data[:4] == b"SEF1" and len(data) > 12:
+        return struct.unpack("!d", data[4:12])[0], data[12:]
+    return None, data
+
+
 def parse_source(text: str):
     text = text.strip()
     return int(text) if text.isdigit() else text
@@ -38,9 +45,11 @@ class SourceManager:
     def on_phone_frame(self, data: bytes):
         if self.mode != "phone":
             return
-        im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        cap, jpg = split_stamp(data)
+        im = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
         if im is not None:
-            self.pipe.submit(im)
+            self.pipe.submit(im, dict(c=cap)) if cap is not None else self.pipe.submit(im)
+        return cap, len(jpg)
 
     def use_phone(self):
         self._halt()

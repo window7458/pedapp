@@ -36,6 +36,7 @@ sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
+from imu_fusion import IMU  # noqa: E402
 from push import Push  # noqa: E402
 from sensors import SensorLog  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
@@ -255,6 +256,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     tts = AppTTS(DATA / "tts_cache")
 
     def apply_profile():
+        IMU.set_height(profile.d.get("height_cm"))       # 보폭 = 키 × 0.415
         h = profile.cam_h()
         trig = getattr(state.get("pipe"), "trigger", None)
         if h and hasattr(trig, "set_cam_h"):
@@ -508,8 +510,8 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                         if got:
                             sensors.frame("pi", got[0], got[1])
                     elif role != "guardian":
-                        s.on_phone_frame(m["bytes"])
-                        sensors.frame("phone", None, len(m["bytes"]))
+                        got = s.on_phone_frame(m["bytes"])
+                        sensors.frame("phone", got[0] if got else None, got[1] if got else len(m["bytes"]))
                 elif m.get("text"):
                     try:
                         cmd = json.loads(m["text"])
@@ -517,6 +519,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                         continue
                     if cmd.get("type") == "sensors" and role != "guardian":
                         sensors.add(cmd)
+                        IMU.add(cmd.get("motion"))           # 자이로 · 가속도 → 프레임 시각에 맞춰 트리거에
                     elif cmd.get("type") == "set_source":
                         if cmd.get("mode") == "pi":
                             await asyncio.to_thread(s.use_pi)

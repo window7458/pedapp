@@ -77,7 +77,7 @@ window.SayEyeSensors = (() => {
       const once = () => { askMotion(); };
       document.addEventListener('pointerup', once, { once: true, capture: true });   // 첫 터치
     } else listen();
-    setInterval(flush, 200);
+    setInterval(flush, 100);   // 0.1초마다: 서버가 프레임 시각의 센서값을 늦지 않게 받도록
     setInterval(badge, 500);
     badge();
   }
