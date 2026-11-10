@@ -1,4 +1,4 @@
-"""서버(/ws) 배선을 포트를 열지 않고 확인한다 (FastAPI TestClient, 가짜 인식 + hitbox + 가짜 VLM/장면)."""
+"""서버(/ws) 배선을 포트를 열지 않고 확인한다 (FastAPI TestClient, 가짜 인식 · 가짜 트리거 + 가짜 VLM/장면)."""
 import os
 import sys
 import time
@@ -16,7 +16,7 @@ from fakes import FakePerception  # noqa: E402
 from pipeline import Config  # noqa: E402
 from server import build_app  # noqa: E402
 
-cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="mock", scene_interval=1.0, max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 got = {}

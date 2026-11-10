@@ -40,24 +40,37 @@
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
- <symbol id="i-rep" viewBox="0 0 48 48"><path d="M8 24a16 16 0 1 0 5-11.6L8 17" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v9h9" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 18v12l9-6z" fill="#2B5BFF"/></symbol>
- <symbol id="i-sos" viewBox="0 0 48 48"><circle cx="24" cy="16" r="7" fill="none" stroke="#89A3F7" stroke-width="3"/><path d="M10 41c1-8 7-13 14-13s13 5 14 13" fill="none" stroke="#89A3F7" stroke-width="3" stroke-linecap="round"/><circle cx="37" cy="12" r="6" fill="#E5484D"/><path d="M37 9v3.5M37 15h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></symbol>
- <symbol id="i-cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></g></symbol>
- <!-- 시작 카드 그림: 흰 지팡이를 짚고 걷는 사람 픽토그램 + 언덕 -->
+ <!-- 다시 듣기: 스피커 + 소리 물결 / 보호자 호출: 사람 + 신호 -->
+ <symbol id="i-rep" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3.5 9.6h3.1l4.4-3.7v12.2l-4.4-3.7H3.5z" fill="currentColor" fill-opacity=".14"/><path d="M15 9a4.2 4.2 0 0 1 0 6"/><path d="M17.8 6.4a8 8 0 0 1 0 11.2"/></g></symbol>
+ <symbol id="i-sos" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="9.5" cy="8" r="3.4" fill="currentColor" fill-opacity=".14"/><path d="M3.4 20c.7-3.7 3.2-5.8 6.1-5.8s5.4 2.1 6.1 5.8"/><path d="M16.6 5.2a4.2 4.2 0 0 1 0 5.6"/><path d="M19.4 3a7.4 7.4 0 0 1 0 10"/></g></symbol>
+ <!-- 시작 카드: 흰 지팡이를 짚고 걷는 사람 실루엣 (머리-목-어깨가 이어지고 몸을 살짝 앞으로 기울임, 뒤쪽 팔다리는 옅게, 지팡이 끝은 빨강) -->
  <symbol id="i-art" viewBox="0 0 190 128" preserveAspectRatio="xMaxYMax meet">
-  <circle cx="44" cy="34" r="11" fill="#fff" opacity=".28"/><circle cx="58" cy="30" r="14" fill="#fff" opacity=".28"/><circle cx="152" cy="26" r="9" fill="#fff" opacity=".28"/>
-  <path d="M0 98c34-18 70-18 104-6s58 8 86-6v42H0z" fill="#fff" opacity=".18"/><path d="M0 112c46-12 92-8 130-2 24 4 42 2 60-4v22H0z" fill="#fff" opacity=".3"/>
-  <g transform="translate(106 18)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-   <circle cx="20" cy="8" r="7.5" fill="#fff" stroke="none"/>
-   <path d="M19 20 L15 46" stroke-width="11"/>
-   <path d="M19 23 L10 40" stroke-width="6"/>
-   <path d="M20 24 L28 35 L35 38" stroke-width="6"/>
-   <path d="M15 46 L26 63 L29 82" stroke-width="8"/>
-   <path d="M15 46 L10 65 L2 80" stroke-width="8"/>
-   <path d="M35 38 L52 84" stroke-width="3.2"/>
-   <path d="M48.3 74 L52 84" stroke="#E5484D" stroke-width="3.4"/>
+  <path d="M38 128C66 112 104 106 140 108s40 6 50 2v18z" fill="#fff" opacity=".13"/>
+  <path d="M84 128c28-9 64-12 106-8v8z" fill="#fff" opacity=".16"/>
+  <g transform="translate(104 9) scale(.72)">
+   <g fill="#fff" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+   <g opacity=".6">
+   <path d="M48 78 Q45 92 42 106" stroke-width="12.5" fill="none"/>
+   <path d="M42 106 L32 135" stroke-width="9.5" fill="none"/>
+   <path d="M25 140 Q25.5 133.5 32 134 L38 136 Q40 139 38 141.5 Q31 143.5 25 140Z" stroke-width="1.5"/>
+   <path d="M46 43 Q41 52 39.5 60 L38.5 71" stroke-width="8" fill="none"/>
+   </g>
+   <path d="M55 78 Q59 92 62 107" stroke-width="13" fill="none"/>
+   <path d="M62 107 L65 139" stroke-width="10" fill="none"/>
+   <path d="M60 141 Q60 135.5 65.5 135.5 L72 136.5 Q78 138 78.5 142 Q77 145 72 145 L62 145 Q60 144 60 141Z" stroke-width="1.5"/>
+   <path d="M44 45 Q43.5 36.5 52 35 L59.5 35 Q67.5 36.5 68 45 L66.5 63 Q66 71 68 79 Q62 83 47 82 Q42.5 81 44 73 Q46 62 44 45Z" stroke-width="2"/>
+   <path d="M50.5 25.5 L61.5 27.5 L61 37 L49.5 36.5Z" stroke-width="2"/>
+   <ellipse cx="58.5" cy="18" rx="10" ry="11.4" transform="rotate(14 58.5 18)" stroke="none"/>
+   <path d="M63 42 Q67.5 52 69 59 L78.5 67" stroke-width="8.5" fill="none"/>
+   <circle cx="80" cy="67.5" r="4.6" stroke="none"/>
+   </g>
+   <path d="M80.5 67.5 L101 150" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+   <path d="M97.6 136 L101 150" stroke="#FF5A4E" stroke-width="3.4" stroke-linecap="round"/>
   </g>
  </symbol>
+ <symbol id="i-cog" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></g></symbol>
 </defs></svg>
 
 <div class="app" id="app">
@@ -70,16 +83,60 @@
     </header>
     <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div>
     <p id="notice" role="alert" hidden></p>
-    <div class="say" id="say" aria-live="off"><small id="sayLab">SayEye</small><h1 id="sayH">안녕하세요,<br>준비됐어요</h1><p id="sayP">"시작"이라고 말하거나 아래 버튼을 두 번 누르세요</p></div>
+    <p id="pinBox" hidden style="margin:6px 2px 0;font-size:15px;font-weight:700">보호자 확인번호 <b id="pinNum" style="letter-spacing:.12em"></b><small style="display:block;font-weight:400;opacity:.75">보호자 화면에 이 번호를 넣으면 연결돼요</small></p>
+    <div class="say" id="say" aria-live="off"><small id="sayLab">대기 중</small><h1 id="sayH">안녕하세요,<br>준비됐어요</h1><p id="sayP">"시작"이라고 말하거나 아래 버튼을 두 번 누르세요</p></div>
     <div class="ear" id="ear" aria-hidden="true"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span><b id="earText">듣기 준비 중</b><span class="again">위쪽 누르면 다시 듣기</span></div>
   </section>
   <section class="lower">
-    <button class="start" id="go" aria-label="시작"><div><span class="pill" id="goPill">START</span><h2 id="goTxt">시작</h2><small id="goSub">두 번 누르면 안내가 시작돼요</small></div><svg class="art"><use href="#i-art"/></svg></button>
+    <button class="start" id="go" aria-label="시작"><div><span class="pill" id="goPill">대기 중</span><h2 id="goTxt">시작</h2><small id="goSub">두 번 누르면 안내가 시작돼요</small></div><svg class="art"><use href="#i-art"/></svg></button>
     <div class="tiles">
       <button class="tile" id="repeat" aria-label="방금 안내 다시 듣기"><svg><use href="#i-rep"/></svg>다시 듣기</button>
       <button class="tile" id="sos" aria-label="보호자에게 도움 요청"><svg><use href="#i-sos"/></svg>보호자 호출</button>
     </div>
   </section>
+</div>
+
+<div id="pairView" role="dialog" aria-modal="true" aria-label="보호자 연결" hidden
+     style="position:fixed;inset:0;z-index:60;background:#fff;color:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px 16px;text-align:center">
+  <h2 style="margin:0;font-size:24px">보호자 연결</h2>
+  <p style="margin:0;font-size:17px">보호자에게 이 화면을 보여 주세요.<br>보호자 폰 카메라로 찍으면 연결돼요.</p>
+  <div id="pairQr" aria-hidden="true" style="width:min(78vw,340px)"></div>
+  <p id="pairLeft" style="margin:0;font-size:14px;color:#555"></p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" id="pairShare">멀리 있으면 링크 보내기</button>
+    <button class="btn primary" id="pairClose">닫기</button>
+  </div>
+</div>
+
+<div id="askView" role="alertdialog" aria-modal="true" aria-labelledby="askH" hidden
+     style="position:fixed;inset:0;z-index:61;background:#111;color:#fff;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:16px;padding:24px 16px;text-align:center">
+  <h2 id="askH" style="margin:0;font-size:26px"></h2>
+  <p id="askP" style="margin:0;font-size:18px"></p>
+  <button class="btn primary" id="askYes" style="min-height:96px;font-size:24px"></button>
+  <button class="btn" id="askNo" style="min-height:96px;font-size:24px"></button>
+</div>
+
+<div id="setupView" role="dialog" aria-modal="true" aria-labelledby="setupH" hidden
+     style="position:fixed;inset:0;z-index:62;background:var(--bg);color:var(--ink);overflow:auto;padding:max(24px,env(safe-area-inset-top)) 18px 32px">
+  <h2 id="setupH" style="margin:0 0 6px;font-size:26px">처음 설정</h2>
+  <p style="margin:0 0 18px;font-size:16px">보호자나 도와주는 분과 함께 골라 주세요. 카메라 높이를 맞춰야 거리와 위험을 정확히 알려 드릴 수 있어요.</p>
+  <label style="display:block;font-size:19px;font-weight:700;margin:0 0 6px" for="pfAge">만 나이</label>
+  <input id="pfAge" type="number" inputmode="numeric" min="3" max="120" placeholder="예: 35" style="width:100%;font-size:24px;padding:14px;box-sizing:border-box">
+  <p style="margin:6px 0 18px;font-size:14px;color:var(--sub)">만 13세 미만이면 보호자가 위치와 화면을 항상 볼 수 있어요.</p>
+  <label style="display:block;font-size:19px;font-weight:700;margin:0 0 6px" for="pfH">키 (cm)</label>
+  <input id="pfH" type="number" inputmode="numeric" min="80" max="230" placeholder="예: 170" style="width:100%;font-size:24px;padding:14px;box-sizing:border-box;margin-bottom:18px">
+  <fieldset style="border:0;padding:0;margin:0 0 18px">
+    <legend style="font-size:19px;font-weight:700;margin-bottom:8px">카메라를 어디에 다나요?</legend>
+    <div id="pfMount" style="display:flex;flex-direction:column;gap:8px">
+      <label class="btn" style="justify-content:flex-start;font-size:19px;min-height:60px"><input type="radio" name="mount" value="eye"> 눈높이 (안경 · 모자 · 머리띠)</label>
+      <label class="btn" style="justify-content:flex-start;font-size:19px;min-height:60px"><input type="radio" name="mount" value="neck"> 목걸이 (쇄골 높이)</label>
+      <label class="btn" style="justify-content:flex-start;font-size:19px;min-height:60px"><input type="radio" name="mount" value="chest"> 가슴 (명치 높이)</label>
+      <label class="btn" style="justify-content:flex-start;font-size:19px;min-height:60px"><input type="radio" name="mount" value="waist"> 허리 · 벨트</label>
+      <label class="btn" style="justify-content:flex-start;font-size:19px;min-height:60px"><input type="radio" name="mount" value="hand"> 손에 들고</label>
+    </div>
+  </fieldset>
+  <p id="pfErr" role="alert" style="color:#C8283A;font-weight:700;font-size:16px" hidden></p>
+  <button class="btn primary" id="pfSave" style="width:100%;min-height:72px;font-size:22px">저장</button>
 </div>
 
 <div class="sheet-bg" id="sheetBg"></div>
@@ -99,6 +156,12 @@
   <label><span>음성 크기</span><input type="range" id="oVol" min="0.3" max="1" step="0.1"></label>
   <div class="row-set"><button class="btn primary" id="help">사용법 듣기</button><button class="btn" id="closeSheet">닫기</button></div>
   <div class="row-set"><a class="btn" href="/dev">개발자 화면</a><a class="btn" href="/guardian">보호자 화면</a></div>
+  <div class="row-set"><button class="btn primary" id="pairBtn">보호자 연결 (QR)</button><button class="btn" id="unpairBtn">보호자 연결 끊기</button></div>
+  <div class="row-set"><button class="btn" id="pingBtn">보호자에게 알림 보내기</button><button class="btn" id="shareStopBtn">위치 공유 그만</button></div>
+  <div class="row-set"><button class="btn" id="setupBtn">내 정보 · 카메라 위치 다시 설정</button></div>
+  <p id="pfInfo" style="margin:4px 2px 8px;font-size:13px;color:var(--sub)"></p>
+  <label><span>넘어짐 감지<small>넘어지면 괜찮은지 묻고, 30초 동안 대답이 없으면 보호자에게 위치와 함께 알려요</small></span><input type="checkbox" class="sw" id="oFall"></label>
+  <p id="sheetPin" style="margin:8px 2px 0;font-size:14px;font-weight:700" hidden></p>
   <p id="sysInfo" style="margin:8px 2px 0;font-size:12.5px;color:var(--sub)"></p>
 </div>
 
@@ -106,23 +169,29 @@
 <script src="sensors.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
-const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true,
+const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, scene:true, fall:true, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
-           spokeReady:false, pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
+           spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(), pi:0, t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용: 예전에 파이로 저장된 설정도 폰으로 */
-function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
+function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,scene:S.scene,hc:S.hc,prev:S.prev,
   mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
 
 /* ── 화면 문구 (위쪽 에이전트 영역) ── */
 const esc = (t) => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function say3(lab, h, p){ $('#sayLab').textContent=lab; $('#sayH').innerHTML=h; $('#sayP').textContent=p||''; $('#sayP').hidden=!p; }
+function say3(lab, h, p){
+  const changed = $('#sayH').innerHTML!==h;
+  $('#sayLab').textContent=lab; $('#sayH').innerHTML=h; $('#sayP').textContent=p||''; $('#sayP').hidden=!p;
+  if(changed && !matchMedia('(prefers-reduced-motion:reduce)').matches)
+    for(const el of [$('#sayH'),$('#sayP')]) el.animate([{opacity:0,transform:'translateY(8px)',filter:'blur(3px)'},{opacity:1,transform:'none',filter:'blur(0)'}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});
+}
+addEventListener('splashdone', ()=>document.body.classList.add('enter'));   /* 로딩 화면이 걷히면 화면 요소가 차례로 떠오른다 */
 function minutes(){ return Math.max(1, Math.round((performance.now()-S.t0)/60000)); }
 function calmView(){
   if(document.body.classList.contains('warn')||document.body.classList.contains('caut')) return;
   if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을<br>살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
-  else say3('SayEye', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
+  else say3('대기 중', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
 }
 function flash(level, text){             // level: warn(멈추세요) | caut(피하세요)
   const parts = text.split(/(?<=[.?!])\s+/), act = parts.length>1 ? parts.slice(1).join(' ') : '';
@@ -148,23 +217,36 @@ function beep(kind){
 }
 function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibrate({3:[300,100,300,100,300],2:[200,100,200],1:[120]}[prio]||[80]); }
 
+/* ── 말하기: 자연스러운 음성(서버의 Zephyr MP3)을 먼저 쓰고, 0.9초 안에 못 받으면 폰 기본 음성으로 ──
+   자주 하는 말(FIXED)은 앱을 열 때 미리 받아 두므로 바로 나온다. 경고처럼 처음 나오는 문장은 한 번 받은 뒤로 바로 나온다. */
+const FIXED = ["거절했어요.", "저장했어요.", "설명을 켰어요.", "설명을 껐어요.", "소리를 줄였어요.", "소리를 키웠어요.", "안내를 중지했어요.", "이미 안내 중이에요.", "보호자가 연결됐어요.", "말을 천천히 할게요.", "말을 빠르게 할게요.", "안내가 다시 시작됐어요.", "서버와 다시 연결됐어요.", "지금은 안내 중이 아니에요.", "위치와 화면 공유를 멈췄어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유가 끝났어요.", "다행이에요. 안내를 계속할게요.", "준비됐어요. 안내를 시작합니다.", "보호자가 지금 화면을 보고 있어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "라즈베리파이 카메라가 아직 연결되지 않았어요. 파이에서 카메라 프로그램을 켜 주세요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 const speech = (() => {
   let q=[], cur=null, voice=null;
   const PRI={warn:0,ui:1,desc:2,scene:3}, TTL={warn:2500,ui:9000,desc:6500,scene:14000};
-  const synth = window.speechSynthesis;
+  const synth = window.speechSynthesis, aud = new Audio(), clips = new Map(), WAIT = 900;
+  aud.preload = 'auto';
   function pickVoice(){ if(!synth) return; voice = synth.getVoices().find(v => (v.lang||'').toLowerCase().startsWith('ko')) || null; }
   if(synth){ synth.onvoiceschanged = pickVoice; pickVoice(); }
+  const norm = (t) => String(t||'').replace(/\s+/g,' ').trim();
+  function fetchClip(text){
+    const k=norm(text); if(clips.has(k)) return clips.get(k);
+    const p = fetch('/api/tts?t='+encodeURIComponent(k)).then(r => r.ok ? r.blob() : null).then(b => b ? URL.createObjectURL(b) : null).catch(() => null);
+    clips.set(k, p); p.then(u => { if(!u) clips.delete(k); });
+    return p;
+  }
+  function prefetch(list){ let i=0; const next=()=>{ if(i>=list.length) return; fetchClip(list[i++]).then(()=>setTimeout(next,40)); }; next(); }
   function push(kind, text, prio){
-    if(!synth) return;
     prio = prio||1; let wait=0;
     if(kind==='warn'){
       q = q.filter(i => i.kind==='warn' && (i.prio||1) >= prio);
-      if(cur && (cur.kind!=='warn' || prio > (cur.prio||1))){ cur=null; synth.cancel(); wait=90; }
-    }else if(kind==='ui' && cur && (cur.kind==='desc'||cur.kind==='scene')){ cur=null; synth.cancel(); wait=90; }
+      if(cur && (cur.kind!=='warn' || prio > (cur.prio||1))){ cur=null; cancelNow(); wait=60; }
+    }else if(kind==='ui' && cur && (cur.kind==='desc'||cur.kind==='scene')){ cur=null; cancelNow(); wait=60; }
     q.push({kind,text,prio,at:performance.now()});
+    fetchClip(text);                                // 순서를 기다리는 동안 미리 받아 둔다
     setTimeout(pump, wait);
   }
-  function pump(){
+  function cancelNow(){ try{ aud.pause(); }catch(e){} if(synth) synth.cancel(); }
+  async function pump(){
     if(cur) return;
     const now=performance.now();
     q = q.filter(i => now-i.at <= TTL[i.kind]);
@@ -172,14 +254,26 @@ const speech = (() => {
     q.sort((a,b) => PRI[a.kind]-PRI[b.kind] || (b.prio||1)-(a.prio||1) || a.at-b.at);
     const it=q.shift(); cur=it;
     ears.pause();                                   // 내 목소리를 명령으로 알아듣지 않게, 말하는 동안은 듣기를 멈춘다
-    const u=new SpeechSynthesisUtterance(it.text); u.lang='ko-KR'; if(voice) u.voice=voice; u.rate=S.rate; u.volume=S.vol;
-    const done=()=>{ if(cur===it){ cur=null; setTimeout(pump,60); } };
-    u.onend=done; u.onerror=done;
-    synth.speak(u);
+    const done=()=>{ if(cur===it){ cur=null; setTimeout(pump,40); } };
+    const url = await Promise.race([fetchClip(it.text), new Promise(r=>setTimeout(()=>r(null), WAIT))]);
+    if(cur!==it) return;                            // 기다리는 사이 더 급한 경고가 끼어듦
+    if(url){
+      aud.src=url; aud.playbackRate=Math.max(.6, Math.min(1.8, S.rate/1.1)); aud.volume=S.vol;
+      aud.onended=done; aud.onerror=()=>speakSynth(it, done);
+      aud.play().catch(()=>speakSynth(it, done));
+    } else speakSynth(it, done);
   }
-  function unlock(){ if(!synth) return; try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u); }catch(e){} }
-  function stop(){ q=[]; cur=null; if(synth) synth.cancel(); }
-  return {push, unlock, stop, busy:()=>!!cur};
+  function speakSynth(it, done){
+    if(!synth){ done(); return; }
+    const u=new SpeechSynthesisUtterance(it.text); u.lang='ko-KR'; if(voice) u.voice=voice; u.rate=S.rate; u.volume=S.vol;
+    u.onend=done; u.onerror=done; synth.speak(u);
+  }
+  function unlock(){
+    try{ aud.muted=true; aud.src='data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK////9bP/6XCykxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'; aud.play().then(()=>{ aud.pause(); aud.muted=false; }).catch(()=>{ aud.muted=false; }); }catch(e){}
+    if(!synth) return; try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u); }catch(e){}
+  }
+  function stop(){ q=[]; cur=null; cancelNow(); }
+  return {push, unlock, stop, prefetch, busy:()=>!!cur};
 })();
 const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
@@ -235,6 +329,13 @@ function parseCommand(text){
   if(/(설명|장면|묘사).*(켜|시작|해줘)/.test(t)) return 'scene_on';
   if(/(터치|안내모드|손가락).*(꺼|끄)/.test(t)) return 'guide_off';
   if(/(터치|안내모드|손가락).*(켜)/.test(t)) return 'guide_on';
+  if(Ask.kind && /^(허락|허락해|허락할게|좋아|응|네|예|보여줘|괜찮아|괜찮아요|괜찮습니다|나괜찮아)/.test(t)) return 'yes';
+  if(Ask.kind && /^(거절|싫어|안돼|아니|아니요|하지마)/.test(t)) return 'no';
+  if(/(공유|위치).*(그만|중지|끝|꺼|멈)/.test(t)) return 'share_stop';
+  if(/알림.*(보내|줘)|안부/.test(t)) return 'ping';
+  if(/보호자.*(연결|등록|추가).*(끊|해제|삭제|취소)|보호자.*(끊|해제)/.test(t)) return 'unpair';
+  if(/보호자.*(연결|등록|추가)|큐알|qr/.test(t)) return 'pair';
+  if(/(확인)?번호.*(알려|뭐|말해|읽어)/.test(t)) return 'pin';
   if(/도와|살려|구해|sos|긴급|보호자.*(불러|호출|연락|알려)|호출/.test(t)) return 'sos';
   if(/도움말|사용법|사용방법|설명서|명령어|뭘할|무엇을/.test(t)) return 'help';
   if(/다시시작/.test(t)) return 'start';
@@ -248,11 +349,19 @@ function parseCommand(text){
   return null;
 }
 function runCommand(cmd){
+  S.lastAct=performance.now();
   switch(cmd){
     case 'start': if(S.running) say('이미 안내 중이에요.'); else start(); break;
     case 'stop': if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'repeat': repeatLast(); break;
-    case 'sos': sos(); break;
+    case 'sos': if(Ask.kind) closeAsk(); sos(); break;
+    case 'pair': sendCmd({type:'pair_new'}); break;
+    case 'yes': Ask.yes(); break;
+    case 'no': Ask.no(); break;
+    case 'share_stop': if(S.profile && S.profile.child){ say('만 13세 미만이라 보호자가 계속 볼 수 있어요.'); break; } sendCmd({type:'share_stop'}); say('위치와 화면 공유를 멈췄어요.'); break;
+    case 'ping': sendCmd({type:'client_event', kind:'ping'}); say('보호자에게 잘 가고 있다고 알렸어요.'); break;
+    case 'unpair': sendCmd({type:'unpair_all'}); break;
+    case 'pin': { const n=$('#pinNum').textContent; say(n ? `보호자 확인번호는 ${n.split('').join(' ')} 이에요.` : '아직 서버에 연결되지 않았어요.'); break; }
     case 'help': speakHelp(); break;
     case 'scene_on': S.scene=true; $('#oScene').checked=true; sendCmd({type:'set_scene',on:true}); save(); say('설명을 켰어요.'); break;
     case 'scene_off': S.scene=false; $('#oScene').checked=false; sendCmd({type:'set_scene',on:false}); save(); say('설명을 껐어요.'); break;
@@ -270,20 +379,42 @@ function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
   ws.binaryType='arraybuffer'; S.ws=ws;
   ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true); sendCmd({type:'set_scene', on:S.scene});
+                      { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden) showSetup(); }
                       if(S.running) sendCmd({type:'set_source', mode:S.mode});
-                      if(was && S.running) say('서버와 다시 연결됐어요.'); };
-  ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false); setTimeout(connect, 1500); };
+                      if(was && S.running) say('서버와 다시 연결됐어요.');
+                      for(const o of S.pending.splice(0)) sendCmd(o);
+                      if(!S.prefetched){ S.prefetched=true; setTimeout(()=>speech.prefetch(FIXED), 1500); } };
+  ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false);
+                       if(S.ws===ws && !S.sleeping) setTimeout(connect, 1500); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
-function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : (S.everOk?'연결 끊김':'연결 중'); }
-function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); }
+function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok && !S.sleeping); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : S.sleeping ? '절전' : (S.everOk?'연결 끊김':'연결 중'); }
+function sendCmd(o){ if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(o)); else if(o.type!=='set_scene'){ S.pending.push(o); wake(); } }
+/* ── 절전: 안내 중이 아니고 90초 동안 아무것도 안 하면 서버 연결을 끊는다.
+     GPU 서버는 연결이 하나라도 있으면 켜진 채 요금이 나가므로, 앱을 켜 두기만 해도 GPU 가 도는 일을 막는다.
+     시작 · 음성 명령 · 화면 터치가 오면 바로 다시 연결 (서버가 자고 있었다면 깨어나는 데 수십 초) ── */
+function wake(){ S.lastAct=performance.now(); if(!S.sleeping && S.ws && S.ws.readyState<=1) return; S.sleeping=false; connect(); setConn(false); }
+function sleepWs(){ if(S.running || S.sleeping || !S.ws) return; S.sleeping=true; const ws=S.ws; S.ws=null; try{ ws.close(); }catch(e){} S.wsOk=false; setConn(false); }
+setInterval(()=>{ const busy = S.running || Ask.kind || !$('#pairView').hidden || !$('#setupView').hidden;
+  if(busy) S.lastAct=performance.now(); else if(performance.now()-S.lastAct>90000) sleepWs(); }, 10000);
+addEventListener('pointerdown', ()=>wake(), {capture:true});
 SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 
 function handle(m){
   switch(m.type){
-    case 'hello': S.pi=m.pi||0; $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger} · 설명 ${m.vlm==='none'?'꺼짐':'켜짐'}`; break;
+    case 'hello': S.pi=m.pi||0; if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger} · 설명 ${m.vlm==='none'?'꺼짐':'켜짐'}`; break;
     case 'camera': S.pi=m.connected||0; if(S.running && S.mode==='pi') say(S.pi ? '라즈베리파이 카메라가 연결됐어요.' : '라즈베리파이 카메라 연결이 끊겼어요.'); if(S.pi) notice(''); break;
-    case 'dets': S.dets=m; S.detsAt=performance.now(); if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
+    case 'pair_link': showPair(m); break;
+    case 'share_req': askShare(); break;
+    case 'profile': S.profile=m; if(m.set){ try{ localStorage.setItem('sayeye-profile', JSON.stringify({age:m.age, height_cm:m.height_cm, mount:m.mount})); }catch(e){} }   /* 서버 값(보호자가 바꾼 나이 포함)에 맞춤 */
+                    $('#pfInfo').textContent = m.set ? `만 ${m.age}세 · ${m.height_cm}cm · ${m.mount_ko} → 카메라 높이 ${m.cam_h}m${m.child?' · 만 13세 미만 보호 중':''}` : ''; break;
+    case 'profile_denied': say(m.why); break;
+    case 'share': onShare(m); break;
+    case 'viewing': if(m.on) say('보호자가 지금 화면을 보고 있어요.'); break;
+    case 'g_msg': beep('listen'); vibrate(1); say(`보호자 메시지예요. ${m.text}`); S.latest=`보호자: ${m.text}`; calmView(); break;
+    case 'paired': S.paired=m.count||1; closePair(); beep('ok'); say('보호자가 연결됐어요.'); break;
+    case 'unpaired': S.paired=0; say('연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.'); break;
+    case 'dets': S.dets=m; S.detsAt=performance.now(); if(S.stallSaid){ S.stallSaid=false; notice(''); say('안내가 다시 시작됐어요.'); } if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
     case 'warn': {
       const prio=m.prio||1;
       S.lastWarns.unshift(m.text); S.lastWarns.length=Math.min(S.lastWarns.length,5);
@@ -301,8 +432,9 @@ function handle(m){
 
 /* ── 카메라 ── */
 async function start(){
+  wake();
   SayEyeSensors.askMotion();   /* 아이폰: 터치 안에서 바로 불러야 권한을 물어요 */
-  notice(''); speech.unlock(); S.spokeReady=false;
+  notice(''); $('#pinBox').hidden=true; speech.unlock(); S.spokeReady=false;
   try{
     if(S.mode==='phone'){
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬 · 파이어폭스는 카메라를 쓸 수 없어요.'); return; }
@@ -336,7 +468,7 @@ function stop(){
 }
 function setGo(){
   const b=$('#go'), body=document.body, lv=body.classList.contains('warn')?'DANGER':body.classList.contains('caut')?'CAUTION':'WATCHING';
-  $('#goPill').textContent = S.running ? lv : 'START';
+  $('#goPill').textContent = S.running ? ({DANGER:'위험', CAUTION:'주의', WATCHING:'살피는 중'})[lv] : '대기 중';
   $('#goTxt').textContent = S.running ? '중지' : '시작';
   $('#goSub').textContent = S.guide ? (S.running ? '두 번 누르면 안내를 멈춰요' : '두 번 누르면 안내가 시작돼요') : (S.running ? '누르면 안내를 멈춰요' : '누르면 안내가 시작돼요');
   b.setAttribute('aria-label', S.running?'중지':'시작');
@@ -374,6 +506,102 @@ function startGeo(){
 function stopGeo(){ if(S.geo!=null){ navigator.geolocation.clearWatch(S.geo); S.geo=null; } }
 
 /* ── 보호자 호출 · 배터리 ── */
+/* ── 보호자 연결: 서버가 준 1회용 링크(10분)를 QR 로 크게 띄운다. 보호자가 찍으면 'paired' 가 와서 닫힌다 ── */
+let pairT=null, pairUrl='';
+function showPair(m){
+  pairUrl=m.url; $('#pairQr').innerHTML=m.qr; const svg=$('#pairQr svg'); if(svg){ svg.style.width='100%'; svg.style.height='auto'; }
+  $('#pairView').hidden=false; openSheet(false);
+  const end=Date.now()+(m.ttl||600)*1000; clearInterval(pairT);
+  const tick=()=>{ const s=Math.max(0,Math.round((end-Date.now())/1000)); $('#pairLeft').textContent=`${Math.floor(s/60)}분 ${s%60}초 안에 찍어 주세요 · 한 번만 쓸 수 있어요`; if(!s) closePair(); };
+  tick(); pairT=setInterval(tick,1000);
+  say('보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.');
+}
+function closePair(){ clearInterval(pairT); $('#pairView').hidden=true; $('#pairQr').innerHTML=''; }
+$('#pairClose').onclick=closePair;
+$('#pairShare').onclick=async()=>{
+  try{ if(navigator.share){ await navigator.share({title:'SayEye 보호자 연결', text:'이 링크를 열면 SayEye 보호자로 연결돼요. 10분 안에 한 번만 쓸 수 있어요.', url:pairUrl}); return; } }catch(e){ return; }
+  try{ await navigator.clipboard.writeText(pairUrl); say('연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.'); }catch(e){ say('이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.'); }
+};
+/* ── 묻는 화면 (공유 허락 · 넘어짐 확인): 음성 "허락/괜찮아", "거절" 또는 큰 버튼 ── */
+const Ask = { kind:null, t:null, yes(){}, no(){} };
+function ask(kind, h, p, yesTxt, noTxt, onYes, onNo, timeoutS, onTimeout){
+  closeAsk(); Ask.kind=kind;
+  $('#askH').textContent=h; $('#askP').textContent=p; $('#askYes').textContent=yesTxt; $('#askNo').textContent=noTxt;
+  $('#askView').hidden=false; $('#askYes').focus();
+  Ask.yes=()=>{ closeAsk(); onYes(); }; Ask.no=()=>{ closeAsk(); onNo(); };
+  if(timeoutS) Ask.t=setTimeout(()=>{ closeAsk(); onTimeout(); }, timeoutS*1000);
+}
+function closeAsk(){ clearTimeout(Ask.t); clearInterval(Ask.beepT); Ask.kind=null; $('#askView').hidden=true; }
+$('#askYes').onclick=()=>Ask.yes(); $('#askNo').onclick=()=>Ask.no();
+
+function askShare(){
+  if(Ask.kind==='fall') return;
+  beep('listen'); vibrate(2);
+  speech.push('warn', '보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.', 2);
+  ask('share', '보호자가 위치를 보려고 해요', '허락하면 10분 동안 위치와 화면을 보여 줘요.', '허락', '거절',
+      ()=>{ sendCmd({type:'share_allow'}); }, ()=>{ sendCmd({type:'share_deny'}); say('거절했어요.'); }, 60, ()=>{ sendCmd({type:'share_deny'}); });
+}
+function onShare(m){
+  const was=S.shareOn; S.shareOn=!!m.on;
+  if(m.reason==='child'){ if(!was) say('만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.'); return; }
+  if(m.on && !was){ const min=Math.max(1, Math.round((m.until*1000-Date.now())/60000));
+    say(m.reason==='sos' ? `보호자에게 ${min}분 동안 위치와 화면을 보여 줘요.` : `보호자에게 ${min}분 동안 위치와 화면을 보여 줄게요. 그만하려면 공유 그만이라고 말하세요.`); }
+  if(!m.on && was) say('위치와 화면 공유가 끝났어요.');
+}
+
+/* ── 넘어짐 감지: 큰 충격(약 2.5g 이상, 직전에 떨어지는 느낌이 있으면 더 낮은 문턱) 뒤 2.5초 동안 거의 움직임이 없으면 묻는다.
+       안내 중에만. 30초 동안 대답이 없으면 보호자에게 SOS(위치 · 영상 30분 공유) ── */
+const Fall = { buf:[], lastFree:0, cand:0, cool:0 };
+window.addEventListener('devicemotion', (e)=>{
+  const g=e.accelerationIncludingGravity; if(!g || g.x==null) return;
+  const now=performance.now(), m=Math.hypot(g.x, g.y, g.z);
+  Fall.buf.push([now,m]); while(Fall.buf.length && now-Fall.buf[0][0]>3000) Fall.buf.shift();
+  if(!S.running || !S.fall || Ask.kind || now<Fall.cool) return;
+  if(m<3.5) Fall.lastFree=now;
+  if(!Fall.cand && (m>30 || (m>22 && now-Fall.lastFree<1000))) Fall.cand=now;
+  if(Fall.cand && now-Fall.cand>2500){
+    const after=Fall.buf.filter(([t])=>t>Fall.cand+500).map(([,v])=>v);
+    const mean=after.reduce((a,b)=>a+b,0)/(after.length||1), sd=Math.sqrt(after.reduce((a,b)=>a+(b-mean)**2,0)/(after.length||1));
+    Fall.cand=0;
+    if(after.length>10 && sd<1.5){ Fall.cool=now+60000; fallPrompt(); }
+  }
+});
+function fallPrompt(){
+  beep(3); vibrate(3);
+  speech.push('warn', '넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.', 3);
+  ask('fall', '괜찮으세요?', '30초 동안 대답이 없으면 보호자에게 위치와 함께 알려요.', '괜찮아요', '도움 요청',
+      ()=>{ sendCmd({type:'client_event', kind:'fall_ok'}); say('다행이에요. 안내를 계속할게요.'); },
+      ()=>{ sendCmd({type:'client_event', kind:'fall'}); beep(3); say('보호자에게 도움을 요청했어요.'); }, 30,
+      ()=>{ sendCmd({type:'client_event', kind:'fall'}); beep(3); vibrate(3); say('대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.'); });
+  Ask.beepT=setInterval(()=>{ beep(2); vibrate(2); }, 5000);
+}
+window.__fallTest = fallPrompt;   // 개발용: 콘솔에서 넘어짐 확인 화면 띄우기
+
+/* ── 안내 멈춤: 연결은 됐는데 서버 결과가 4초 넘게 안 오면 바로 말한다 (서버가 깨어나는 중, 처리 지연 등) ── */
+setInterval(()=>{
+  if(S.running && S.wsOk && S.spokeReady && !S.stallSaid && performance.now()-S.detsAt>4000){
+    S.stallSaid=true; beep(2); vibrate(2); say('안내가 잠시 멈췄어요. 주변을 조심하세요.'); notice('서버 결과가 늦어요. 경고가 늦을 수 있어요.');
+  }
+}, 1000);
+
+/* ── 처음 설정: 만 나이 · 키 · 카메라 위치 (폰에 저장, 서버에 연결될 때마다 보냄) ── */
+function loadProfile(){ try{ return JSON.parse(localStorage.getItem('sayeye-profile')||'null'); }catch(e){ return null; } }
+function showSetup(){
+  const p=loadProfile()||{}; $('#pfAge').value=p.age||''; $('#pfH').value=p.height_cm||'';
+  document.querySelectorAll('#pfMount input').forEach(r=>r.checked=(r.value===p.mount));
+  $('#pfErr').hidden=true; $('#setupView').hidden=false; openSheet(false); $('#pfAge').focus();
+  say('처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.');
+}
+$('#pfSave').onclick=()=>{
+  const age=parseInt($('#pfAge').value,10), h=parseInt($('#pfH').value,10), r=document.querySelector('#pfMount input:checked');
+  const err = !(age>=3&&age<=120) ? '만 나이를 넣어 주세요.' : !(h>=80&&h<=230) ? '키를 센티미터로 넣어 주세요.' : !r ? '카메라 위치를 골라 주세요.' : '';
+  if(err){ $('#pfErr').textContent=err; $('#pfErr').hidden=false; say(err); return; }
+  const p={age, height_cm:h, mount:r.value};
+  try{ localStorage.setItem('sayeye-profile', JSON.stringify(p)); }catch(e){}
+  sendCmd({type:'profile', ...p}); $('#setupView').hidden=true; say('저장했어요.');
+};
+$('#setupBtn').addEventListener('click', ()=>{ speech.unlock(); showSetup(); });
+
 function sos(){ sendCmd({type:'sos'}); beep(3); vibrate(3); say('보호자에게 도움을 요청했어요.'); }
 if(navigator.getBattery) navigator.getBattery().then(b=>{
   let said=100; const chk=()=>{ const pct=Math.round(b.level*100);
@@ -382,7 +610,7 @@ if(navigator.getBattery) navigator.getBattery().then(b=>{
 
 function repeatLast(){ speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
 function speakHelp(){
-  say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
+  say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
 }
 
 /* ── 터치 안내: 한 번 누르면 이름을 읽고, 4초 안에 같은 버튼을 한 번 더 누르면 실행 ── */
@@ -410,7 +638,7 @@ document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
 
 /* ── 설정 ── */
 function applySettings(){
-  $('#oGuide').checked=S.guide; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oScene').checked=S.scene; $('#oHc').checked=S.hc;
+  $('#oGuide').checked=S.guide; $('#oFall').checked=S.fall; $('#oBeep').checked=S.beep; $('#oVib').checked=S.vib; $('#oScene').checked=S.scene; $('#oHc').checked=S.hc;
   $('#oPrev').checked=S.prev; $('#oRate').value=S.rate; $('#oVol').value=S.vol; $('#oSrc').value=S.mode; $('#oListen').checked=S.listen; $('#oGps').checked=S.gps;
   document.documentElement.dataset.hc = S.hc?'1':'';
   setGo();
@@ -419,11 +647,15 @@ const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key
   if(key==='scene') sendCmd({type:'set_scene',on:S.scene});
   if(key==='listen'){ S.listen ? ears.start() : ears.stop(); }
   if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
-bind('oGuide','guide'); bind('oBeep','beep'); bind('oVib','vib'); bind('oScene','scene'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
+bind('oGuide','guide'); bind('oFall','fall'); bind('oBeep','beep'); bind('oVib','vib'); bind('oScene','scene'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
 bind('oListen','listen'); bind('oGps','gps');
 $('#oSrc').addEventListener('input',e=>{ if(S.running) stop(); S.mode=e.target.value; save(); applySettings();
   say(S.mode==='pi' ? '카메라를 라즈베리파이로 바꿨어요.' : '카메라를 폰 카메라로 바꿨어요.'); });
 $('#help').addEventListener('click', ()=>{ speech.unlock(); speakHelp(); });
+$('#pairBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('pair'); });
+$('#pingBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('ping'); });
+$('#shareStopBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('share_stop'); });
+$('#unpairBtn').addEventListener('click', ()=>{ speech.unlock(); if(confirm('연결된 보호자를 모두 끊을까요?')) runCommand('unpair'); });
 
 /* ── 미리보기 위 인식 박스 ── */
 const ov=$('#ov'), octx=ov.getContext('2d');

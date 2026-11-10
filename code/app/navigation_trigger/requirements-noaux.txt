@@ -1,0 +1,7 @@
+# Install a CUDA-compatible torch/torchvision first on your server.
+# Colab already provides them; do not replace them with CPU wheels.
+ultralytics==8.4.174
+opencv-python>=4.10,<6
+numpy>=1.26,<3
+scipy>=1.11,<2
+Pillow>=10

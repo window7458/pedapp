@@ -1,0 +1,14 @@
+# Cloud Run 빌드에 올릴 것만. (.gitignore 를 따르지 않음 → weights/*.pt 도 올라간다)
+.git/
+.gitignore
+docs/
+results/
+deploy/
+**/__pycache__/
+**/*.pyc
+code/app/sessions/
+code/app/alerts/
+code/app/certs/
+code/app/tests/
+code/app/navigation_trigger/tts_cache/
+code/app/weights/signal_state_cls_best.pt

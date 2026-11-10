@@ -58,6 +58,14 @@ body{-webkit-user-select:auto;user-select:auto}
 .set select,.set input[type=time]{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--pale);color:var(--ink)}
 .set small{display:block;color:var(--sub);font-size:12.5px}
 .note{color:var(--sub);font-size:12.5px;padding:0 6px}
+.share-note{margin:0;padding:10px 14px;border-radius:14px;background:var(--pale);font-size:13px;font-weight:600;color:var(--sub);display:flex;gap:8px;align-items:flex-start}
+.share-note::before{content:"";flex:none;width:8px;height:8px;margin-top:6px;border-radius:50%;background:var(--sub);opacity:.6}
+.share-on .share-note{background:#E9F7EF;color:#17734A}.share-on .share-note::before{background:#22A06B;opacity:1;animation:breathe 1.6s ease-in-out infinite}
+.msg-card{display:flex;gap:8px;align-items:center;padding:8px 8px 8px 16px}
+.msg-card input{flex:1;min-width:0;border:0;background:none;font-size:15px;color:var(--ink);outline:none;padding:10px 0}
+.msg-card .btn{min-height:42px;padding:0 16px;border-radius:13px}
+@media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .gsay p{color:#C9D2EE}:root:not([data-hc="1"]) .acts .btn{background:rgba(255,255,255,.1);color:#fff}
+  :root:not([data-hc="1"]) .share-on .share-note{background:rgba(34,160,107,.16);color:#7BE0B0}}
 .tabs{position:absolute;left:14px;right:14px;bottom:max(14px,env(safe-area-inset-bottom));z-index:6;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:26px;background:var(--card);box-shadow:var(--shadow)}
 .tabs button{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;padding:8px 0 6px;border-radius:20px;font-size:12px;font-weight:700;color:var(--sub);min-height:54px}
 .tabs button svg{width:24px;height:24px}.tabs button[aria-selected=true]{color:var(--blue)}
@@ -82,8 +90,9 @@ body{-webkit-user-select:auto;user-select:auto}
 
   <section id="gate" hidden>
     <div class="card">
-      <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">확인번호를 입력해 주세요</h2>
-      <p class="note" style="margin:8px 0 0">서버를 켤 때 화면에 나온 6자리 번호예요.</p>
+      <h2 style="margin:0;font-size:22px;letter-spacing:-.04em">보행자 앱과 연결해 주세요</h2>
+      <p class="note" style="margin:8px 0 0">보행자 폰에서 "보호자 연결해줘"라고 말하거나 설정의 <b>보호자 연결</b>을 누르면 QR이 떠요. 이 폰의 카메라로 찍으면 바로 연결되고, 다음부터는 자동으로 연결돼요.</p>
+      <p class="note" style="margin:12px 0 0">QR을 못 찍는다면 확인번호를 넣어도 돼요. 보행자 앱에서 "보호자 번호 알려줘"라고 하면 읽어 줘요.</p>
       <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" aria-label="확인번호">
       <button id="pinGo" class="btn primary full">확인</button>
       <p id="pinErr" style="color:#C8283A;font-weight:700" hidden>확인번호가 달라요.</p>
@@ -96,9 +105,14 @@ body{-webkit-user-select:auto;user-select:auto}
     <div class="acts"><button class="btn" id="liveBtn">실시간 영상</button><button class="btn" id="mapBtn">위치 보기</button></div>
     <div class="views" id="views">
       <section class="view on" id="v-home" aria-label="홈">
+        <p class="note share-note" id="shareNote">위치와 영상은 보행자가 허락하거나 도움을 요청했을 때만 볼 수 있어요.</p>
         <div class="sum" aria-label="오늘 요약"><div class="u"><b id="nU">0</b>긴급</div><div class="c"><b id="nC">0</b>주의</div><div><b id="nS">0</b>호출</div></div>
+        <div class="card msg-card">
+          <input id="gMsg" maxlength="120" placeholder="보행자에게 음성으로 전할 말" aria-label="보행자에게 보낼 메시지">
+          <button class="btn primary" id="gMsgGo">보내기</button>
+        </div>
         <div class="card mapc" id="mapCard"><div class="h"><span>보행자 위치</span><small id="locAt">아직 위치가 없어요</small></div>
-          <div id="map" hidden></div><div id="mapEmpty">보행자가 안내를 시작하고 위치 공유를 켜면 지도에 보여요.</div></div>
+          <div id="map" hidden></div><div id="mapEmpty">평소에는 위치가 보이지 않아요. 긴급 · 호출 알림에는 그 순간의 위치가 붙고, "위치 보기"로 보행자에게 허락을 요청할 수 있어요.</div></div>
         <div class="sec">최근 알림<button id="toLog">전체 보기</button></div>
         <div id="recentList" style="display:flex;flex-direction:column;gap:12px"></div>
       </section>
@@ -111,6 +125,8 @@ body{-webkit-user-select:auto;user-select:auto}
       </section>
       <section class="view" id="v-set" aria-label="설정">
         <div class="card set">
+          <label><span>보행자 정보<small id="pfNote">아직 처음 설정을 안 했어요</small></span></label>
+          <div class="row-set"><input id="gAge" type="number" inputmode="numeric" min="3" max="120" placeholder="만 나이" aria-label="보행자 만 나이" style="width:110px"><button class="btn" id="gAgeGo">나이 저장</button></div>
           <label><span>푸시 알림<small id="pushNote">보호자 화면을 닫아도 폰 알림으로 와요</small></span><button id="pushBtn" class="btn">켜기</button></label>
           <label><span>받을 알림</span><select id="sens"><option value="urgent">긴급만</option><option value="caution">긴급 + 주의</option><option value="all">전체</option></select></label>
           <label><span>알림음</span><input type="checkbox" class="sw" id="sound"></label>
@@ -138,7 +154,7 @@ body{-webkit-user-select:auto;user-select:auto}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
-const LV = {urgent:'긴급', caution:'주의', info:'안내', sos:'호출', offline:'끊김', online:'연결', battery:'배터리'};
+const LV = {urgent:'긴급', caution:'주의', info:'안내', sos:'호출', offline:'끊김', online:'출발', battery:'배터리', notice:'소식'};
 const G = {pin:'', alerts:new Map(), filter:'all', ws:null, lastSeen:0, lastStatusAt:0, fps:0, loc:null, since:0,
            o:{sens:'caution', sound:true, vib:true, quiet:false, qFrom:'22:00', qTo:'07:00'}};
 function load(){ try{ const j=JSON.parse(localStorage.getItem('sayeye-guardian')||'{}'); G.pin=j.pin||''; G.lastSeen=j.lastSeen||0; Object.assign(G.o,j.o||{}); }catch(e){} }
@@ -147,7 +163,7 @@ const P = () => encodeURIComponent(G.pin);
 let curV=0;
 
 /* ── 확인번호 · 연결 ── */
-function gate(show, err){ $('#gate').hidden=!show; $('#main').hidden=show; $('#pinErr').hidden=!err; }
+function gate(show, err){ $('#gate').hidden=!show; $('#main').hidden=show; $('#pinErr').hidden=!err; $('#pinErr').textContent='확인번호가 달라요.'; }
 async function enter(pin){
   const r = await fetch(`/api/alerts?pin=${encodeURIComponent(pin)}`).catch(()=>null);
   if(!r){ $('#conn').lastChild.textContent='서버에 닿지 않아요'; return false; }
@@ -162,7 +178,7 @@ function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?role=guardian&pin=${P()}`);
   G.ws = ws;
   ws.onopen = ()=>{ setConn(true); resync(); };
-  ws.onclose = ()=>{ setConn(false); setTimeout(connect, 2000); };
+  ws.onclose = ()=>{ setConn(false); if(G.ws===ws && G.pin) setTimeout(connect, 2000); };   /* 번호가 바뀌어 끊긴 경우엔 다시 붙지 않고 새 번호를 기다린다 */
   ws.onmessage = (e)=>{ try{ onMsg(JSON.parse(e.data)); }catch(err){} };
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off',!ok); c.lastChild.textContent = ok ? '연결됨' : '연결 끊김'; }
@@ -172,7 +188,13 @@ async function resync(){
   if(r && r.ok){ const j = await r.json(); for(const a of j.alerts) G.alerts.set(a.id, a); render(); }
 }
 function onMsg(m){
-  if(m.type==='auth_error'){ G.pin=''; save(); gate(true,true); }
+  if(m.type==='hello' && m.share){ onShare(m.share); if(m.profile) onProfile(m.profile); }
+  else if(m.type==='profile'){ onProfile(m); }
+  else if(m.type==='profile_denied'){ say2(m.why); }
+  else if(m.type==='share'){ onShare(m); }
+  else if(m.type==='share_denied'){ say2('보행자가 이번에는 공유를 거절했어요.'); }
+  else if(m.type==='g_msg_ok'){ say2('보행자 폰에서 메시지를 읽어 줬어요.'); }
+  else if(m.type==='auth_error'){ G.pin=''; G.ws=null; save(); gate(true,true); if(m.reason==='unpaired') $('#pinErr').textContent='보행자가 보호자 연결을 끊었어요. 다시 연결하려면 QR을 새로 찍어 주세요.'; }
   else if(m.type==='status'){ G.fps=m.fps; G.lastStatusAt=Date.now(); presence(); }
   else if(m.type==='loc'){ setLoc(m); }
   else if(m.type==='alert'){ const {type, merged, clip_only, ...a} = m; G.alerts.set(a.id, a); render(); if(!clip_only) notify(a, merged); }
@@ -277,12 +299,41 @@ function notify(a, merged){
 }
 
 /* ── 실시간 영상 ── */
-$('#liveBtn').onclick=()=>{ const im=$('#liveImg'); $('#live').hidden=false; $('#liveMsg').textContent='연결하는 중...';
+/* ── 공유: 평소엔 막혀 있고, 보행자가 허락(10분)하거나 SOS · 넘어짐(30분)일 때만 열린다 ── */
+function say2(t){ const b=$('#banner'); b.textContent=t; b.hidden=false; clearTimeout(bannerT); bannerT=setTimeout(()=>b.hidden=true, 8000); }
+function onProfile(p){
+  $('#pfNote').textContent = p.set ? `만 ${p.age}세 · ${p.height_cm}cm · 카메라 ${p.mount_ko} (${p.cam_h}m)${p.child?' · 만 13세 미만이라 항상 볼 수 있어요':''}` : '아직 처음 설정을 안 했어요';
+  if(p.age!=null) $('#gAge').value=p.age;
+}
+$('#gAgeGo').onclick=()=>{ const a=parseInt($('#gAge').value,10); if(!(a>=3&&a<=120)){ say2('만 나이를 확인해 주세요.'); return; }
+  if(G.ws && G.ws.readyState===1){ G.ws.send(JSON.stringify({type:'profile', age:a})); say2('나이를 저장했어요.'); } else say2('연결이 끊겨서 저장하지 못했어요.'); };
+function onShare(s){
+  const was=G.share; G.share=!!s.on; G.shareUntil=s.until||0; document.body.classList.toggle('share-on', G.share);
+  const n=$('#shareNote');
+  if(s.reason==='child'){ n.textContent='만 13세 미만이라 위치와 영상을 항상 볼 수 있어요.'; if(!was && G.wantLive){ G.wantLive=false; openLive(); } return; }
+  if(G.share){ const min=Math.max(1, Math.round((G.shareUntil*1000-Date.now())/60000));
+    n.textContent = `${s.reason==='sos'?'도움 요청으로':'보행자가 허락해서'} ${min}분 동안 위치와 영상을 볼 수 있어요.`;
+    if(!was){ say2(n.textContent); if(G.wantLive){ G.wantLive=false; openLive(); } fetch(`/api/location?pin=${P()}`).then(r=>r.json()).then(j=>{ if(j.loc) setLoc(j.loc); }).catch(()=>{}); } }
+  else { n.textContent='위치와 영상은 보행자가 허락하거나 도움을 요청했을 때만 볼 수 있어요.'; if(was){ say2('위치와 영상 공유가 끝났어요.'); $('#liveClose').click(); } }
+}
+async function askShare(live){
+  if(G.share) return true;
+  G.wantLive=!!live;
+  const r=await fetch(`/api/share/request?pin=${P()}`,{method:'POST'}).catch(()=>null);
+  say2(r && r.ok ? '보행자에게 허락을 요청했어요. 보행자가 허락하면 바로 보여요.' : '요청을 보내지 못했어요.');
+  return false;
+}
+$('#gMsgGo').onclick=()=>{ const t=$('#gMsg').value.trim(); if(!t) return;
+  if(!G.ws || G.ws.readyState!==1){ say2('연결이 끊겨서 보내지 못했어요.'); return; }
+  G.ws.send(JSON.stringify({type:'g_msg', text:t})); $('#gMsg').value=''; };
+$('#gMsg').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#gMsgGo').click(); });
+function openLive(){ const im=$('#liveImg'); $('#live').hidden=false; $('#liveMsg').textContent='연결하는 중...';
   im.onload=()=>{ $('#liveMsg').textContent='인식한 물체에 상자가 표시돼요.'; };
   im.onerror=()=>{ $('#liveMsg').textContent='영상이 없어요. 보행자가 안내를 시작하면 보여요.'; };
-  im.src=`/api/live.mjpg?pin=${P()}&t=${Date.now()}`; };
+  im.src=`/api/live.mjpg?pin=${P()}&t=${Date.now()}`; }
+$('#liveBtn').onclick=async()=>{ if(await askShare(true)) openLive(); };
 $('#liveClose').onclick=()=>{ $('#liveImg').removeAttribute('src'); $('#live').hidden=true; };
-$('#mapBtn').onclick=()=>{ if(G.loc) showAt(G.loc); else { go('home'); $('#mapCard').scrollIntoView({behavior:'smooth',block:'center'}); } };
+$('#mapBtn').onclick=async()=>{ if(!(await askShare(false))) return; if(G.loc) showAt(G.loc); else { go('home'); $('#mapCard').scrollIntoView({behavior:'smooth',block:'center'}); } };
 
 /* ── 푸시 알림 ── */
 const b64u=(s)=>{ const p='='.repeat((4-s.length%4)%4), r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); };
@@ -334,9 +385,26 @@ function go(v){ const n=VIEWS.indexOf(v); if(n<0||n===curV) return;
 document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
 $('#toLog').onclick=()=>go('log');
 
+addEventListener('splashdone', ()=>document.body.classList.add('enter'));
+/* 절전: 화면을 닫거나 다른 앱으로 가면 1분 뒤 서버 연결을 끊어 GPU 가 혼자 돌지 않게 한다. 돌아오면 다시 연결.
+   (보호자 알림은 푸시로 오므로 연결이 없어도 받는다) */
+let hideT=null;
+document.addEventListener('visibilitychange', ()=>{
+  clearTimeout(hideT);
+  if(document.hidden){ hideT=setTimeout(()=>{ const ws=G.ws; G.ws=null; try{ ws && ws.close(); }catch(e){} $('#liveClose').click(); }, 60000); }
+  else if(G.pin && (!G.ws || G.ws.readyState>1)){ connect(); resync(); }
+});
 load(); applyOpts();
 const qpin = new URLSearchParams(location.search).get('pin');
-if(qpin){ history.replaceState(null,'','/guardian'); enter(qpin); } else if(G.pin){ enter(G.pin); } else gate(true,false);
+const qpair = new URLSearchParams(location.search).get('pair');
+async function pairWith(code){   /* QR · 공유 링크: 1회용 코드를 이 기기의 연결 토큰으로 바꿔 저장 → 다음부터 자동 연결 */
+  history.replaceState(null,'','/guardian');
+  const r = await fetch(`/api/pair?code=${encodeURIComponent(code)}`, {method:'POST'}).catch(()=>null);
+  if(r && r.ok){ const j = await r.json(); if(await enter(j.token)) return; }
+  if(G.pin && await enter(G.pin)) return;      // 이미 연결된 기기가 같은 QR 을 다시 찍은 경우
+  gate(true,true); $('#pinErr').textContent = r ? '연결 QR이 만료됐거나 이미 쓰였어요. 보행자 앱에서 새로 띄워 주세요.' : '서버에 닿지 않아요.';
+}
+if(qpair){ pairWith(qpair); } else if(qpin){ history.replaceState(null,'','/guardian'); enter(qpin); } else if(G.pin){ enter(G.pin); } else gate(true,false);
 window.__guardian = {G, wanted, onMsg, setLoc, notify};
 </script>
 </body>

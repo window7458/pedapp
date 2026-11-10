@@ -44,10 +44,12 @@ class Config:
     perception: object = "yolo"         # yolo | none (테스트는 가짜 인식기 객체를 직접 넣는다)
     weights: str = "auto"               # auto(weights/ 폴더에서 찾기) 또는 .pt 파일 경로
     device: str = "cpu"
-    conf: float | None = None           # YOLO 신뢰도. 비우면 트리거가 정함 (hitbox 는 0.2, 그 밖은 0.25)
-    trigger: str = "hitbox"             # hitbox(v5_29) | b0 | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
+    conf: float | None = None           # YOLO 신뢰도 (b0 등 앱 YoloTracker 를 쓰는 트리거만. nav 는 자체 기준)
+    trigger: str = "nav"                # nav(임태규 v12.1) | b0 | none | 모듈경로:클래스  (step(frame) -> [Event] 를 가진 것)
+    nav_imgsz: int | None = None        # nav YOLO 입력 크기. 비우면 CPU 640 · GPU 960
+    nav_crop: bool = True               # nav 의 0.4 s 마다 잘라 보기 (작은 신호등 · 먼 물체)
     vlm: str = "server"                 # server(vLLM Qwen2.5-VL) | none | mock(테스트)
-    vlm_min_prio: int = 2               # hitbox 경고 중 이 긴급도 이상(피하세요·멈추세요)만 VLM 설명을 붙인다
+    vlm_min_prio: int = 2               # 경고 중 이 긴급도 이상(주의 · 위험)만 VLM 설명을 붙인다
     mock_latency: float = 1.0
     vlm_url: str = "http://localhost:8000/v1"
     vlm_model: str = "qwen2_5-vl-7b"
@@ -168,8 +170,11 @@ def make_perception(cfg: Config):
         if w is None:
             raise FileNotFoundError(
                 "가중치(.pt)를 찾지 못했어요. code/app/weights/ 폴더에 final_10class_best.pt 를 넣거나 --weights 로 경로를 주세요.")
-        conf = cfg.conf if cfg.conf is not None else (0.2 if str(cfg.trigger).startswith("hitbox") else 0.25)
         cfg.weights = str(w)
+        if cfg.trigger == "nav":                     # 트리거가 같은 모델로 직접 추론한다 → 인식기를 겸한다
+            from nav_trigger import NavTrigger
+            return NavTrigger(w, cfg.device, cfg.nav_imgsz, cfg.nav_crop)
+        conf = cfg.conf if cfg.conf is not None else 0.25
         return AppYoloTracker(w, cfg.device, conf=conf)
     raise ValueError(f"unknown perception {cfg.perception} (yolo | none)")
 
@@ -180,13 +185,15 @@ def make_trigger(cfg: Config):
     if cfg.trigger == "b0":
         from triggers import B0Trigger
         return B0Trigger(cfg.max_fps)
-    spec = {"hitbox": "hitbox_trigger:HitboxTrigger"}.get(cfg.trigger, cfg.trigger)     # hitbox = 사용자 v5_29
+    if cfg.trigger == "nav":
+        raise ValueError("nav 트리거는 perception='yolo' 와 함께만 쓴다 (트리거가 직접 추론함)")
+    spec = cfg.trigger
     if ":" in spec:                         # 예: my_trigger:MyTrigger  (code/app 또는 PYTHONPATH에 있는 모듈)
         mod, cls = spec.split(":", 1)
         C = getattr(importlib.import_module(mod), cls)
         import inspect
         return C(cfg) if "cfg" in inspect.signature(C).parameters else C()
-    raise ValueError(f"unknown trigger {cfg.trigger} (b0 | hitbox | none | 모듈:클래스)")
+    raise ValueError(f"unknown trigger {cfg.trigger} (nav | b0 | none | 모듈:클래스)")
 
 
 class LivePipeline:
@@ -196,7 +203,9 @@ class LivePipeline:
         self.clock.start()
         self.buffer = FrameBuffer()
         self.perception = make_perception(cfg)
-        self.trigger = make_trigger(cfg)
+        self.trigger = self.perception if getattr(self.perception, "is_trigger", False) else make_trigger(cfg)
+        from face_blur import FaceBlur
+        self.blur = FaceBlur(log=log)             # 밖으로 나가는 영상의 얼굴 가리기 (판단은 원본으로)
         self.events = 0
         self.last_track, self.last_text = {}, {}
         self.event_seq = 0
@@ -225,6 +234,7 @@ class LivePipeline:
         self._fidx = 0
         self._last_proc = -1e9
         self._perc, self._lag, self._stamps = deque(maxlen=60), deque(maxlen=60), deque(maxlen=60)
+        self._blur = deque(maxlen=60)
         self._rx = deque(maxlen=60)          # 받은 프레임 시각 (처리한 프레임 _stamps 와 구분: 전달 문제 ↔ 처리 지연)
         self._black = False
         self.source_label = "phone"
@@ -276,25 +286,28 @@ class LivePipeline:
         if not self._warmed and hasattr(self.perception, "warmup"):
             self.perception.warmup(im)       # 첫 프레임 모델 올리는 시간을 시계 밖으로
             self._warmed = True
-        self.last_frame = im
         self._black = float(im[::16, ::16].mean()) < 3.0     # 카메라가 멈추면 폰이 까만 화면을 보낸다
-        if self.on_frame is not None:
-            self.on_frame(im)
         t = self.clock.now()
         self._fidx += 1
         tp = time.perf_counter()
-        dets = self.perception(self._fidx, im)
+        dets = self.perception(self._fidx, im)              # 인식 · 판단은 원본으로
         self._perc.append(time.perf_counter() - tp)
+        tb = time.perf_counter()
+        safe = self.blur.apply(im, dets)                   # 여기부터 저장 · 전송되는 영상은 얼굴을 가린 사본
+        self._blur.append(time.perf_counter() - tb)
+        self.last_frame = safe
+        if self.on_frame is not None:
+            self.on_frame(safe)
         H, W = im.shape[:2]
-        fr = Frame(self._fidx, t, im, dets, W, H)
+        fr = Frame(self._fidx, t, safe, dets, W, H)
         self.buffer.push(fr)
-        self.scene.push(t, im)
+        self.scene.push(t, safe)
         for ev in self.trigger.step(fr):
             self._on_event(fr, ev)
         self._lag.append(self.clock.now() - t)
         self._stamps.append(time.perf_counter())
         if (self.preview_enabled or self.live_viewers > 0) and self._fidx % 2 == 0:
-            self._make_preview(im, dets)
+            self._make_preview(safe, dets)
         self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
                    "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                           round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
@@ -377,6 +390,8 @@ class LivePipeline:
             rx = sum(1 for x in list(self._rx) if now_ - x <= 3.0) / 3.0
             self.emit({"type": "status", "fps": round(fps, 1), "rx_fps": round(rx, 1), "black": self._black,
                        "perc_ms": round(statistics.median(self._perc) * 1000, 1) if self._perc else None,
+                       "blur_ms": round(statistics.median(self._blur) * 1000, 1) if self._blur else None,
+                       "face": self.blur.name,
                        "lag_s": round(statistics.median(self._lag), 3) if self._lag else None,
                        "source": self.source_label, "perception": self.perception.name,
                        "trigger": getattr(self.trigger, "name", "?"), "vlm": self.vlm_name,

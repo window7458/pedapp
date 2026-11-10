@@ -1,0 +1,242 @@
+{
+  "rule_variant": 0,
+  "gate": {
+    "cone": [
+      0.28,
+      0.3,
+      0.1,
+      0.05
+    ],
+    "halfwidth": 1.0,
+    "walk_lookahead": 4.0,
+    "urgent": true,
+    "urgent_conf": 0.7,
+    "urgent_inward": 0.2,
+    "min_current_conf": [
+      0.25,
+      0.15,
+      0.0,
+      0.0
+    ],
+    "road_gate": false
+  },
+  "base": {
+    "profile": "v9_v8_rules_parallel_inference",
+    "groups": {
+      "vehicle_1": {
+        "mode": 1,
+        "growth": 0.682,
+        "speed": 0.108,
+        "minheight": 0.061,
+        "minwidth": 0.023,
+        "minbottom": 0.399,
+        "corridor": 0.283,
+        "minconf": 0.608,
+        "minage": 1.183,
+        "streak": 5,
+        "vote": 10,
+        "w": 2,
+        "a": 1,
+        "gap": 0.5,
+        "vote_gap": 0.25,
+        "include_class": [
+          4,
+          5,
+          6
+        ]
+      },
+      "vehicle_2": {
+        "mode": 0,
+        "growth": 0.0,
+        "speed": 0.3,
+        "minheight": 0.248,
+        "minwidth": 0.347,
+        "minbottom": 0.589,
+        "corridor": 0.0,
+        "minconf": 0.511,
+        "minage": 1.232,
+        "streak": 11,
+        "vote": 11,
+        "w": 2,
+        "a": 1,
+        "gap": 0.5,
+        "vote_gap": 0.25,
+        "include_class": [
+          4,
+          5,
+          6
+        ]
+      },
+      "two_wheel_1": {
+        "mode": 0,
+        "growth": 1.5901608510145904,
+        "speed": 0.0748048121106249,
+        "minheight": 0.1338523319363594,
+        "minwidth": 0.30742602329701185,
+        "minbottom": 0.3077903450932354,
+        "corridor": 0.0,
+        "minconf": 0.2387919277418405,
+        "minage": 0.0,
+        "streak": 1,
+        "vote": 1,
+        "w": 12,
+        "a": 1,
+        "gap": 0.5,
+        "vote_gap": 0.25,
+        "include_class": [
+          2
+        ]
+      },
+      "two_wheel_2": {
+        "mode": 1,
+        "growth": 0.16686241255875744,
+        "speed": 0.5664513107800461,
+        "minheight": 0.09089886695146561,
+        "minwidth": 0.04460875689983368,
+        "minbottom": 0.6382717896718532,
+        "corridor": 0.30256611155346036,
+        "minconf": 0.7032953646499663,
+        "minage": 0.970559211447835,
+        "streak": 4,
+        "vote": 8,
+        "w": 8,
+        "a": 1,
+        "gap": 0.5,
+        "vote_gap": 0.25,
+        "include_class": [
+          2
+        ]
+      }
+    },
+    "light": {
+      "mode": "hsv_100_0.1",
+      "fraction": 0.005,
+      "floor": 1,
+      "dominance": 1.8,
+      "stable": 4,
+      "stable_red": 4,
+      "minconf": 0.1,
+      "maxaspect": 0.8,
+      "ignore_unknown": false,
+      "max_known_gap": 0.3
+    },
+    "model_sha256": "5e3261f034f84fb3631eefe3e67451a10f8e2b0671cd1114346865fdd1c293d4",
+    "rule_family": "original_causal",
+    "tracker": {
+      "high": 0.12,
+      "new": 0.12,
+      "low": 0.05,
+      "buffer": 10,
+      "match": 0.85,
+      "class_decay": 0.0,
+      "scales": [
+        1280
+      ]
+    },
+    "sample_hz": 10,
+    "selection": "Thresholds selected on Train. Test repeatedly inspected during development; not an independent holdout.",
+    "verifier_sha256": "85a76fe86dd8afe384648546b56a7a78580c7cb7b404fc595f97969322d502d5",
+    "verification": {
+      "enabled": false,
+      "window_s": 0.2,
+      "decay": 0.25,
+      "public_weight": 1.0,
+      "max_pending": 4,
+      "max_calls_per_frame": 1
+    },
+    "supplement": {
+      "enabled": true,
+      "interval_s": 0.5,
+      "duplicate_iou": 0.5,
+      "rule": {
+        "mode": 0,
+        "growth": 0.0,
+        "speed": 0.8059537639966865,
+        "minheight": 0.15476599100977181,
+        "minwidth": 0.011264259926974773,
+        "minbottom": 0.5237301358487457,
+        "corridor": 0.00361888250336051,
+        "minconf": 0.6225266953930259,
+        "minage": 0.9147231373935938,
+        "streak": 3,
+        "vote": 5,
+        "w": 2,
+        "a": 1,
+        "gap": 1.0,
+        "vote_gap": 0.75,
+        "include_class": [
+          7
+        ]
+      }
+    },
+    "spatial_obstacle": {
+      "minheight": 0.32,
+      "minbottom": 0.65,
+      "corridor": 0.05,
+      "minconf": 0.2,
+      "minage": 0.5,
+      "expansion": 0.3,
+      "maxspeed": 0.2,
+      "minaspect": 1.0,
+      "maxwidth": 0.6,
+      "confirm_s": 0.2,
+      "lookahead_s": 0.5,
+      "velocity_mode": 0.0
+    },
+    "spatial_two_wheel": {
+      "history": {
+        "history_s": 1.6,
+        "max_gap_s": 0.75,
+        "min_observations": 2,
+        "min_span_s": 0.4
+      },
+      "params": [
+        {
+          "minheight": 0.32,
+          "minbottom": 0.65,
+          "corridor": 0.1,
+          "minconf": 0.5,
+          "minage": 0.5,
+          "expansion": 0.2,
+          "maxspeed": 0.1,
+          "minaspect": 0.0,
+          "maxwidth": 2.0,
+          "confirm_s": 0.0,
+          "lookahead_s": 1.0,
+          "velocity_mode": 1.0
+        }
+      ],
+      "vote_fraction": 1.0
+    },
+    "backend": "torch",
+    "parallel_public": true,
+    "parallel_motion": true,
+    "sampling_policy": "source_stride_when_available",
+    "public_threads": 2,
+    "spatial_person": {
+      "minheight": 0.32,
+      "minbottom": 0.65,
+      "corridor": 0.05,
+      "minconf": 0.2,
+      "minage": 0.5,
+      "expansion": 0.3,
+      "maxspeed": 0.2,
+      "minaspect": 1.0,
+      "maxwidth": 0.6,
+      "confirm_s": 0.2,
+      "lookahead_s": 0.5,
+      "velocity_mode": 0.0
+    },
+    "person_rule_provenance": {
+      "source": "spatial_obstacle",
+      "thresholds_identical": true,
+      "class_id": 0,
+      "labels_available": false,
+      "test_used_for_person_tuning": false,
+      "version": "person_obstacle_copy_v1",
+      "policy": "Freeze before running any Test person inference. No threshold or candidate selection from Test outputs."
+    }
+  },
+  "person_tuned": false,
+  "evaluation_context": "Existing genuine, sparse surface cache; causal warping, maximum map age 1.2 s. Live periodic surface scheduling is a separate execution mode and is not end-to-end benchmarked here."
+}

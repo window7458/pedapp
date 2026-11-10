@@ -117,3 +117,96 @@ a{color:var(--blue);font-weight:700}
 #splash .tag{position:absolute;left:0;right:0;bottom:8.5%;text-align:center;color:rgba(255,255,255,.82);font-size:14px;opacity:0;animation:sfade .8s 2.6s forwards}
 @keyframes sfade{to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#splash *,#splash::before,.agent .fx i,.wave i{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important}.sheet,.sheet-bg,.view{transition-duration:.01ms!important}}
+
+/* ══ 디테일 다듬기 (2026-11-10): 글꼴 · 질감 · 그림자 · 상태 전환 · 다크 모드 ══ */
+/* 글꼴: Pretendard (OFL) 가변 글꼴, 자주 쓰는 한글 2350자 + 영문만 남겨 464KB. 없는 글자는 시스템 글꼴로 */
+@font-face{font-family:"Pretendard";src:url("fonts/PretendardSubset.woff2") format("woff2-variations"),url("fonts/PretendardSubset.woff2") format("woff2");
+  font-weight:45 920;font-style:normal;font-display:swap}
+body{font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;text-rendering:optimizeLegibility}
+.say h1,.gsay h1{font-weight:750;letter-spacing:-.034em}
+.start h2{font-weight:780;letter-spacing:-.03em}
+.top b{font-weight:760;letter-spacing:-.015em}
+.say p,.gsay p{letter-spacing:-.012em}
+.sum b,#pinNum,.tnum{font-variant-numeric:tabular-nums}
+
+/* 그림자: 한 겹 큰 그림자 대신 실제 앱처럼 가까운 그림자 + 먼 그림자 */
+:root{--shadow:0 1px 2px rgba(16,26,58,.05),0 4px 12px rgba(40,60,140,.06),0 16px 36px -14px rgba(40,60,140,.18);--hair:rgba(16,26,58,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-hc="1"]){--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 28px rgba(0,0,0,.38);--hair:rgba(255,255,255,.06)}}
+.card,.tile{border:1px solid var(--hair)}
+:root[data-hc="1"] .card,:root[data-hc="1"] .tile{border:3px solid #FFD400}
+
+/* 위쪽 빛 영역: 고운 종이 질감(노이즈)을 아주 얇게 → 그라데이션 띠가 덜 보이고 화면이 덜 '그림' 같다 */
+.agent::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.09;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+:root[data-hc="1"] .agent::after{display:none}
+/* 상태 색이 바뀔 때 뚝 끊기지 않게: 단색 바탕(전환 가능) + 번지는 빛이 색을 넘겨받는다 */
+.caut .agent{background:#FFC24A}
+.warn .agent{background:#E4483E}
+.agent .fx i{transition:background-color .8s var(--ease),transform 6s ease-in-out,opacity .8s var(--ease)}
+/* 주의 · 위험 글자색은 밝은/어두운 모드와 상관없이 고정 (노랑 위 흰 글씨, 빨강 위 회색 글씨가 나오던 문제) */
+:root .caut .say h1,:root .caut .top b{color:#2A1B00}
+:root .caut .say p{color:#4A3A10}
+:root .warn .say h1,:root .warn .say p,:root .warn .say small,:root .warn .top b,:root .warn .top .st{color:#fff}
+:root[data-hc="1"] .caut .say h1,:root[data-hc="1"] .warn .say h1,:root[data-hc="1"] .caut .say p,:root[data-hc="1"] .warn .say p{color:#FFD400}
+/* 어두운 모드: 연한 하늘색 빛 위에 흰 글씨가 묻히던 문제 → 깊은 남색 빛 */
+@media (prefers-color-scheme:dark){
+  :root:not([data-hc="1"]) .agent .fx .a{background:#24398A}
+  :root:not([data-hc="1"]) .agent .fx .b{background:#173E6E}
+  :root:not([data-hc="1"]) .agent .fx .c{background:#2A2C72}
+  :root:not([data-hc="1"]) .running .agent .fx .a{background:#2E50C0}
+  :root:not([data-hc="1"]) .running .agent .fx .b{background:#126A8E}
+  :root:not([data-hc="1"]) .running .agent .fx .c{background:#33368F}
+  :root:not([data-hc="1"]) .caut .agent .fx .a{background:#FFF2B0}:root:not([data-hc="1"]) .caut .agent .fx .b{background:#FFB547}:root:not([data-hc="1"]) .caut .agent .fx .c{background:#FFCF5C}
+  :root:not([data-hc="1"]) .warn .agent .fx .a{background:#FFB27E}:root:not([data-hc="1"]) .warn .agent .fx .b{background:#FF6B5A}:root:not([data-hc="1"]) .warn .agent .fx .c{background:#B81E3A}
+  :root:not([data-hc="1"]) .caut .agent{background:#FFC24A}:root:not([data-hc="1"]) .warn .agent{background:#E4483E}
+  :root:not([data-hc="1"]) .agent::after{opacity:.12}
+  :root:not([data-hc="1"]) .caut .ear{background:rgba(255,255,255,.55);color:#4A3A10}:root:not([data-hc="1"]) .caut .ear b{color:#2A1B00}
+  :root:not([data-hc="1"]) .warn .ear{background:rgba(255,255,255,.16);color:#fff}:root:not([data-hc="1"]) .warn .ear b{color:#fff}
+  :root:not([data-hc="1"]) .gear{background:rgba(255,255,255,.1);color:#fff}
+}
+
+/* 누를 때 반응: 버튼 · 타일 · 시작 카드가 살짝 눌린다 */
+.btn{transition:transform .22s var(--ease),background-color .3s var(--ease),box-shadow .3s var(--ease)}
+.btn:active{transform:scale(.97)}
+.gear{transition:transform .22s var(--ease)}.gear:active{transform:scale(.92)}
+
+/* 시작 카드 위 상태 칩: 영어 대신 한글, 안내 중엔 점이 숨 쉬듯 깜빡 */
+:root .start .pill{letter-spacing:-.01em;font-weight:700;display:inline-flex;align-items:center;gap:6px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.start .pill::before{content:"";display:inline-block;flex:none;width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7}
+.running .start .pill::before{opacity:1;animation:breathe 1.6s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(.55);opacity:.45}}
+.start{box-shadow:0 1px 2px rgba(30,50,160,.12),0 12px 28px -10px rgba(43,91,255,.45)}
+.start::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 46%);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.caut .start{box-shadow:0 12px 28px -10px rgba(224,138,0,.5)}.warn .start{box-shadow:0 12px 28px -10px rgba(200,40,58,.55)}
+:root[data-hc="1"] .start::after{display:none}
+
+/* 타일 아이콘: 같은 굵기의 선 아이콘을 부드러운 원 위에 */
+.tile svg{width:64px;height:64px;padding:16px;border-radius:50%;background:var(--pale);color:var(--blue);transition:transform .25s var(--ease)}
+.tile:active svg{transform:scale(.92)}
+#sos{color:var(--ink)}#sos svg{background:#FFEDEE;color:#E5484D}
+@media (prefers-color-scheme:dark){:root:not([data-hc="1"]) #sos svg{background:rgba(229,72,77,.16)}}
+:root[data-hc="1"] .tile svg,:root[data-hc="1"] #sos svg{background:#000;color:#FFD400;border:2px solid #FFD400}
+
+/* 처음 설정 화면: 입력칸 · 선택 카드 */
+#setupView input[type=number]{border:1.5px solid var(--line);border-radius:18px;background:var(--pale);color:var(--ink);font-weight:700;outline:none;transition:border-color .2s,box-shadow .2s}
+#setupView input[type=number]:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(43,91,255,.14)}
+#pfMount label.btn{background:var(--card);border:1.5px solid var(--line);color:var(--ink);border-radius:18px;padding:0 18px;gap:12px;font-weight:650}
+#pfMount label.btn:has(input:checked){border-color:var(--blue);background:var(--pale);color:var(--blue);box-shadow:0 0 0 3px rgba(43,91,255,.12)}
+#pfMount input{accent-color:var(--blue);width:22px;height:22px;margin:0}
+
+/* 덮는 화면(처음 설정 · 보호자 연결 · 괜찮으세요?)이 툭 나타나지 않고 아래에서 떠오른다 */
+#setupView:not([hidden]),#pairView:not([hidden]),#askView:not([hidden]){animation:coverIn .42s var(--ease)}
+@keyframes coverIn{from{opacity:0;transform:translateY(18px)}}
+#askView{background:radial-gradient(120% 70% at 50% 0%,#3A1420 0%,#121218 60%) !important}
+#askView .btn{border-radius:22px}
+#pairQr svg{border-radius:18px;box-shadow:0 10px 30px rgba(16,26,58,.12)}
+
+/* 로딩 화면이 걷힌 뒤 화면 요소가 위에서부터 차례로 떠오른다 */
+.enter .say,.enter .ear,.enter .start,.enter .tiles,.enter .gsay,.enter .acts{animation:riseIn .7s var(--ease) both}
+.enter .ear{animation-delay:.06s}.enter .start{animation-delay:.12s}.enter .tiles{animation-delay:.18s}.enter .acts{animation-delay:.08s}
+@keyframes riseIn{from{opacity:0;transform:translateY(14px)}}
+@media (prefers-reduced-motion:reduce){.enter *{animation:none!important}#setupView,#pairView,#askView{animation:none!important}}
+/* 어두운 모드에서 남색 바탕 위 파란 작은 글씨가 잘 안 보이던 곳 */
+@media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .say small,:root:not([data-hc="1"]) .gsay small,:root:not([data-hc="1"]) .ear .again{color:#9DB8FF}
+  :root:not([data-hc="1"]) .caut .say small,:root:not([data-hc="1"]) .caut .ear .again{color:#7A4A00}:root:not([data-hc="1"]) .warn .say small,:root:not([data-hc="1"]) .warn .ear .again{color:#fff}}

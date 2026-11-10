@@ -1,4 +1,4 @@
-"""폰 센서 + 파이 카메라 경로 확인 (포트 없이, 가짜 인식 + hitbox).
+"""폰 센서 + 파이 카메라 경로 확인 (포트 없이, 가짜 인식 · 가짜 트리거).
 파이 역할: SEF1 프레임 전송 → frame_done 수신. 폰 역할: sensors 묶음 전송 → CSV 저장 · 접속 키."""
 import json
 import os
@@ -21,7 +21,7 @@ from server import build_app  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 from fakes import FakePerception  # noqa: E402
-cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 app = build_app(cfg, None, "111111", alerts_dir=tmp / "alerts", session_dir=tmp / "s", key="abc")

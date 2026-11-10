@@ -56,6 +56,7 @@ window.SayEyeSensors = (() => {
     if (!sendFn(m)) { metaSent = metaSent && !m.meta; for (const k of ['motion', 'orient', 'gps']) B[k] = m[k].concat(B[k]).slice(-MAX); }
   }
   function badge() {
+    if (!/dev/.test(location.pathname) && !/[?&]debug/.test(location.search)) return;   // 센서 상태 줄은 개발 화면에서만
     let el = document.getElementById('sensLine');
     if (!el) {
       el = document.createElement('div'); el.id = 'sensLine'; el.setAttribute('aria-hidden', 'true');

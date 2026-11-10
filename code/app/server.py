@@ -11,31 +11,151 @@ from __future__ import annotations
 import argparse
 import asyncio
 import datetime
+import io
 import ipaddress
+import hashlib
 import hmac
 import json
+import os
 import socket
 import sys
+import secrets
 import time
 from pathlib import Path
 
 import cv2
+import segno
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 APP = Path(__file__).resolve().parent
+DATA = Path(os.environ.get("DATA_DIR") or APP)   # 확인번호 · 보호자 연결 · 푸시 키 · 알림 기록. Cloud Run 에선 버킷을 붙여 재시작해도 남게
 sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
+from app_tts import AppTTS  # noqa: E402
 from push import Push  # noqa: E402
 from sensors import SensorLog  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 from sources import SourceManager  # noqa: E402
 
 
-GUARDIAN_TYPES = {"alert", "status", "loc", "camera"}   # 보호자 화면은 알림 · 상태 · 위치만 받는다 (박스 · 음성 문장은 안 받음)
+MOUNT_RATIO = {"eye": 0.93, "neck": 0.82, "chest": 0.72, "waist": 0.60, "hand": 0.70}   # 키 대비 카메라 높이
+MOUNT_KO = {"eye": "눈높이", "neck": "목걸이", "chest": "가슴", "waist": "허리", "hand": "손에 들고"}
+CHILD_AGE = 13
+
+
+class Profile:
+    """보행자 처음 설정: 만 나이 · 키 · 카메라 위치 → 카메라 높이(트리거) 와 만 13세 미만 보호(보호자가 항상 봄).
+    나이는 설정한 날부터 1년마다 저절로 한 살씩 올린다. 13세 미만에서 13세 이상으로 바꾸는 건 보호자 화면에서만."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        try:
+            self.d = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            self.d = {}
+
+    def age(self) -> int | None:
+        if self.d.get("age") is None:
+            return None
+        return int(self.d["age"]) + int((time.time() - self.d.get("age_ts", time.time())) // (365.25 * 86400))
+
+    def child(self) -> bool:
+        a = self.age()
+        return a is not None and a < CHILD_AGE
+
+    def cam_h(self) -> float | None:
+        h, m = self.d.get("height_cm"), self.d.get("mount")
+        if not h or m not in MOUNT_RATIO:
+            return None
+        return round(float(h) / 100 * MOUNT_RATIO[m], 2)
+
+    def update(self, m: dict, by_guardian: bool = False) -> str | None:
+        """바꾸면 None, 거절하면 이유."""
+        new = dict(self.d)
+        if m.get("age") is not None:
+            try:
+                age = int(m["age"])
+            except (TypeError, ValueError):
+                return "나이를 숫자로 넣어 주세요"
+            if not 3 <= age <= 120:
+                return "나이를 확인해 주세요"
+            if self.child() and age >= CHILD_AGE and not by_guardian:
+                return "만 13세 미만 보호는 보호자 화면에서만 풀 수 있어요"
+            new.update(age=age, age_ts=time.time())
+        if not by_guardian:
+            if m.get("height_cm") is not None:
+                try:
+                    h = float(m["height_cm"])
+                except (TypeError, ValueError):
+                    return "키를 숫자로 넣어 주세요"
+                if not 80 <= h <= 230:
+                    return "키를 확인해 주세요"
+                new["height_cm"] = round(h)
+            if m.get("mount") is not None:
+                if m["mount"] not in MOUNT_RATIO:
+                    return "카메라 위치를 골라 주세요"
+                new["mount"] = m["mount"]
+        self.d = new
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.d, ensure_ascii=False), encoding="utf-8")
+        return None
+
+    def public(self) -> dict:
+        return {"type": "profile", "age": self.age(), "height_cm": self.d.get("height_cm"), "mount": self.d.get("mount"),
+                "mount_ko": MOUNT_KO.get(self.d.get("mount")), "cam_h": self.cam_h(), "child": self.child(),
+                "set": self.age() is not None and self.cam_h() is not None}
+
+
+class Pairing:
+    """보호자 연결: 보행자 앱이 1회용 링크(10분)를 만들어 카톡 등으로 보내면, 보호자 기기가 그 링크로 오래 쓰는 토큰을 받는다.
+    시각장애인이 번호를 읽어 줄 필요가 없고, 한 번 연결한 보호자 기기는 계속 연결된다. 서버엔 토큰의 해시만 둔다."""
+    TTL = 600
+
+    def __init__(self, path: Path):
+        self.path, self.codes = path, {}
+        try:
+            self.tokens = set(json.loads(path.read_text()).get("tokens", []))
+        except Exception:
+            self.tokens = set()
+
+    @staticmethod
+    def _h(t: str) -> str:
+        return hashlib.sha256(t.encode()).hexdigest()
+
+    def _save(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps({"tokens": sorted(self.tokens)}))
+
+    def new_code(self) -> str:
+        now = time.time()
+        self.codes = {c: e for c, e in self.codes.items() if e > now}
+        code = secrets.token_urlsafe(12)
+        self.codes[code] = now + self.TTL
+        return code
+
+    def redeem(self, code: str) -> str | None:
+        exp = self.codes.pop(code, None)          # 한 번 쓰면 사라진다
+        if not exp or exp < time.time():
+            return None
+        tok = secrets.token_urlsafe(24)
+        self.tokens.add(self._h(tok))
+        self._save()
+        return tok
+
+    def ok(self, tok: str) -> bool:
+        return bool(tok) and self._h(tok) in self.tokens
+
+    def clear(self):
+        self.tokens.clear()
+        self.codes.clear()
+        self._save()
+
+
+GUARDIAN_TYPES = {"alert", "status", "loc", "camera", "share", "share_denied", "g_msg_ok", "profile"}   # 보호자 화면은 알림 · 상태 · 위치만 받는다 (박스 · 음성 문장은 안 받음)
 
 
 class Hub:
@@ -90,8 +210,8 @@ def ensure_cert(ips: list[str]) -> tuple[str, str]:
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
 
-    d = APP / "certs"
-    d.mkdir(exist_ok=True)
+    d = DATA / "certs"
+    d.mkdir(parents=True, exist_ok=True)
     crt, key, meta = d / "insight.crt", d / "insight.key", d / "insight.json"
     want = sorted(set(ips) | {"127.0.0.1"})
     if crt.exists() and key.exists() and meta.exists() and json.loads(meta.read_text()) == want:
@@ -115,8 +235,8 @@ def load_pin(arg: str | None) -> str:
     """보호자 확인번호. 지정하지 않으면 한 번 만들어 certs/guardian_pin.txt 에 두고 계속 쓴다."""
     if arg:
         return str(arg)
-    f = APP / "certs" / "guardian_pin.txt"
-    f.parent.mkdir(exist_ok=True)
+    f = DATA / "certs" / "guardian_pin.txt"
+    f.parent.mkdir(parents=True, exist_ok=True)
     if f.exists() and f.read_text().strip():
         return f.read_text().strip()
     import secrets
@@ -129,7 +249,19 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
               session_dir: Path | None = None, key: str | None = None):
     hub = Hub()
     app = FastAPI(title="SayEye")
-    state = {"cams": 0}
+    state = {"cams": 0, "gws": set()}
+    pairing = Pairing(DATA / "certs" / "guardians.json")
+    profile = Profile(DATA / "certs" / "profile.json")
+    tts = AppTTS(DATA / "tts_cache")
+
+    def apply_profile():
+        h = profile.cam_h()
+        trig = getattr(state.get("pipe"), "trigger", None)
+        if h and hasattr(trig, "set_cam_h"):
+            trig.set_cam_h(h)
+        if "alerts" in state:
+            state["alerts"].set_always(profile.child())
+        hub.broadcast(profile.public())
     sensors = SensorLog(session_dir or (APP / "sessions"))
 
     def key_ok(q, cookies):
@@ -146,14 +278,22 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         return resp
 
     def check_pin(given: str | None):
-        if not given or not hmac.compare_digest(str(given), str(pin)):
+        if not guardian_ok(given):
             raise HTTPException(401, "확인번호가 달라요")
+
+    def need_share():
+        if not state["alerts"].sharing():
+            raise HTTPException(403, "보행자가 공유를 허락해야 볼 수 있어요")
+
+    def guardian_ok(given: str | None) -> bool:
+        """보호자 인증: 연결 링크로 받은 토큰, 또는 보조로 남긴 6자리 확인번호."""
+        return bool(given) and (hmac.compare_digest(str(given), str(pin)) or pairing.ok(str(given)))
 
     @app.on_event("startup")
     async def _start():
         hub.loop = asyncio.get_running_loop()
-        alerts = AlertCenter(alerts_dir or (APP / "alerts"), hub.broadcast)
-        push = Push(APP / "certs", alerts.dir)
+        alerts = AlertCenter(alerts_dir or (DATA / "alerts"), hub.broadcast)
+        push = Push(DATA / "certs", alerts.dir)
         alerts.on_new = push.on_alert
 
         def emit(msg):
@@ -167,6 +307,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         pipe.on_frame = alerts.clips.push
         src = SourceManager(pipe, hub.broadcast)
         state.update(pipe=pipe, src=src, alerts=alerts, push=push)
+        apply_profile()          # 저장된 처음 설정: 카메라 높이 · 만 13세 미만 보호
         if source:
             src.use_url(source)
 
@@ -200,15 +341,21 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
 
     @app.get("/api/live.mjpg")
     async def live(pin: str | None = None):
-        """보호자 실시간 영상 (인식 박스 포함, 약 7 fps). 보는 동안만 서버가 미리보기를 만든다."""
+        """보호자 실시간 영상 (인식 박스 포함, 약 7 fps). 보는 동안만 서버가 미리보기를 만든다.
+        보행자가 공유 중일 때만 열리고(SOS 30분 / 허락 10분), 보는 동안 보행자 앱이 '보호자가 보고 있어요'라고 알린다."""
         check_pin(pin)
+        need_share()
         pipe = state["pipe"]
 
         async def gen():
             pipe.live_viewers += 1
+            if pipe.live_viewers == 1:
+                hub.broadcast({"type": "viewing", "on": True})
             last = None
             try:
                 while True:
+                    if not guardian_ok(pin) or not state["alerts"].sharing():   # 연결을 끊거나 공유가 끝나면 끊는다
+                        break
                     jpg = pipe.preview_jpeg
                     if jpg is not None and jpg is not last:
                         last = jpg
@@ -217,13 +364,30 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     await asyncio.sleep(0.14)
             finally:
                 pipe.live_viewers = max(0, pipe.live_viewers - 1)
+                if pipe.live_viewers == 0:
+                    hub.broadcast({"type": "viewing", "on": False})
         return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})
 
     @app.get("/api/location")
     async def api_location(pin: str | None = None):
         check_pin(pin)
-        return {"loc": state["alerts"].loc}
+        al = state["alerts"]
+        return {"loc": al.loc if al.sharing() else None, "share": al.share_state()}
+
+    @app.post("/api/share/request")
+    async def share_request(pin: str | None = None):
+        """보호자가 '위치 · 영상 보기'를 누르면 보행자 폰이 음성으로 허락을 묻는다."""
+        check_pin(pin)
+        al = state["alerts"]
+        if al.sharing():
+            return {"ok": True, "share": al.share_state()}
+        now = time.time()
+        if now - state.get("ask_ts", 0) < 30:
+            return {"ok": True, "asked": True}
+        state["ask_ts"] = now
+        hub.broadcast({"type": "share_req"})
+        return {"ok": True, "asked": True}
 
     @app.get("/api/push/key")
     async def push_key():
@@ -268,9 +432,27 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             raise HTTPException(404)
         return FileResponse(p, media_type="video/mp4", headers={"Cache-Control": "private, max-age=86400"})
 
+    @app.get("/api/tts")
+    async def api_tts(t: str):
+        """앱이 말할 문장 → 자연스러운 음성(MP3). 같은 문장은 저장해 두었다가 바로 준다. 실패하면 앱이 폰 기본 음성으로 말한다."""
+        p = await tts.get(t)
+        if p is None:
+            raise HTTPException(503, "음성을 만들 수 없어요")
+        return FileResponse(p, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    @app.post("/api/pair")
+    async def api_pair(code: str):
+        """보호자가 연결 링크를 열면 1회용 코드를 오래 쓰는 토큰으로 바꿔 준다."""
+        tok = pairing.redeem(code)
+        if not tok:
+            raise HTTPException(410, "연결 링크가 만료됐거나 이미 쓰였어요")
+        hub.broadcast({"type": "paired", "count": len(pairing.tokens)})   # 보행자 앱이 "보호자가 연결됐어요" 라고 말한다
+        return {"token": tok}
+
     @app.get("/api/latest.jpg")
     async def api_latest(pin: str | None = None):
         check_pin(pin)
+        need_share()
         im = state["pipe"].last_frame
         if im is None:
             raise HTTPException(404, "아직 영상이 없어요")
@@ -287,10 +469,12 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
-        if role in ("guardian", "camera") and not (ws.query_params.get("pin") and hmac.compare_digest(ws.query_params["pin"], str(pin))):
+        if role in ("guardian", "camera") and not guardian_ok(ws.query_params.get("pin")):
             await ws.send_text(json.dumps({"type": "auth_error"}))
             await ws.close(code=4401)
             return
+        if role == "guardian":
+            state["gws"].add(ws)
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         hub.clients[q] = role
         p, s = state["pipe"], state["src"]
@@ -301,7 +485,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         await ws.send_text(json.dumps({"type": "hello", "source": s.mode, "url": s.url, "default_url": source,
                                        "vlm": p.vlm_name, "scene": p.scene_name, "pi": state["cams"],
                                        "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?"),
-                                       "weights": Path(str(p.cfg.weights)).name},
+                                       "weights": Path(str(p.cfg.weights)).name,
+                                       # 보호자 확인번호는 보행자 화면에만 보낸다 (앱 열 때마다 화면에 띄움)
+                                       **({"pin": str(pin), "paired": len(pairing.tokens)} if role == "pedestrian" else {}),
+                                       "share": state["alerts"].share_state(), "profile": profile.public()},
                                       ensure_ascii=False))
 
         async def sender():
@@ -341,7 +528,47 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     elif cmd.get("type") == "sos" and role != "guardian":
                         state["alerts"].on_sos(p.last_frame)
                     elif cmd.get("type") == "client_event" and role != "guardian":
-                        state["alerts"].on_client_event(cmd)
+                        state["alerts"].on_client_event(cmd, p.last_frame)
+                    elif cmd.get("type") == "profile" and role in ("pedestrian", "guardian"):
+                        why = profile.update(cmd, by_guardian=(role == "guardian"))
+                        if why:
+                            await ws.send_text(json.dumps({"type": "profile_denied", "why": why}, ensure_ascii=False))
+                        else:
+                            apply_profile()
+                            if role == "guardian":
+                                await ws.send_text(json.dumps(profile.public(), ensure_ascii=False))
+                    elif cmd.get("type") == "share_allow" and role == "pedestrian":
+                        from alerts import SHARE_ASK_S
+                        state["alerts"].share(SHARE_ASK_S, "allowed")
+                    elif cmd.get("type") == "share_deny" and role == "pedestrian":
+                        hub.broadcast({"type": "share_denied"})
+                    elif cmd.get("type") == "share_stop" and role == "pedestrian":
+                        state["alerts"].share_stop()
+                    elif cmd.get("type") == "g_msg" and role == "guardian":
+                        text = " ".join(str(cmd.get("text") or "").split())[:120]   # 보호자 → 보행자 음성 메시지
+                        now = time.time()
+                        if text and now - state.get("gmsg_ts", 0) >= 3:
+                            state["gmsg_ts"] = now
+                            hub.broadcast({"type": "g_msg", "text": text})
+                            await ws.send_text(json.dumps({"type": "g_msg_ok"}))
+                    elif cmd.get("type") == "pair_new" and role == "pedestrian":
+                        # 보행자 화면에 QR 로 띄워 보호자가 자기 폰 카메라로 찍게 한다 (멀리 있으면 같은 링크를 공유)
+                        proto = ws.headers.get("x-forwarded-proto") or ("https" if ws.url.scheme == "wss" else "http")
+                        url = f"{proto}://{ws.headers.get('host')}/guardian?pair={pairing.new_code()}" + (f"&k={key}" if key else "")
+                        buf = io.BytesIO()
+                        segno.make(url, error="m").save(buf, kind="svg", scale=8, border=3, dark="#000", light="#fff")
+                        await ws.send_text(json.dumps({"type": "pair_link", "url": url, "ttl": Pairing.TTL,
+                                                       "qr": buf.getvalue().decode()}))
+                    elif cmd.get("type") == "unpair_all" and role == "pedestrian":
+                        pairing.clear()
+                        for g in list(state["gws"]):
+                            try:
+                                await g.send_text(json.dumps({"type": "auth_error", "reason": "unpaired"}))
+                                await g.close(code=4401)
+                            except Exception:
+                                pass
+                        state["gws"].clear()
+                        await ws.send_text(json.dumps({"type": "unpaired"}))
                     elif cmd.get("type") == "gps" and role == "pedestrian":
                         state["alerts"].on_location(cmd)
         except Exception:
@@ -349,6 +576,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         finally:
             task.cancel()
             hub.clients.pop(q, None)
+            state["gws"].discard(ws)
             if role == "camera":
                 state["cams"] = max(0, state["cams"] - 1)
                 hub.broadcast({"type": "camera", "connected": state["cams"]})
@@ -381,25 +609,27 @@ def vlm_alive(url: str) -> bool:
 def main():
     ap = argparse.ArgumentParser(description="SayEye 서버")
     ap.add_argument("--host", default="0.0.0.0")
-    ap.add_argument("--port", type=int, default=None, help="기본: --https면 8443, 아니면 8080")
+    ap.add_argument("--port", type=int, default=int(os.environ["PORT"]) if os.environ.get("PORT") else None, help="기본: --https면 8443, 아니면 8080")
     ap.add_argument("--https", action="store_true", help="자체 서명 HTTPS (터널 없이 같은 와이파이에서 폰 카메라를 쓸 때)")
     ap.add_argument("--weights", default="auto", help="auto(weights/ 폴더에서 찾기) 또는 .pt 경로")
-    ap.add_argument("--device", default="cpu", help="cpu 또는 GPU 번호(0)")
-    ap.add_argument("--trigger", default="hitbox", help="hitbox(v5_29) | b0")
-    ap.add_argument("--conf", type=float, default=None, help="YOLO 신뢰도 (기본 hitbox 0.2)")
-    ap.add_argument("--cam-h", type=float, default=None, help="카메라 높이(m). 폰을 가슴 앞에 들면 1.3~1.5, 기본 1.70")
+    ap.add_argument("--device", default=os.environ.get("DEVICE", "cpu"), help="cpu 또는 GPU 번호(0)")
+    ap.add_argument("--trigger", default="nav", help="nav(임태규 v12.1, 기본) | b0")
+    ap.add_argument("--conf", type=float, default=None, help="YOLO 신뢰도 (b0 만. nav 는 자체 기준)")
+    ap.add_argument("--imgsz", type=int, default=None, choices=[640, 960, 1280], help="nav YOLO 입력 크기 (기본 CPU 640 · GPU 960)")
+    ap.add_argument("--no-crop", action="store_true", help="nav 의 잘라 보기(추가 추론)를 끈다 — 느린 CPU 에서")
+    ap.add_argument("--no-face-blur", action="store_true", help="보호자 영상 · 저장 사진의 얼굴 가리기를 끈다")
+    ap.add_argument("--cam-h", type=float, default=None, help="(b0 · 예전 hitbox 용, nav 는 쓰지 않음)")
     ap.add_argument("--vlm", default="server", choices=["server", "none"], help="server: vLLM(Qwen2.5-VL) 설명 · 특별 상황")
     ap.add_argument("--vlm-url", default="http://localhost:8000/v1", help="SJ 브랜치 code/p0/serve_vllm.py 가 띄운 주소")
     ap.add_argument("--vlm-model", default="qwen2_5-vl-7b")
     ap.add_argument("--scene-interval", type=float, default=5.0, help="특별 상황을 묻는 최소 간격(초)")
     ap.add_argument("--max-fps", type=float, default=15.0)
-    ap.add_argument("--guardian-pin", default=None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
+    ap.add_argument("--guardian-pin", default=os.environ.get("GUARDIAN_PIN") or None, help="보호자 확인번호 (기본: 처음 한 번 만들어 certs/guardian_pin.txt 에 저장)")
     ap.add_argument("--session-dir", default=None, help="센서 기록 폴더 (기본 code/app/sessions)")
-    ap.add_argument("--key", default=None, help="접속 키. 공개 터널로 열 때 꼭 지정 (https://주소/?k=키)")
+    ap.add_argument("--key", default=os.environ.get("SAYEYE_KEY") or None, help="접속 키. 공개 터널로 열 때 꼭 지정 (https://주소/?k=키)")
     a = ap.parse_args()
     if a.cam_h:
-        import os
-        os.environ["CAM_H"] = str(a.cam_h)         # hitbox_core 가 import 될 때 읽는다
+        os.environ["CAM_H"] = str(a.cam_h)
 
     from pipeline import find_weights
     w = find_weights(a.weights)
@@ -413,7 +643,10 @@ def main():
         print(f"[알림] VLM 서버({a.vlm_url})가 응답하지 않아요 → 상황 설명 · 특별 상황 없이 경고만 냅니다.\n"
               "       GPU 서버에서 SJ 브랜치의 code/p0/serve_vllm.py 를 먼저 띄우면 켜져요.")
         vlm, scene = "none", "none"
+    if a.no_face_blur:
+        os.environ["FACE_BLUR"] = "0"
     cfg = Config(perception="yolo", weights=str(w), device=a.device, conf=a.conf, trigger=a.trigger, vlm=vlm,
+                 nav_imgsz=a.imgsz, nav_crop=not a.no_crop,
                  vlm_url=a.vlm_url, vlm_model=a.vlm_model, scene=scene, scene_url=a.vlm_url,
                  scene_interval=a.scene_interval, max_fps=a.max_fps)
     port = a.port or (8443 if a.https else 8080)

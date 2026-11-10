@@ -12,7 +12,7 @@ import json
 import threading
 from pathlib import Path
 
-LV = {"urgent": "긴급", "caution": "주의", "info": "안내", "sos": "호출", "offline": "끊김", "online": "연결", "battery": "배터리"}
+LV = {"urgent": "긴급", "caution": "주의", "info": "안내", "sos": "호출", "offline": "끊김", "online": "출발", "battery": "배터리", "notice": "소식"}
 STRONG = {"urgent", "sos", "offline"}
 
 
@@ -70,8 +70,8 @@ class Push:
 
     @staticmethod
     def wanted(level: str, sens: str) -> bool:
-        if level == "online":
-            return False
+        if level in ("online", "notice"):        # 보행 시작 · 안부 알림은 '긴급만'이 아니면 보낸다
+            return sens != "urgent"
         if sens == "urgent":
             return level in STRONG
         if sens == "caution":

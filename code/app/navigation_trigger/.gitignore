@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+events.jsonl
+events.run.json
+tts_cache/
+tts_manifest.json

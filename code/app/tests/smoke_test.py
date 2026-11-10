@@ -46,6 +46,7 @@ async def run(seconds: float, img: Path):
         print("hello:", {k: hello.get(k) for k in ("perception", "trigger", "weights", "vlm", "pi")})
         await cam.recv(); await gd.recv()
         await ped.send(json.dumps({"type": "set_source", "mode": "pi"}))
+        await ped.send(json.dumps({"type": "share_allow"}))      # 보행자가 공유를 허락한 상황 (평소엔 위치 · 영상이 막혀 있음)
         await ped.send(json.dumps({"type": "gps", "lat": 37.4502, "lon": 126.6535, "acc": 8}))
         gen = frames(img)
         t0 = time.time()

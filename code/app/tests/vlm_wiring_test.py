@@ -51,7 +51,7 @@ time.sleep(2)
 url = f"http://127.0.0.1:{PORT}/v1"
 assert vlm_alive(url) and not vlm_alive("http://127.0.0.1:1/v1")
 
-cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="server", vlm_url=url, scene="openai", scene_url=url,
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="server", vlm_url=url, scene="openai", scene_url=url,
              scene_interval=1.0, max_fps=30.0, vlm_min_prio=1)   # 가짜 장면은 '다가와요'(긴급도 1)만 나와서 1로 낮춤
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)

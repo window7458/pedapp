@@ -1,0 +1,2 @@
+# Microsoft Edge speech synthesis. No ffmpeg dependency for MP3 output.
+edge-tts==7.3.1

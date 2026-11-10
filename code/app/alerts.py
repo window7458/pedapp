@@ -5,7 +5,9 @@
           · offline/online(영상 끊김/다시 옴) · battery(보행자 폰 배터리 부족)
   · 묶기: 같은 종류가 12초 안에 또 오면 새 알림이 아니라 '×N'으로 합친다 (펫캠이 움직임을 한 건으로 묶는 것처럼)
   · 장애물 경고는 alerts/evidence/<id>.jpg(박스 없는 원본) + <id>.json(그 프레임의 모델 검출 전체)도 남긴다 — 사람을 장애물로 말하는 원인 확인용.
-  · 저장: alerts/log.jsonl + alerts/snap/<id>.jpg (최근 500건). 사진에는 보행자 주변이 찍히니 이 폴더를 공유하지 말 것.
+  · 저장: alerts/log.jsonl + alerts/snap/<id>.jpg. 30일이 지나면 지운다 (교통사고 처리처럼 한 달은 남겨 둠).
+  · 사생활: 위치 · 실시간 영상은 '공유 중'일 때만 보호자에게 간다. 공유는 SOS(넘어짐 포함) 때 30분 자동,
+    보호자가 요청하고 보행자가 허락하면 10분. 평소엔 알림만, 위치는 긴급 · 호출 알림에 그 순간 한 점만 붙는다.
 """
 from __future__ import annotations
 
@@ -21,7 +23,10 @@ import cv2
 
 MERGE_S = 12.0           # 같은 종류가 이 안에 또 오면 한 건으로 묶음
 OFFLINE_S = 6.0          # 영상이 이만큼 안 오면 '끊김'
-KEEP = 500
+KEEP = 5000                 # 안전 상한
+RETAIN_S = 30 * 86400       # 30일 보관
+SHARE_SOS_S, SHARE_ASK_S = 30 * 60, 10 * 60
+LOC_LEVELS = {"urgent", "sos"}   # 공유 중이 아니어도 위치 한 점을 붙이는 단계
 SNAP_SIDE = 480
 
 LEVEL_SNAP = {"urgent", "caution", "sos"}          # 사진을 남기는 단계
@@ -131,6 +136,9 @@ class AlertCenter:
         self.low_battery_said = 100
         self.clips = ClipRecorder(self.dir / "clips", self._clip_done, log)
         self.loc: dict | None = None             # 보행자 폰이 보낸 최근 위치 {lat, lon, acc, ts}
+        self.share_until, self.share_reason = 0.0, ""
+        self.always_share = False                # 만 13세 미만: 보호자가 항상 위치 · 영상을 본다
+        self._pruned = time.time()
         self.on_new = None                       # (alert, merged) — 푸시 알림이 붙는다
         self._load()
 
@@ -144,7 +152,8 @@ class AlertCenter:
                     self.items[a["id"]] = a
                 except Exception:
                     pass
-        ids = sorted(self.items)[-KEEP:]
+        old = time.time() - RETAIN_S
+        ids = [i for i in sorted(self.items) if self.items[i].get("last_ts", self.items[i].get("ts", 0)) >= old][-KEEP:]
         self.items = {i: self.items[i] for i in ids}
         self.next_id = (ids[-1] + 1) if ids else 1
         keep = set(ids)
@@ -160,6 +169,54 @@ class AlertCenter:
         for a in self.items.values():
             a["clip"] = (self.dir / "clips" / f"{a['id']}.mp4").exists()
         f.write_text("".join(json.dumps(self.items[i], ensure_ascii=False) + "\n" for i in ids), encoding="utf-8")
+
+    def _prune_old(self):
+        """한 시간에 한 번: 30일 지난 알림과 사진 · 영상 · 원본을 지운다."""
+        now = time.time()
+        if now - self._pruned < 3600:
+            return
+        self._pruned = now
+        with self.lock:
+            old = [i for i, a in self.items.items() if a.get("last_ts", a.get("ts", 0)) < now - RETAIN_S]
+            if not old:
+                return
+            for i in old:
+                self.items.pop(i, None)
+                self._drop_files(i)
+            (self.dir / "log.jsonl").write_text("".join(json.dumps(self.items[i], ensure_ascii=False) + "\n"
+                                                        for i in sorted(self.items)), encoding="utf-8")
+
+    def _drop_files(self, i: int):
+        (self.snap_dir / f"{i}.jpg").unlink(missing_ok=True)
+        self.clips.path(i).unlink(missing_ok=True)
+        (self.evidence_dir / f"{i}.jpg").unlink(missing_ok=True)
+        (self.evidence_dir / f"{i}.json").unlink(missing_ok=True)
+
+    # ── 위치 · 영상 공유 ───────────────────────────────
+    def sharing(self) -> bool:
+        return self.always_share or time.time() < self.share_until
+
+    def share_state(self) -> dict:
+        if self.always_share:
+            return {"type": "share", "on": True, "until": 0, "reason": "child"}
+        on = self.sharing()
+        return {"type": "share", "on": on, "until": self.share_until if on else 0, "reason": self.share_reason if on else ""}
+
+    def set_always(self, on: bool):
+        if bool(on) != self.always_share:
+            self.always_share = bool(on)
+            self.broadcast(self.share_state())
+
+    def share(self, seconds: float, reason: str):
+        self.share_until = max(self.share_until, time.time() + seconds)
+        self.share_reason = reason
+        self.broadcast(self.share_state())
+        if self.loc:
+            self.broadcast({"type": "loc", **self.loc})
+
+    def share_stop(self):
+        self.share_until, self.share_reason = 0.0, ""       # 만 13세 미만이면 always_share 가 남아 계속 공유
+        self.broadcast(self.share_state())
 
     def _append(self, a: dict):
         with open(self.dir / "log.jsonl", "a", encoding="utf-8") as fh:
@@ -189,7 +246,7 @@ class AlertCenter:
                          if a.get("key") == key and now - a["last_ts"] <= MERGE_S), None)
             if last is not None:                                  # 같은 종류가 이어짐 → 한 건으로 묶음
                 last.update(count=last["count"] + 1, last_ts=now, text=text)
-                if self.loc:
+                if self.loc and (level in LOC_LEVELS or self.sharing()):
                     last["loc"] = self.loc
                 self.clips.extend(last["id"])
                 a, merged = last, True
@@ -198,7 +255,7 @@ class AlertCenter:
                 self.next_id += 1
                 a = dict(id=aid, ts=now, last_ts=now, level=level, text=text, cls=cls, count=1, key=key,
                          snap=(level in LEVEL_SNAP and self._snapshot(aid, image, box, W)))
-                if self.loc and now - self.loc.get("ts", 0) < 120:          # 2분 안의 위치만 붙인다
+                if self.loc and now - self.loc.get("ts", 0) < 120 and (level in LOC_LEVELS or self.sharing()):   # 2분 안의 위치만
                     a["loc"] = self.loc
                 self.items[aid] = a
                 merged = False
@@ -206,13 +263,11 @@ class AlertCenter:
                     self.clips.trigger(aid)
                 for old in sorted(self.items)[:-KEEP]:
                     self.items.pop(old, None)
-                    (self.snap_dir / f"{old}.jpg").unlink(missing_ok=True)
-                    self.clips.path(old).unlink(missing_ok=True)
-                    (self.evidence_dir / f"{old}.jpg").unlink(missing_ok=True)
-                    (self.evidence_dir / f"{old}.json").unlink(missing_ok=True)
+                    self._drop_files(old)
             self._append(a)
         out = {k: v for k, v in a.items() if k != "key"}
         self.broadcast({"type": "alert", "merged": merged, **out})
+        self._prune_old()
         if self.on_new is not None:
             try:
                 self.on_new(out, merged)
@@ -260,13 +315,21 @@ class AlertCenter:
         except (KeyError, TypeError, ValueError):
             return
         self.loc = dict(lat=round(lat, 6), lon=round(lon, 6), acc=round(float(m.get("acc") or 0), 1), ts=time.time())
-        self.broadcast({"type": "loc", **self.loc})
+        if self.sharing():                       # 평소엔 서버만 알고 있고, 공유 중일 때만 보호자에게
+            self.broadcast({"type": "loc", **self.loc})
 
-    def on_sos(self, image):
-        self.add("sos", "보행자가 도움을 요청했어요.", "sos", image, merge_key=("sos",))
+    def on_sos(self, image, text: str = "보행자가 도움을 요청했어요.", cls: str = "sos"):
+        self.share(SHARE_SOS_S, "sos")           # 먼저 공유를 켜야 알림에 위치가 붙는다
+        self.add("sos", text + " 30분 동안 위치와 영상을 볼 수 있어요.", cls, image, merge_key=("sos",))
 
-    def on_client_event(self, ev: dict):
-        if ev.get("kind") == "battery":
+    def on_client_event(self, ev: dict, image=None):
+        if ev.get("kind") == "ping":             # "알림 보내줘": 위치 없이 안부만
+            self.add("notice", "보행자가 알림을 보냈어요. 잘 가고 있어요.", "ping", merge_key=("ping", int(time.time() // 60)))
+        elif ev.get("kind") == "fall":           # 넘어짐 감지 후 30초 동안 대답이 없음 → SOS 와 같게
+            self.on_sos(image, "보행자가 넘어진 것 같아요. 30초 동안 대답이 없었어요.", "fall")
+        elif ev.get("kind") == "fall_ok":
+            self.add("notice", "넘어짐이 감지됐지만 보행자가 괜찮다고 답했어요.", "fall_ok")
+        elif ev.get("kind") == "battery":
             pct = int(ev.get("pct", 0))
             if pct < self.low_battery_said:
                 self.low_battery_said = pct
@@ -282,7 +345,7 @@ class AlertCenter:
                 if self.offline_said:
                     self.add("online", "영상이 다시 들어와요.", "online", merge_key=("online", now))
                 else:
-                    self.add("online", "보행 안내를 시작했어요.", "online", merge_key=("online", now))
+                    self.add("online", "보행자가 보행을 시작했어요.", "online", merge_key=("online", now))
                 self.offline_said = False
         else:
             if self.zero_since is None:

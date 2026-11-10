@@ -1,0 +1,1 @@
+*.pt -filter -diff -merge -text

@@ -16,7 +16,7 @@ assert A.classify({"prio": 1, "level": "danger", "motion": "approaching"}) == "u
 assert A.classify({"prio": 2}) == "caution" and A.classify({"prio": 1, "level": "danger", "motion": "static"}) == "caution"
 assert A.classify({"prio": 1, "level": "warn"}) == "info"
 
-cfg = Config(perception=FakePerception(), trigger="hitbox", vlm="none", scene="none", max_fps=30.0)
+cfg = Config(perception=FakePerception(), trigger="fakes:FakeTrigger", vlm="none", scene="none", max_fps=30.0)
 rng = np.random.default_rng(2)
 base = cv2.GaussianBlur(rng.integers(0, 255, (640, 360, 3), dtype=np.uint8), (0, 0), 3)
 def frame(i):

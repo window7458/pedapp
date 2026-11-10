@@ -1,0 +1,8 @@
+# GPU 이미지 빌드 (CUDA 판 PyTorch). deploy_gpu.ps1 이 부른다. 이미지가 커서(약 3GB) 빌드 시간을 넉넉히.
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: [build, --build-arg, TORCH_INDEX=https://download.pytorch.org/whl/cu124, -t, $_IMAGE, .]
+images: [$_IMAGE]
+timeout: 2700s
+options:
+  machineType: E2_HIGHCPU_8
