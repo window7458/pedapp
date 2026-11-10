@@ -5,3 +5,4 @@ code/app/weights/*.pt
 # SJ(박상준) 비공개 코드 — 공개 저장소에 올리지 않음. 팀 저장소 final 브랜치에 있음. 배포는 이 PC 폴더에서 빌드
 scene_server/voice_demo/
 scene_server/scene_describe/
+code/app/tts_cache/
