@@ -1,0 +1,13 @@
+# Qwen3.5-9B 모델 파일을 저장 버킷에 한 번만 넣는다 (deploy_scene.ps1 이 부른다. 없을 때만).
+# Cloud Build 기계의 디스크(100 GB)에 받은 뒤 버킷으로 복사 → 풍경 서버는 버킷을 붙여 읽기만 한다.
+steps:
+- name: python:3.11
+  entrypoint: bash
+  args: ['-c', 'pip install -q huggingface_hub hf_transfer && HF_HUB_ENABLE_HF_TRANSFER=1 python -c "from huggingface_hub import snapshot_download; snapshot_download(\"Qwen/Qwen3.5-9B\", local_dir=\"/workspace/m\")" && ls -la /workspace/m && du -sh /workspace/m']
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+  entrypoint: bash
+  args: ['-c', 'gcloud storage cp -r /workspace/m/* gs://${_BUCKET}/models/Qwen3.5-9B/ && gcloud storage ls gs://${_BUCKET}/models/Qwen3.5-9B/']
+timeout: 3600s
+options:
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 100
