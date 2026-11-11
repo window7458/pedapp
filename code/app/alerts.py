@@ -323,7 +323,10 @@ class AlertCenter:
         self.add("sos", text + " 30분 동안 위치와 영상을 볼 수 있어요.", cls, image, merge_key=("sos",))
 
     def on_client_event(self, ev: dict, image=None):
-        if ev.get("kind") == "ping":             # "알림 보내줘": 위치 없이 안부만
+        if ev.get("kind") == "arrived":          # 길 안내 목적지 도착 → 보호자에게 (위치 없이)
+            dest = " ".join(str(ev.get("dest") or "목적지").split())[:40]
+            self.add("notice", f"보행자가 {dest}에 도착했어요.", "arrived", merge_key=("arrived", dest))
+        elif ev.get("kind") == "ping":             # "알림 보내줘": 위치 없이 안부만
             self.add("notice", "보행자가 알림을 보냈어요. 잘 가고 있어요.", "ping", merge_key=("ping", int(time.time() // 60)))
         elif ev.get("kind") == "fall":           # 넘어짐 감지 후 30초 동안 대답이 없음 → SOS 와 같게
             self.on_sos(image, "보행자가 넘어진 것 같아요. 30초 동안 대답이 없었어요.", "fall")

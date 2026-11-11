@@ -39,6 +39,7 @@ sys.path.insert(0, str(APP))
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
 from bus import Bus  # noqa: E402
+from nav import Nav  # noqa: E402
 from imu_fusion import ImuBuffer  # noqa: E402
 from push import Push  # noqa: E402
 from sensors import SensorLog  # noqa: E402
@@ -341,6 +342,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     shared = {}
     tts = AppTTS(DATA / "tts_cache")
     bus = Bus()                                   # 버스 도착 (서울 · TAGO), 키는 DATA_GO_KR_KEY
+    nav = Nav()                                   # 도보 길 안내 (TMAP_KEY, 없으면 OpenStreetMap)
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
 
     def get_user(uid: str | None, create: bool = True) -> User | None:
@@ -646,6 +648,24 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         j = r.json()
         return {"answer": j.get("answer") or "", "intent": (j.get("intent") or {}).get("intent"),
                 "level": j.get("level"), "timing": j.get("timing")}
+
+    @app.get("/api/nav")
+    async def api_nav(q: str, lat: float, lon: float):
+        """"인하대역 가자" — 장소를 찾아 걷는 길(갈림길 · 횡단보도 안내)을 돌려준다."""
+        try:
+            return await asyncio.to_thread(nav.plan, q[:60], lat, lon)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except Exception as e:
+            raise HTTPException(502, f"길을 찾지 못했어요 ({type(e).__name__})")
+
+    @app.get("/api/nav/route")
+    async def api_nav_route(lat: float, lon: float, dlat: float, dlon: float, name: str = ""):
+        """길에서 벗어났을 때 지금 자리에서 다시 찾기."""
+        try:
+            return await asyncio.to_thread(nav.route, lat, lon, dlat, dlon, name[:60])
+        except Exception as e:
+            raise HTTPException(502, f"길을 다시 찾지 못했어요 ({type(e).__name__})")
 
     @app.get("/api/bus")
     async def api_bus(lat: float, lon: float, route: str | None = None):
