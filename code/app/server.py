@@ -39,6 +39,7 @@ sys.path.insert(0, str(APP))
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
 from bus import Bus  # noqa: E402
+from subway import Subway  # noqa: E402
 from nav import Nav  # noqa: E402
 from imu_fusion import ImuBuffer  # noqa: E402
 from push import Push  # noqa: E402
@@ -343,6 +344,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     tts = AppTTS(DATA / "tts_cache")
     bus = Bus()                                   # 버스 도착 (서울 · TAGO), 키는 DATA_GO_KR_KEY
     nav = Nav()                                   # 도보 길 안내 (TMAP_KEY, 없으면 OpenStreetMap)
+    subway = Subway(nav=nav)                      # 지하철역 엘리베이터 (KRIC_KEY)
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
 
     def get_user(uid: str | None, create: bool = True) -> User | None:
@@ -678,6 +680,18 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             raise HTTPException(404, str(e))
         except Exception as e:
             raise HTTPException(502, f"버스 정보를 받지 못했어요 ({type(e).__name__})")
+
+    @app.get("/api/elevator")
+    async def api_elevator(q: str | None = None, lat: float | None = None, lon: float | None = None):
+        """"인하대역 엘리베이터 어디야" · (역 이름 없이) "엘리베이터 어디 있어" → 가장 가까운 역 (KRIC 편의정보)."""
+        try:
+            return await asyncio.to_thread(subway.elevators, q, lat, lon)
+        except PermissionError as e:
+            raise HTTPException(503, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except Exception as e:
+            raise HTTPException(502, f"엘리베이터 정보를 받지 못했어요 ({type(e).__name__})")
 
     @app.post("/api/pair")
     async def api_pair(code: str):
