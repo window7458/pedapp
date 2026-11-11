@@ -725,7 +725,11 @@ function navStop(spoken){
 }
 async function navTick(c){
   if(!NAV.on || c.accuracy>50) return;                          /* 너무 부정확한 위치는 버림 */
-  const lat=c.latitude, lon=c.longitude, st=NAV.steps[NAV.idx];
+  const lat=c.latitude, lon=c.longitude;
+  /* 휘는 길 안내(curve)를 GPS 가 건너뛰었으면(다음 안내 지점이 더 가까움) 조용히 넘어간다 — 지난 커브를 늦게 말하지 않게 */
+  while(NAV.steps[NAV.idx] && NAV.steps[NAV.idx].kind==='curve' && NAV.steps[NAV.idx+1] &&
+        dist(lat,lon,NAV.steps[NAV.idx+1].lat,NAV.steps[NAV.idx+1].lon) < dist(lat,lon,NAV.steps[NAV.idx].lat,NAV.steps[NAV.idx].lon)) NAV.idx++;
+  const st=NAV.steps[NAV.idx];
   if(st){
     const d=dist(lat,lon,st.lat,st.lon);
     if(st.kind==='arrive' && d<20){ say(`${NAV.dest ? NAV.dest.name+'에 ' : ''}도착했어요.`); beep('ok');

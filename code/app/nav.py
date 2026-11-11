@@ -43,7 +43,95 @@ def _speak(desc: str) -> str:
     s = s.replace("좌회전 후", "왼쪽으로 돈 뒤").replace("우회전 후", "오른쪽으로 돈 뒤")
     s = s.replace("횡단보도 후", "횡단보도를 건넌 뒤").replace("직진 후", "곧장 간 뒤")
     s = re.sub(r"(\d+)시 방향 ", r"\1시 방향으로 ", s)
+    s = re.sub(r"(\d+)시 방향으로 (왼쪽|오른쪽)으로 돈 뒤", r"\1시 방향으로 돈 뒤", s)   # '2시 방향으로 오른쪽으로' → '2시 방향으로'
     return s.rstrip(".") + "."
+
+
+def _bends(line, steps, look=15.0, min_deg=35.0, near_step=30.0, gap=40.0):
+    """TMAP 이 따로 알려 주지 않는 '휘는 길' 찾기 → 안내 단계(kind='curve')를 경로 순서대로 끼워 넣는다.
+    경로 선을 5 m 간격으로 따라가며 앞뒤 15 m 방향을 비교, 같은 쪽으로 계속 꺾이는 구간을 묶어 모두 합쳐 35° 넘게 꺾이면 그 시작점.
+    갈림길·횡단보도 안내 지점 30 m 안이면 그쪽 안내가 있으니 빼고, 휘는 곳끼리는 40 m 넘게 떨어뜨린다."""
+    if len(line) < 3:
+        return steps
+    lat0 = line[0][0]
+    k, kx = 111320.0, 111320.0 * math.cos(math.radians(lat0))
+    xy = [((p[1] - line[0][1]) * kx, (p[0] - lat0) * k) for p in line]
+    cum = [0.0]
+    for a, b in zip(xy, xy[1:]):
+        cum.append(cum[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    total = cum[-1]
+    if total < 2 * look + 10:
+        return steps
+
+    def at(d):                                  # 경로 위 d 미터 지점 (x, y, 위도, 경도)
+        d = min(max(d, 0.0), total)
+        i = max(0, min(len(cum) - 2, next((j for j in range(1, len(cum)) if cum[j] >= d), len(cum) - 1) - 1))
+        seg = cum[i + 1] - cum[i]
+        t = (d - cum[i]) / seg if seg > 0 else 0.0
+        x, y = xy[i][0] + (xy[i + 1][0] - xy[i][0]) * t, xy[i][1] + (xy[i + 1][1] - xy[i][1]) * t
+        return x, y, lat0 + y / k, line[0][1] + x / kx
+
+    def turn(d):                                # +면 왼쪽, -면 오른쪽 (도)
+        a, b, c = at(d - look), at(d), at(d + look)
+        h1 = math.atan2(b[1] - a[1], b[0] - a[0])
+        h2 = math.atan2(c[1] - b[1], c[0] - b[0])
+        return (math.degrees(h2 - h1) + 180) % 360 - 180
+
+    def pos(lat, lon, lo=0.0):                  # 안내 지점이 경로 몇 미터쯤인지 (앞쪽으로만 찾음)
+        x, y = (lon - line[0][1]) * kx, (lat - lat0) * k
+        best, bd = lo, 1e18
+        d = lo
+        while d <= total:
+            p = at(d)
+            e = (p[0] - x) ** 2 + (p[1] - y) ** 2
+            if e < bd:
+                best, bd = d, e
+            d += 5.0
+        return best
+
+    s_pos, lo = [], 0.0
+    for st in steps:
+        lo = pos(st["lat"], st["lon"], lo)
+        s_pos.append(lo)
+
+    def heading(p, q):
+        return math.degrees(math.atan2(q[1] - p[1], q[0] - p[0]))
+
+    def close(run):                             # 휘는 구간 전체로 얼마나 꺾였나: 들어갈 때 방향 vs 나올 때 방향
+        d0, d1 = run[0][0], run[-1][0]
+        a = (heading(at(d1), at(d1 + look)) - heading(at(d0 - look), at(d0)) + 180) % 360 - 180
+        if abs(a) >= min_deg:
+            found.append((d0, a))               # 휘기 시작하는 곳에서 말한다 (앱은 25 m 앞에서 읽음)
+
+    found, run = [], []                         # (위치, 꺾인 각)
+    d = look + 5.0
+    while d <= total - look - 5.0:
+        a = turn(d)
+        bend = abs(a) >= 12.0                   # 조금씩이라도 계속 같은 쪽으로 꺾이면 한 구간
+        if bend and (not run or (a > 0) == (run[-1][1] > 0)):
+            run.append((d, a))
+        else:
+            if run:
+                close(run)
+            run = [(d, a)] if bend else []
+        d += 5.0
+    if run:
+        close(run)
+
+    curves = []
+    for d, a in found:
+        if any(abs(d - sp) < near_step for sp in s_pos) or d < 20 or d > total - 20:
+            continue
+        if curves and d - curves[-1][0] < gap:
+            continue
+        _, _, la, lo_ = at(d)
+        side = "왼쪽" if a > 0 else "오른쪽"
+        how = "크게 " if abs(a) >= 70 else ""
+        curves.append((d, dict(lat=la, lon=lo_, kind="curve", text=f"길이 {side}으로 {how}휘어져요. 길을 따라 가세요.")))
+
+    merged = sorted([(sp, i, st) for i, (sp, st) in enumerate(zip(s_pos, steps))] +
+                    [(d, -1, st) for d, st in curves], key=lambda r: (r[0], r[1]))
+    return [st for _, _, st in merged]
 
 
 class Nav:
@@ -154,12 +242,18 @@ class Nav:
 
     # ── 밖에서 부르는 것 ──
     def route(self, lat, lon, dlat, dlon, name=""):
+        r = None
         if self.key:
             try:
-                return self._tmap_route(lat, lon, dlat, dlon, name)
+                r = self._tmap_route(lat, lon, dlat, dlon, name)
             except Exception:
-                pass
-        return self._osm_route(lat, lon, dlat, dlon, name)
+                r = None
+        r = r or self._osm_route(lat, lon, dlat, dlon, name)
+        try:
+            r["steps"] = _bends(r["line"], r["steps"])
+        except Exception:
+            pass                                 # 휘는 길 계산이 틀려도 길 안내는 그대로
+        return r
 
     def plan(self, q: str, lat: float, lon: float) -> dict:
         dest = None
