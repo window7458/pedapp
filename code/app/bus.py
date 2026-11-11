@@ -138,6 +138,17 @@ def sentence(out: dict, route: str | None) -> str:
         return f"{stop} 정류장, {route}번은 {when}{left}."
     if not arr:
         return f"{stop} 정류장에 곧 오는 버스가 없어요."
-    parts = [f"{a['route']}번 {'곧' if a['min'] == 0 else (str(a['min']) + '분 뒤') if a['min'] is not None else ''}".strip()
-             for a in arr[:3]]
-    return f"{stop} 정류장이에요. " + ", ".join(parts) + "."
+    when = lambda m: "곧" if m == 0 else (f"{m}분 뒤" if m is not None else "")
+    first, nxt = {}, {}                       # 같은 노선은 한 번만: "511번 1분 뒤, 다음 차 5분 뒤"
+    for a in arr:
+        if a["route"] not in first:
+            first[a["route"]] = a
+        elif a["route"] not in nxt:
+            nxt[a["route"]] = a
+    parts = []
+    for r, a in list(first.items())[:3]:
+        s = f"{r}번 {when(a['min'])}".strip()
+        if r in nxt and nxt[r]["min"] is not None:
+            s += f", 다음 차 {when(nxt[r]['min'])}"
+        parts.append(s)
+    return f"{stop} 정류장이에요. " + ". ".join(parts) + "."
