@@ -7,7 +7,7 @@
 # - 시연 때 깨어나는 시간이 싫으면 -MinInstances 1 (항상 켜 둠, 켜 둔 시간만큼 요금). 끝나면 -MinInstances 0 으로 다시.
 param([Parameter(Mandatory)][string]$Project, [Parameter(Mandatory)][string]$Key, [string]$Pin = "",
       [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3",
-      [int]$MinInstances = 0)
+      [int]$MinInstances = 0, [string]$DataKey = "")
 $ErrorActionPreference = "Stop"
 gcloud config set project $Project
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com
@@ -29,6 +29,7 @@ gcloud builds submit --config deploy/cloudbuild-gpu.yaml --substitutions "_IMAGE
 
 $envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data"
 if ($Pin) { $envs += ",GUARDIAN_PIN=$Pin" }
+if ($DataKey) { $envs += ",DATA_GO_KR_KEY=$DataKey" }   # 버스 도착 정보 (공공데이터포털 일반 인증키)
 gcloud run deploy $Name --image $image --region $Region `
   --gpu 1 --gpu-type nvidia-l4 --no-gpu-zonal-redundancy --cpu 4 --memory 16Gi --no-cpu-throttling `
   --min-instances $MinInstances --max-instances 1 --concurrency 20 --timeout 3600 --session-affinity --no-invoker-iam-check `

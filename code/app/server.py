@@ -38,6 +38,7 @@ sys.path.insert(0, str(APP))
 
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
+from bus import Bus  # noqa: E402
 from imu_fusion import ImuBuffer  # noqa: E402
 from push import Push  # noqa: E402
 from sensors import SensorLog  # noqa: E402
@@ -305,6 +306,8 @@ class User:
             pipe.on_frame = self.alerts.clips.push
             if hasattr(pipe.perception, "imu"):
                 pipe.perception.imu = self.imu          # 이 사람 폰의 센서만 이 사람 판단에
+            if hasattr(pipe.perception, "indoor"):
+                pipe.perception.indoor = bool(self.state.get("indoor"))   # 실내 모드 (기본 꺼짐)
             self.src = SourceManager(pipe, self.hub.broadcast)
             self.pipe = pipe
         self.apply_profile()
@@ -337,6 +340,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     users: dict[str, User] = {}
     shared = {}
     tts = AppTTS(DATA / "tts_cache")
+    bus = Bus()                                   # 버스 도착 (서울 · TAGO), 키는 DATA_GO_KR_KEY
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
 
     def get_user(uid: str | None, create: bool = True) -> User | None:
@@ -643,6 +647,18 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         return {"answer": j.get("answer") or "", "intent": (j.get("intent") or {}).get("intent"),
                 "level": j.get("level"), "timing": j.get("timing")}
 
+    @app.get("/api/bus")
+    async def api_bus(lat: float, lon: float, route: str | None = None):
+        """"7016번 버스 언제 와" · "버스 언제 와" — 가장 가까운 정류장의 도착 예정 (서울은 서울시 API, 인천 등은 TAGO)."""
+        try:
+            return await asyncio.to_thread(bus.near, lat, lon, route)
+        except PermissionError as e:
+            raise HTTPException(503, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except Exception as e:
+            raise HTTPException(502, f"버스 정보를 받지 못했어요 ({type(e).__name__})")
+
     @app.post("/api/pair")
     async def api_pair(code: str):
         """보호자가 연결 링크(QR)를 열면 1회용 코드를 그 보행자의 토큰으로 바꿔 준다."""
@@ -786,6 +802,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                                 pass
                         user.gws.clear()
                         await ws.send_text(json.dumps({"type": "unpaired"}))
+                    elif t == "indoor" and role == "pedestrian":
+                        user.state["indoor"] = bool(cmd.get("on"))
+                        if user.pipe is not None and hasattr(user.pipe.perception, "indoor"):
+                            user.pipe.perception.indoor = user.state["indoor"]
                     elif t == "gps" and role == "pedestrian":
                         user.alerts.on_location(cmd)
         except Exception:

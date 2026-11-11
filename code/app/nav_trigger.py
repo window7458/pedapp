@@ -38,6 +38,21 @@ _IMU_NOW: dict | None = None
 # 여러 보행자가 서버 하나를 같이 쓸 때: 태규 코드의 모듈 값(ego_motion.CAM_H)과 _IMU_NOW 는 하나뿐이라,
 # 한 사람의 프레임을 처리하는 동안은 다른 사람이 끼어들지 못하게 한 번에 한 명씩 돌린다 (GPU 추론도 어차피 하나씩).
 _STEP_LOCK = threading.Lock()
+
+# ── 실내 모드 (시연용, 기본 꺼짐) ─────────────────────────────────────────
+# 팀 모델은 실외 물체로 배워서 책상 · 의자를 잘 못 잡는다. 실내 모드를 켠 사람만, 공개 COCO 모델(yolo11n)이 찾은
+# 가구를 '장애물'(class 7)로 같은 프레임 검출에 더해 태규 트리거에 넣는다. 꺼져 있으면 지금과 완전히 같다.
+INDOOR_COCO = {56: "chair", 57: "couch", 59: "bed", 60: "dining table", 13: "bench", 58: "potted plant",
+               61: "toilet", 62: "tv", 72: "refrigerator", 28: "suitcase"}
+_COCO = None
+
+
+def _coco():
+    global _COCO
+    if _COCO is None:
+        from ultralytics import YOLO
+        _COCO = YOLO(str(Path(__file__).resolve().parent / "weights" / "yolo11n.pt"))
+    return _COCO
 SHOCK_DEG, SHOCK_DPS = 12.0, 150.0
 
 
@@ -114,6 +129,24 @@ class NavTrigger:
         self._cap_ms = None          # 이번 프레임을 폰이 찍은 시각(폰 시계 ms). 없으면 서버 시계
         self._cap0 = None
         self.imu = None              # 이 보행자 폰의 센서 (서버가 사람마다 넣어 줌). 없으면 공용
+        self.indoor = False          # 실내 모드: 책상 · 의자 등을 장애물로 더함 (위 설명)
+        team_predict = self.p.predict
+
+        def predict(img, size, offset=(0, 0), source="custom"):
+            ds = team_predict(img, size, offset, source)
+            if self.indoor and offset == (0, 0) and source == "custom":     # 전체 화면 검출에만 (잘라 보기 제외)
+                try:
+                    r = _coco().predict(img, imgsz=640, conf=0.35, device=self.p.device, verbose=False)[0]
+                    for b in r.boxes.data.cpu().tolist():
+                        if int(b[5]) in INDOOR_COCO:
+                            ds.append(dict(box=[b[0], b[1], b[2], b[3]], confidence=float(b[4]), class_id=7,
+                                           **{"class": "obstacle"}, source="custom"))
+                except Exception as e:
+                    if time.time() - self._err_t > 5.0:
+                        self._err_t = time.time()
+                        self.log(f"[실내 모드] {e!r}")
+            return ds
+        self.p.predict = predict
         self._cam_h = None           # 이 보행자의 카메라 높이 (처음 설정)
         self.imgsz, self.crop = imgsz, crop
         self.path = Path(weights)
