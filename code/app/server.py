@@ -344,7 +344,7 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
     tts = AppTTS(DATA / "tts_cache")
     bus = Bus()                                   # 버스 도착 (서울 · TAGO), 키는 DATA_GO_KR_KEY
     nav = Nav()                                   # 도보 길 안내 (TMAP_KEY, 없으면 OpenStreetMap)
-    subway = Subway(nav=nav)                      # 지하철역 엘리베이터 (KRIC_KEY)
+    subway = Subway(nav=nav, cache_dir=DATA / "kric_cache")   # 지하철역 엘리베이터 · 시간표 · 승강장 가는 길 (KRIC_KEY), 하루 1번만 받아 저장
     scene_url = (os.environ.get("SCENE_URL") or "").rstrip("/")   # "주변 설명해줘" 풍경 서버 (SJ 말로 듣는 풍경). 비우면 안 씀
 
     def get_user(uid: str | None, create: bool = True) -> User | None:
@@ -692,6 +692,27 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             raise HTTPException(404, str(e))
         except Exception as e:
             raise HTTPException(502, f"엘리베이터 정보를 받지 못했어요 ({type(e).__name__})")
+
+    def _kric(fn, *args):
+        try:
+            return fn(*args)
+        except PermissionError as e:
+            raise HTTPException(503, str(e))
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except Exception as e:
+            raise HTTPException(502, f"지하철 정보를 받지 못했어요 ({type(e).__name__})")
+
+    @app.get("/api/train")
+    async def api_train(q: str | None = None, lat: float | None = None, lon: float | None = None):
+        """"인하대역 지하철 언제 와" · "지하철 언제 와"(가장 가까운 역) → 시간표 기준 방향별 다음 열차."""
+        return await asyncio.to_thread(_kric, subway.trains, q, lat, lon)
+
+    @app.get("/api/platform")
+    async def api_platform(q: str | None = None, exit: str | None = None, dir: str | None = None,
+                           lat: float | None = None, lon: float | None = None):
+        """"인하대역 1번 출구에서 송도 방면 가는 길" → 출입구 → 승강장 단계별 안내."""
+        return await asyncio.to_thread(_kric, subway.movement, q, exit, dir, lat, lon)
 
     @app.post("/api/pair")
     async def api_pair(code: str):

@@ -6,3 +6,6 @@ code/app/weights/*.pt
 scene_server/voice_demo/
 scene_server/scene_describe/
 code/app/tts_cache/
+
+# 지하철(KRIC) 받아 둔 응답
+code/app/kric_cache/
