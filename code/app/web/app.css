@@ -210,3 +210,35 @@ body{font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic"
 /* 어두운 모드에서 남색 바탕 위 파란 작은 글씨가 잘 안 보이던 곳 */
 @media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .say small,:root:not([data-hc="1"]) .gsay small,:root:not([data-hc="1"]) .ear .again{color:#9DB8FF}
   :root:not([data-hc="1"]) .caut .say small,:root:not([data-hc="1"]) .caut .ear .again{color:#7A4A00}:root:not([data-hc="1"]) .warn .say small,:root:not([data-hc="1"]) .warn .ear .again{color:#fff}}
+
+/* ── 음성 처음 설정: 빛나는 동그라미 (말하는 중 · 듣는 중) ── */
+#voiceSetup{position:fixed;inset:0;z-index:63;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:max(28px,env(safe-area-inset-top)) 24px 36px;
+  background:radial-gradient(120% 80% at 50% 35%,#1C4BBE 0%,#0F2C74 55%,#081A47 100%);color:#fff;text-align:center;cursor:pointer}
+#voiceSetup[hidden]{display:none}
+#voiceSetup .vs-top{position:absolute;top:max(22px,env(safe-area-inset-top));left:0;right:0}
+#voiceSetup .vs-step{font-size:15px;font-weight:700;color:#9EC8FF;letter-spacing:.02em}
+.vs-orb{position:relative;width:min(56vw,240px);aspect-ratio:1;margin-bottom:10px;animation:vsBreath 3.2s ease-in-out infinite}
+.vs-orb i,.vs-orb b{position:absolute;border-radius:50%}
+.vs-orb b{inset:0;background:conic-gradient(from 90deg,#3FA9FF,#7C6CFF,#3FE0E8,#2F5CD6,#9AD8FF,#3FA9FF);filter:blur(3px);animation:vsSpin 8s linear infinite;
+  box-shadow:0 0 60px 10px rgba(80,160,255,.45)}
+.vs-orb::before{content:"";position:absolute;inset:0;border-radius:50%;z-index:1;background:radial-gradient(circle at 36% 30%,rgba(255,255,255,.95) 0%,rgba(255,255,255,.35) 22%,rgba(255,255,255,0) 48%),radial-gradient(circle at 50% 50%,rgba(255,255,255,0) 55%,rgba(10,30,90,.35) 100%)}
+.vs-orb i{inset:-10%;filter:blur(22px);opacity:.8;mix-blend-mode:screen}
+.vs-orb i:nth-child(1){background:radial-gradient(circle at 28% 38%,#7CD0FF,transparent 55%);animation:vsSpin 7s linear infinite}
+.vs-orb i:nth-child(2){background:radial-gradient(circle at 72% 58%,#9A7CFF,transparent 55%);animation:vsSpin 9s linear infinite reverse}
+.vs-orb i:nth-child(3){background:radial-gradient(circle at 50% 82%,#3FE0E8,transparent 52%);animation:vsSpin 11s linear infinite}
+.vs-orb.speaking{animation:vsTalk .55s ease-in-out infinite alternate}
+.vs-orb.speaking b{animation-duration:3s}
+.vs-orb.listening{animation:vsListen 1.4s ease-in-out infinite}
+.vs-orb.listening::after{content:"";position:absolute;inset:-14%;border-radius:50%;border:2px solid rgba(158,200,255,.55);animation:vsRing 1.6s ease-out infinite}
+@keyframes vsBreath{50%{transform:scale(1.04)}}
+@keyframes vsTalk{from{transform:scale(.96)}to{transform:scale(1.1)}}
+@keyframes vsListen{50%{transform:scale(1.06);filter:brightness(1.15)}}
+@keyframes vsRing{from{transform:scale(.9);opacity:.9}to{transform:scale(1.25);opacity:0}}
+@keyframes vsSpin{to{transform:rotate(360deg)}}
+.vs-q{margin:0;font-size:clamp(22px,6.4vw,30px);font-weight:800;line-height:1.35;max-width:22em;word-break:keep-all}
+.vs-heard{margin:0;min-height:22px;font-size:16px;color:#BFD8FF}
+.vs-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.vs-chips span{font-size:15px;font-weight:700;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.1);color:#BFD8FF;border:1px solid rgba(255,255,255,.18)}
+.vs-chips span.done{background:#fff;color:#0F2C74;border-color:#fff}
+.vs-manual{position:absolute;bottom:max(24px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:none;border:0;color:#9EC8FF;font-size:15px;text-decoration:underline;padding:12px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.vs-orb,.vs-orb *,.vs-orb::after{animation:none!important}}

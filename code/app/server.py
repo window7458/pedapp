@@ -449,6 +449,23 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 user.state["booting"] = False
         asyncio.get_running_loop().create_task(run())
 
+    def gpu_ok() -> bool:
+        """실제 인식기(YOLO)를 GPU 로 돌릴 수 있을 때만 보행자를 받는다. 시험용 가짜 인식기 · ALLOW_CPU=1 은 예외."""
+        if "gpu_ok" in shared:
+            return shared["gpu_ok"]
+        ok = True
+        if isinstance(cfg.perception, str) and os.environ.get("ALLOW_CPU") != "1":
+            if str(cfg.device).lower() == "cpu":
+                ok = False
+            else:
+                try:
+                    import torch
+                    ok = bool(torch.cuda.is_available())
+                except Exception:
+                    ok = False
+        shared["gpu_ok"] = ok
+        return ok
+
     def warm_gpu():
         """서버가 켜질 때 한 번: GPU(CUDA) 준비와 모델 첫 추론을 미리 해 둔다 → 첫 보행자의 판단 장치가 빨리 켜진다."""
         try:
@@ -753,6 +770,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 return
             user.gws.add(ws)
         else:
+            if not gpu_ok():            # CPU 서버면 아예 연결하지 않음 (느려서 알림이 밀리고 여러 번 겹쳐 나옴)
+                await ws.send_text(json.dumps({"type": "server_cpu"}))
+                await ws.close(code=4503)
+                return
             user = get_user(ws.query_params.get("u"))
             if user.pipe is None and sum(1 for x in users.values() if x.pipe is not None) >= MAX_ACTIVE:
                 await ws.send_text(json.dumps({"type": "server_busy"}))

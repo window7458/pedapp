@@ -139,6 +139,14 @@
   <button class="btn primary" id="pfSave" style="width:100%;min-height:72px;font-size:22px">저장</button>
 </div>
 
+<div id="voiceSetup" role="dialog" aria-modal="true" aria-labelledby="vsQ" hidden>
+  <div class="vs-top"><span class="vs-step" id="vsStep">처음 설정</span></div>
+  <div class="vs-orb" id="vsOrb" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+  <p class="vs-q" id="vsQ" aria-live="polite">화면 아무 곳이나 누르면 시작해요</p>
+  <p class="vs-heard" id="vsHeard" aria-live="polite"></p>
+  <div class="vs-chips" id="vsChips"><span data-k="age">나이</span><span data-k="height">키</span><span data-k="mount">카메라 위치</span></div>
+  <button class="vs-manual" id="vsManual" type="button">도와주는 분이 버튼으로 설정하기</button>
+</div>
 <div id="dimView" hidden aria-hidden="true" style="position:fixed;inset:0;z-index:58;background:#000;color:#6b6f80;display:flex;align-items:flex-end;justify-content:center;padding-bottom:60px;font-size:14px">절전 중 · 화면을 누르면 밝아져요</div>
 
 <div class="sheet-bg" id="sheetBg"></div>
@@ -317,6 +325,8 @@ const QUICK=[[/^(시작|시작해|시작해줘|시작해요|시작할게|시작�
              [/^(그만|그만해|그만해줘|그만해요|중지|정지|멈춰|멈춰줘|스톱|안내그만|안내종료|종료)$/,'stop'],
              [/^(도와줘|도와주세요|살려줘|살려주세요|도움)$/,'sos']];
 function handleQuick(alts){
+  if(VS.on && VS.step<4) return false;
+  if(VS.on) vsClose();
   for(const a of alts){                               /* 인식 후보 여러 개 중 하나라도 맞으면 */
     const raw=(a||'').replace(/\s+/g,'').replace(/[.,!?]/g,'').replace(/세이아이|쎄이아이|세이|sayeye|say/ig,'');
     const hit=QUICK.find(([re])=>re.test(raw));
@@ -325,6 +335,8 @@ function handleQuick(alts){
   return false;
 }
 function handleSpeech(alts){
+  if(VS.on && VS.step<4){ vsHear(alts); return 'setup'; }
+  if(VS.on) vsClose();
   for(const t of alts){
     const raw=(t||'').replace(/\s+/g,'');
     const wake=/세이|쎄이|say/i.test(raw);
@@ -424,14 +436,14 @@ function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?u=${encodeURIComponent(UID)}`);
   ws.binaryType='arraybuffer'; S.ws=ws;
   ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true);
-                      { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden) showSetup(); }
+                      { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden && !VS.on) showVoiceSetup(); }
                       sendCmd({type:'indoor', on:!!S.indoor});
                       if(S.running) sendCmd({type:'set_source', mode:S.mode});
                       if(was && S.running) say('서버와 다시 연결됐어요.');
                       for(const o of S.pending.splice(0)) sendCmd(o);
                       if(!S.prefetched){ S.prefetched=true; setTimeout(()=>speech.prefetch(FIXED), 1500); } };
   ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false);
-                       if(S.ws===ws && !S.sleeping) setTimeout(connect, 1500); };
+                       if(S.ws===ws && !S.sleeping && !S.cpuBlocked) setTimeout(connect, 1500); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok && !S.sleeping); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : S.sleeping ? '절전' : (S.everOk?'연결 끊김':'연결 중'); }
@@ -473,13 +485,16 @@ function platformAsk(p){ kricAsk('/api/platform', {q:p.q, exit:p.exit, dir:p.dir
      시작 · 음성 명령 · 화면 터치가 오면 바로 다시 연결 (서버가 자고 있었다면 깨어나는 데 수십 초) ── */
 function wake(){ S.lastAct=performance.now(); if(!S.sleeping && S.ws && S.ws.readyState<=1) return; S.sleeping=false; connect(); setConn(false); }
 function sleepWs(){ if(S.running || S.sleeping || !S.ws) return; S.sleeping=true; const ws=S.ws; S.ws=null; try{ ws.close(); }catch(e){} S.wsOk=false; setConn(false); }
-setInterval(()=>{ const busy = S.running || Ask.kind || !$('#pairView').hidden || !$('#setupView').hidden;
+setInterval(()=>{ const busy = S.running || Ask.kind || !$('#pairView').hidden || !$('#setupView').hidden || VS.on;
   if(busy) S.lastAct=performance.now(); else if(performance.now()-S.lastAct>300000) sleepWs(); }, 10000);
 addEventListener('pointerdown', ()=>wake(), {capture:true});
 SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 
 function handle(m){
   switch(m.type){
+    case 'server_cpu': if(!S.cpuBlocked){ S.cpuBlocked=true; S.running=false;
+                         notice('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요. 관리자에게 알려 주세요.');
+                         say('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요. 관리자에게 알려 주세요.'); } break;
     case 'server_busy': notice('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); say('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); break;
     case 'ready': notice(''); if(S.running) sendCmd({type:'set_source', mode:S.mode}); break;
     case 'hello': if(!m.trigger) notice('서버를 준비하고 있어요. 잠시만 기다려 주세요.'); if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
@@ -508,6 +523,7 @@ function handle(m){
 
 /* ── 카메라 ── */
 async function start(){
+  if(S.cpuBlocked){ say('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요.'); return; }
   wake();
   SayEyeSensors.askMotion();   /* 아이폰: 터치 안에서 바로 불러야 권한을 물어요 */
   notice(''); $('#pinBox').hidden=true; speech.unlock(); S.spokeReady=false;
@@ -665,6 +681,104 @@ setInterval(()=>{
 
 /* ── 처음 설정: 만 나이 · 키 · 카메라 위치 (폰에 저장, 서버에 연결될 때마다 보냄) ── */
 function loadProfile(){ try{ return JSON.parse(localStorage.getItem('sayeye-profile')||'null'); }catch(e){ return null; } }
+/* ── 음성 처음 설정: 시각장애인은 입력칸 · 버튼으로 설정하기 어려우니 말로 묻고 답한다.
+     나이 → 키 → 카메라 위치 → 확인("맞으면 네"). 못 알아들으면 예시와 함께 다시 묻는다. 손으로 하는 화면(showSetup)은 도우미용. ── */
+const VS={on:false, step:0, p:{}, miss:0, t:null, armed:false};
+const VS_STEPS=['age','height','mount','confirm'];
+const MOUNT_KO={eye:'눈높이', neck:'목걸이', chest:'가슴', waist:'허리', hand:'손'};
+function koNum(t){
+  t=String(t||'').replace(/\s+/g,'');
+  let m=t.match(/(\d+(?:\.\d+)?)(미터|m)(\d+)?/i);
+  if(m){ const a=parseFloat(m[1]); if(a<3) return Math.round(a*100 + (m[3]?parseInt(m[3],10):0)); }
+  m=t.match(/(일|한)미터(.*)/); if(m){ const r=koNum(m[2]); return 100 + (r||0); }
+  m=t.match(/\d+/); if(m) return parseInt(m[0],10);
+  const TEN={열:10,스물:20,스무:20,서른:30,마흔:40,쉰:50,예순:60,일흔:70,여든:80,아흔:90};
+  const ONE={하나:1,한:1,둘:2,두:2,셋:3,세:3,넷:4,네:4,다섯:5,여섯:6,일곱:7,여덟:8,아홉:9};
+  for(const [k,v] of Object.entries(TEN)){ const i=t.indexOf(k); if(i>=0){ const rest=t.slice(i+k.length); const u=Object.entries(ONE).find(([w])=>rest.startsWith(w)); return v+(u?u[1]:0); } }
+  const SINO={일:1,이:2,삼:3,사:4,오:5,육:6,륙:6,칠:7,팔:8,구:9};
+  let total=0, cur=0, any=false;
+  for(const ch of t){
+    if(SINO[ch]){ cur=SINO[ch]; any=true; }
+    else if(ch==='십'){ total+=(cur||1)*10; cur=0; any=true; }
+    else if(ch==='백'){ total+=(cur||1)*100; cur=0; any=true; }
+    else if(any) break;
+  }
+  return any ? total+cur : null;
+}
+function vsMount(t){
+  t=String(t||'').replace(/\s+/g,'');
+  if(/눈|안경|모자|머리/.test(t)) return 'eye';
+  if(/목|쇄골/.test(t)) return 'neck';
+  if(/가슴|명치/.test(t)) return 'chest';
+  if(/허리|벨트|배/.test(t)) return 'waist';
+  if(/손|들고|쥐고/.test(t)) return 'hand';
+  return null;
+}
+function vsChips(){
+  for(const el of document.querySelectorAll('#vsChips span')){
+    const k=el.dataset.k, v=VS.p[k];
+    el.textContent = k==='age' ? (v ? `만 ${v}세` : '나이') : k==='height' ? (v ? `${v} cm` : '키') : (v ? MOUNT_KO[v] : '카메라 위치');
+    el.classList.toggle('done', !!v);
+  }
+}
+function vsAsk(again){
+  const k=VS_STEPS[VS.step]; clearTimeout(VS.t);
+  const Q={age:['나이가 어떻게 되세요? 만 나이로 말해 주세요.', '나이를 숫자로 말해 주세요. 예를 들어 스물다섯 살.'],
+           height:['키는 몇 센티미터예요?', '키를 센티미터로 말해 주세요. 예를 들어 백칠십.'],
+           mount:['카메라는 어디에 다나요? 눈높이, 목걸이, 가슴, 허리, 손 중에서 말해 주세요.', '눈높이, 목걸이, 가슴, 허리, 손 중에서 하나만 말해 주세요.'],
+           confirm:[`만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}로 할게요. 맞으면 네, 다시 하려면 다시라고 말해 주세요.`, '맞으면 네, 다시 하려면 다시라고 말해 주세요.']};
+  const q=Q[k][again?1:0];
+  $('#vsStep').textContent = k==='confirm' ? '확인' : `처음 설정 ${VS.step+1} / 3`;
+  $('#vsQ').textContent=q; say(q);
+  VS.t=setTimeout(()=>{ if(VS.on && VS_STEPS[VS.step]===k && ++VS.miss<=2) vsAsk(true); }, 16000);   /* 대답이 없으면 두 번까지 다시 물음 */
+}
+function vsHear(alts){
+  const k=VS_STEPS[VS.step], t=(alts[0]||'');
+  $('#vsHeard').textContent = `들은 말: ${t}`;
+  const all=alts.join(' ');
+  if(/다시|처음부터|틀렸|아니야|잘못/.test(all.replace(/\s+/g,'')) && k!=='confirm'){ VS.step=Math.max(0,VS.step-1); VS.miss=0; vsAsk(); return; }
+  if(k==='age'){ const n=alts.map(koNum).find(v=>v>=3&&v<=120); if(!n){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.age=n; }
+  else if(k==='height'){ const n=alts.map(koNum).find(v=>v>=80&&v<=230); if(!n){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.height=n; }
+  else if(k==='mount'){ const m=alts.map(vsMount).find(Boolean); if(!m){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.mount=m; }
+  else {
+    const r=all.replace(/\s+/g,'');
+    if(/^(네|예|응|맞아|맞아요|좋아|그래|저장|오케이|ok)/i.test(r) || /맞아|좋아요/.test(r)){
+      saveProfile({age:VS.p.age, height_cm:VS.p.height, mount:VS.p.mount});
+      vsDone(); return;
+    }
+    if(/다시|아니|틀렸/.test(r)){ VS.step=0; VS.p={}; VS.miss=0; vsChips(); vsAsk(); return; }
+    vsAsk(true); return;
+  }
+  VS.miss=0; vsChips(); beep('ok'); VS.step++; vsAsk();
+}
+function vsDone(){                       /* 마지막에 한 번 더: 정한 값을 화면과 음성으로 확인 → 다 읽으면 닫힘 */
+  VS.step=4; clearTimeout(VS.t); vsChips(); beep('ok');
+  const msg=`설정을 마쳤어요. 만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}. 시작이라고 말하면 안내를 시작해요.`;
+  $('#vsStep').textContent='설정 완료'; $('#vsQ').textContent=msg; $('#vsHeard').textContent=''; say(msg);
+  const t0=performance.now();
+  const wait=setInterval(()=>{ if(!VS.on){ clearInterval(wait); return; }
+    if(performance.now()-t0>2500 && !speech.busy()){ clearInterval(wait); setTimeout(vsClose, 1200); } }, 300);
+}
+function showVoiceSetup(){
+  VS.on=true; VS.step=0; VS.p={}; VS.miss=0; VS.armed=false; vsChips(); openSheet(false);
+  $('#vsHeard').textContent=''; $('#vsStep').textContent='처음 설정';
+  $('#vsQ').textContent='화면 아무 곳이나 누르면 시작해요'; $('#voiceSetup').hidden=false;
+  say('안녕하세요, 세이아이예요. 처음 한 번만 몇 가지 여쭤볼게요. 화면 아무 곳이나 눌러 주세요.');
+}
+function vsClose(){ VS.on=false; clearTimeout(VS.t); $('#voiceSetup').hidden=true; }
+$('#voiceSetup').addEventListener('click', (e)=>{
+  if(e.target.id==='vsManual') return;
+  speech.unlock(); ears.start();
+  if(VS.step>=4){ vsClose(); return; }
+  if(!VS.armed){ VS.armed=true; vsAsk(); } else vsAsk();          /* 누를 때마다 지금 질문을 다시 들려줌 */
+});
+$('#vsManual').onclick=()=>{ vsClose(); showSetup(); };
+setInterval(()=>{ if(!VS.on) return; const o=$('#vsOrb'); o.classList.toggle('speaking', speech.busy()); o.classList.toggle('listening', !speech.busy() && $('#ear').classList.contains('listening')); }, 150);
+function saveProfile(p){
+  try{ localStorage.setItem('sayeye-profile', JSON.stringify(p)); }catch(e){}
+  sendCmd({type:'profile', ...p});
+}
+
 function showSetup(){
   const p=loadProfile()||{}; $('#pfAge').value=p.age||''; $('#pfH').value=p.height_cm||'';
   document.querySelectorAll('#pfMount input').forEach(r=>r.checked=(r.value===p.mount));
@@ -676,10 +790,9 @@ $('#pfSave').onclick=()=>{
   const err = !(age>=3&&age<=120) ? '만 나이를 넣어 주세요.' : !(h>=80&&h<=230) ? '키를 센티미터로 넣어 주세요.' : !r ? '카메라 위치를 골라 주세요.' : '';
   if(err){ $('#pfErr').textContent=err; $('#pfErr').hidden=false; say(err); return; }
   const p={age, height_cm:h, mount:r.value};
-  try{ localStorage.setItem('sayeye-profile', JSON.stringify(p)); }catch(e){}
-  sendCmd({type:'profile', ...p}); $('#setupView').hidden=true; say('저장했어요.');
+  saveProfile(p); $('#setupView').hidden=true; say('저장했어요.');
 };
-$('#setupBtn').addEventListener('click', ()=>{ speech.unlock(); showSetup(); });
+$('#setupBtn').addEventListener('click', ()=>{ speech.unlock(); showVoiceSetup(); });
 
 /* ── 주변 설명 ("주변 설명해줘"): 그 순간 사진 + 말 → 서버 → 풍경 서버(SJ 말로 듣는 풍경) → 묘사를 읽어 줌.
      경고에는 VLM을 쓰지 않는다. 기다리는 동안 "주변을 보고 있어요". 1분 안에 이어 물으면 같은 사진으로 답한다.
