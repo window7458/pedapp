@@ -273,7 +273,9 @@ def sentence(station: str, els: list[dict]) -> str:
 def train_sentence(st: str, lines: list[dict]) -> str:
     if not lines or not any(l["next"] for l in lines):
         return f"{st}역은 지금 남은 열차가 없거나 시간표를 받지 못했어요."
-    when = lambda a: ("곧" if a["min"] <= 0 else f"{a['min']}분 뒤") + (" 급행" if a.get("express") else "")
+    def when(a):                                # 90분 넘게 남으면(막차 뒤 · 새벽) "342분 뒤" 대신 "5시 31분"
+        t = "곧" if a["min"] <= 0 else (f"{a['min']}분 뒤" if a["min"] <= 90 else f"{a['time']}")
+        return t + (" 급행" if a.get("express") else "")
     parts = []
     for l in lines:
         if not l["next"]:
