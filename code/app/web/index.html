@@ -356,6 +356,7 @@ function handleSpeech(alts){
 function parseCommand(text){
   const t = (text||'').replace(/\s+/g,'').toLowerCase();
   if(!t) return null;
+  if(/(설정|정보|카메라위치|키|나이).*(다시|바꿔|새로|처음)|처음설정|설정다시/.test(t)) return 'setup';
   if(/(버스|기다리기|기다리는거).*(그만|취소|안탈|됐어)|그만기다려|기다리지마|버스탔어|버스탔다|탔어요?$/.test(t)) return 'bus_wait_end';   /* '그만'(안내 중지)보다 먼저 */
   if(/(길안내|안내|네비|내비).*(그만|끝|종료|꺼|취소)/.test(t)) return 'nav_stop';
   if(/(승강장|타는곳|방면|방향)/.test(t) && /(가는길|어떻게|가는법|길알려|안내|찾아)/.test(t) && !/버스/.test(t)){
@@ -409,6 +410,7 @@ function runCommand(cmd){
     case 'stop': if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'scene': sceneAsk('주변 설명해줘', true); break;
     case 'bus': busAsk(S.busRoute); break;
+    case 'setup': showVoiceSetup(); setTimeout(()=>{ if(VS.on && !VS.armed){ VS.armed=true; vsAsk(); } }, 3500); break;
     case 'bus_wait': busWait(S.busWaitRoute); break;
     case 'bus_wait_end': busWaitEnd(true); break;
     case 'busnum': if(BUSW.on){ busNumNow(); break; } sceneAsk('앞에 있는 버스의 노선 번호를 읽어 줘. 앞 유리 위나 옆면에 적힌 번호만 짧게 말해 줘. 버스가 없거나 번호가 안 보이면 안 보인다고 말해 줘.', true); break;

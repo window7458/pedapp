@@ -251,7 +251,8 @@ def load_pin(arg: str | None) -> str:
 
 UID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_ACTIVE = int(os.environ.get("MAX_USERS", "8"))      # 동시에 판단 장치를 돌리는 보행자 수 상한 (GPU 하나 기준)
-IDLE_S = 600                                            # 보행자가 10분 동안 연결이 없으면 그 사람의 판단 장치를 내린다
+IDLE_S = 300                                            # 보행자가 5분 동안 연결이 없으면 그 사람의 판단 장치를 내린다
+IDLE_EXIT_S = int(os.environ.get("IDLE_EXIT_S", "300"))  # Cloud Run: 5분 동안 아무 연결 · 요청이 없으면 서버가 스스로 꺼짐 (GPU 요금 멈춤). 0 이면 안 씀
 
 
 def _pin_file(path: Path, given: str | None = None) -> str:
@@ -481,16 +482,31 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             print(f"[warm] 건너뜀: {e!r}", flush=True)
 
     async def _janitor():
-        """10분 동안 보행자 연결이 없는 사람의 판단 장치를 내린다 (GPU 메모리 · 계산을 비움). 기록 · 보호자 연결은 그대로."""
+        """5분 동안 보행자 연결이 없는 사람의 판단 장치를 내린다 (GPU 메모리 · 계산을 비움). 기록 · 보호자 연결은 그대로.
+        Cloud Run 에서는 5분 동안 웹소켓도 HTTP 요청도 없으면 서버를 끝낸다 → 인스턴스가 바로 내려가 GPU 요금이 멈춘다
+        (Cloud Run 은 접속이 없어도 한동안 켜 둠). 다음 접속 때 다시 켜진다(약 13~24초)."""
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
             now = time.time()
             for u in list(users.values()):
                 if u.pipe is not None and u.ped == 0 and now - u.last_ped > IDLE_S:
                     await asyncio.to_thread(u.stop_pipe)
+            if IDLE_EXIT_S and os.environ.get("K_SERVICE"):
+                live = sum(u.ped + len(u.gws) for u in users.values())
+                if live:
+                    shared["last_act"] = now
+                elif now - max(shared.get("last_act", now), shared.get("last_http", 0)) > IDLE_EXIT_S:
+                    print(f"[idle] {IDLE_EXIT_S // 60}분 동안 연결이 없어 서버를 끕니다 (GPU 요금 멈춤)", flush=True)
+                    os._exit(0)
+
+    @app.middleware("http")
+    async def _touch(request, call_next):
+        shared["last_http"] = time.time()                 # 5분 꺼짐 판단용 (헬스체크 · 화면 요청 포함)
+        return await call_next(request)
 
     @app.on_event("startup")
     async def _start():
+        shared["last_act"] = time.time()
         shared["loop"] = asyncio.get_running_loop()
         get_user("default")
         root = DATA / "users"
