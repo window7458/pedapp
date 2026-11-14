@@ -111,6 +111,55 @@ def _prio(e: dict) -> int:
     return 2
 
 
+class StairsWatch:
+    """팀 모델이 잡은 계단(class 8)이 걷는 통로 정면 가까이에 연속으로 보이면 알린다.
+    트리거는 계단을 그냥 '장애물'로 말해서, 지팡이로 놓치기 쉬운 '내려가는 계단'을 따로 구분한다.
+    폰 센서로 구한 지평선(눈높이 선) 기준: 계단 상자 위쪽까지 지평선 아래 → 내려가는 계단, 지평선 위로 솟음 → 올라가는 계단."""
+    NEED, WIN, COOL, GONE = 4, 6, 12.0, 3.0
+
+    def __init__(self):
+        from collections import deque
+        self.hits = deque(maxlen=self.WIN)
+        self.last_say = -1e9
+        self.last_seen = -1e9
+        self.said_kind = None
+
+    def update(self, t, dets, W, H, horizon):
+        best = None
+        for d in dets:
+            if d.get("veto") or d.get("class") != "stairs" or float(d.get("confidence", 0)) < 0.35:
+                continue
+            x1, y1, x2, y2 = (float(v) for v in d["box"])
+            cx = (x1 + x2) / 2
+            if not (0.22 * W <= cx <= 0.78 * W and y2 >= 0.55 * H):      # 걷는 쪽 정면 · 가까이(화면 아래쪽)만
+                continue
+            if best is None or y2 > best[3]:
+                best = (x1, y1, x2, y2)
+        self.hits.append(best)
+        if best is not None:
+            self.last_seen = t
+        got = [b for b in self.hits if b is not None]
+        if len(got) < self.NEED:
+            if t - self.last_seen > self.GONE:
+                self.said_kind = None                      # 계단에서 벗어나면 다음 계단은 다시 알림
+            return None
+        box = got[-1]
+        kind = "any"
+        if horizon:
+            if box[1] > horizon + 0.03 * H:
+                kind = "down"
+            elif box[1] < horizon - 0.05 * H:
+                kind = "up"
+        if self.said_kind is not None or t - self.last_say < self.COOL:
+            return None
+        self.said_kind, self.last_say = kind, t
+        msg = {"down": "앞에 내려가는 계단이 있어요. 멈추고 지팡이로 확인하세요.",
+               "up": "앞에 올라가는 계단이 있어요.",
+               "any": "앞에 계단이 있어요. 지팡이로 확인하세요."}[kind]
+        return {"event": f"stairs_{kind}", "class": "stairs", "class_id": 8, "box": list(box), "message": msg,
+                "priority": "urgent" if kind == "down" else "normal", "track_id": -1, "rule_group": "stairs"}
+
+
 class NavTrigger:
     name = "nav_v12.1"
     is_trigger = True           # pipeline: 이 객체가 인식기이자 트리거
@@ -154,6 +203,8 @@ class NavTrigger:
         self._last_t = None
         self._pending: list[dict] = []
         self._err_t = -1e9
+        self.stairs = StairsWatch()
+        self._stairs_t = -1e9
         self._lock = threading.Lock()
         self.info = {"imgsz": imgsz, "crop": crop}
 
@@ -208,6 +259,16 @@ class NavTrigger:
                     self.log("[nav] 오류\n" + traceback.format_exc())
                 self._pending = []
                 return []
+            try:                                          # ③ 계단 따로 알림 (트리거의 '장애물' 경고와 겹치지 않게)
+                hz = float(debug.get("context", {}).get("horizon") or 0) or None
+                st = self.stairs.update(t, debug.get("detections", []), image.shape[1], image.shape[0], hz)
+                if st:
+                    self._stairs_t = t
+                    events = [e for e in events if e.get("class_id") != 8] + [st]
+                elif t - self._stairs_t < 5.0:
+                    events = [e for e in events if e.get("class_id") != 8]
+            except Exception:
+                pass
             self._pending = events
             self.info = {"imgsz": self.imgsz, "crop": self.crop,
                          "ms": round(debug.get("processing_s", 0) * 1000, 1),

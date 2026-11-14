@@ -82,7 +82,7 @@ def main():
     ap.add_argument("--image", default="/tmp/yolo/bus.jpg")
     a = ap.parse_args()
     w = a.weights or ("/tmp/yolo/yolov8n.pt" if not any((APP / "weights").glob("*.pt")) else "auto")
-    env = dict(os.environ, HB_SURFACE="0")
+    env = dict(os.environ, HB_SURFACE="0", ALLOW_CPU="1")   # 노트북 CPU 로 도는 시험 (실서버는 CPU 면 연결 거절)
     p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w,
                           "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
     try:

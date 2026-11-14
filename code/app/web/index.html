@@ -232,7 +232,7 @@ function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibra
 /* ── 말하기: 모든 말을 Zephyr(구글 04번 여자 목소리)로. 자주 하는 말과 트리거 경고 206문장은 미리 만들어 두어 바로 나온다.
    폰 기본 음성은 서버에 아예 닿지 않을 때(2.5초 안에 음성을 못 받음)만 비상용으로 쓴다 — 아무 말도 못 하는 것보다는 낫기 때문. ──
    자주 하는 말(FIXED)은 앱을 열 때 미리 받아 두므로 바로 나온다. 경고처럼 처음 나오는 문장은 한 번 받은 뒤로 바로 나온다. */
-const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
+const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 const speech = (() => {
   let q=[], cur=null, voice=null;
   const PRI={warn:0,ui:1,desc:2,scene:3}, TTL={warn:2500,ui:9000,desc:6500,scene:14000};
@@ -372,6 +372,9 @@ function parseCommand(text){
   if(/절전/.test(t) && /(켜|시작|모드)/.test(t)) return 'saver_on';
   if(/실내/.test(t) && /(꺼|끄)/.test(t)) return 'indoor_off';
   if(/실내/.test(t) && /(켜|시작|모드)/.test(t)) return 'indoor_on';
+  if(/버스/.test(t) && /(몇번|번호|무슨버스|어떤버스|뭔버스|읽어|맞아)/.test(t) && !/언제|몇분|도착/.test(t)) return 'busnum';
+  if(/(길|횡단보도|건널목|도로)?(건널게|건너갈게|건넌다|건너요|건널래|건너자|건너기시작)/.test(t)) return 'cross';
+  if(/(다건넜|건너왔|건넜어|건넜다|횡단끝)/.test(t)) return 'cross_end';
   if(/버스/.test(t) && /언제|와|도착|몇분|정보|기다|알려|오는/.test(t)){ const m=t.match(/(\d{1,4}(?:-\d{1,2})?)번/); S.busRoute = m ? m[1] : null; return 'bus'; }
   if(/풍경|묘사|둘러|앞에뭐|여기어때|여기어디|뭐가보여|뭐보여|주변.*(설명|보여|알려|어때|뭐|말해)/.test(t)) return 'scene';
   if(performance.now() < (S.sceneUntil||0) && /다시찍|새로찍|사진다시|자세히|자세하게|짧게|간단히/.test(t)) return null;   /* 주변 설명 대화로 넘김 */
@@ -403,6 +406,9 @@ function runCommand(cmd){
     case 'stop': if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'scene': sceneAsk('주변 설명해줘', true); break;
     case 'bus': busAsk(S.busRoute); break;
+    case 'busnum': sceneAsk('앞에 있는 버스의 노선 번호를 읽어 줘. 앞 유리 위나 옆면에 적힌 번호만 짧게 말해 줘. 버스가 없거나 번호가 안 보이면 안 보인다고 말해 줘.', true); break;
+    case 'cross': crossStart(null, true); break;
+    case 'cross_end': crossEnd(true); break;
     case 'elevator': elevAsk(S.elevStation); break;
     case 'train': trainAsk(S.trainStation); break;
     case 'platform': platformAsk(S.plat||{}); break;
@@ -894,6 +900,7 @@ async function navTick(c){
       sendCmd({type:'client_event', kind:'arrived', dest:NAV.dest ? NAV.dest.name : ''}); navStop(false); return; }
     if(st.kind!=='arrive' && d<25){
       const t = st.kind==='crosswalk' ? `횡단보도예요. 신호를 확인하세요. ${st.text}` : st.text;
+      if(st.kind==='crosswalk'){ const b=crossBearingFromRoute(st); if(b!=null) setTimeout(()=>crossStart(b, false), 8000); }   /* 신호 기다린 뒤 건너는 동안 방향 지키기 */
       S.latest=t; speech.push('ui', t); NAV.idx++; NAV.off=0; return; }
   }
   if(NAV.line.length && offRoute(lat,lon)>40){
@@ -906,6 +913,46 @@ async function navTick(c){
       NAV.rerouting=false;
     }
   } else NAV.off=0;
+}
+
+/* ── ⑤ 횡단보도 건널 때 방향 지키기: 건너기 시작할 때의 방향(또는 길 안내의 건너편 방향)을 기준으로,
+     폰(가슴에 고정)이 18° 넘게 1.2초 이상 틀어지면 "왼쪽으로 조금" / "오른쪽으로 조금". 30초 또는 "다 건넜어"까지. ── */
+const HEAD={v:null, buf:[]};
+function onHeading(e){
+  const h = e.webkitCompassHeading!==undefined ? e.webkitCompassHeading : (e.absolute && e.alpha!=null ? (360-e.alpha)%360 : null);
+  if(h==null || isNaN(h)) return;
+  const now=performance.now(); HEAD.buf.push([now,h]); while(HEAD.buf.length && now-HEAD.buf[0][0]>800) HEAD.buf.shift();
+  let sx=0, sy=0; for(const [,a] of HEAD.buf){ sx+=Math.cos(a*Math.PI/180); sy+=Math.sin(a*Math.PI/180); }
+  HEAD.v=(Math.atan2(sy,sx)*180/Math.PI+360)%360;               /* 0.8초 평균(원형 평균) — 걸음 흔들림 줄임 */
+}
+addEventListener('deviceorientationabsolute', onHeading); addEventListener('deviceorientation', onHeading);
+const angDiff=(a,b)=>((a-b+540)%360)-180;                          /* a 가 b 보다 오른쪽(시계 방향)이면 + */
+function bearing(la1,lo1,la2,lo2){ const y=Math.sin((lo2-lo1)*Math.PI/180)*Math.cos(la2*Math.PI/180);
+  const x=Math.cos(la1*Math.PI/180)*Math.sin(la2*Math.PI/180)-Math.sin(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.cos((lo2-lo1)*Math.PI/180);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360; }
+const CROSS={on:false, target:null, t0:0, off:0, lastSay:0, told:false, iv:null};
+function crossStart(target, spoken){
+  if(HEAD.v==null && target==null){ if(spoken) say('방향 센서를 읽을 수 없어서 건너는 방향을 봐 드릴 수 없어요.'); return; }
+  crossEnd(false);
+  Object.assign(CROSS, {on:true, target: target!=null ? target : HEAD.v, t0:performance.now(), off:0, lastSay:0, told:false});
+  if(spoken) say('건너는 동안 방향을 봐 드릴게요. 지금 방향으로 똑바로 가세요.');
+  CROSS.iv=setInterval(()=>{
+    const now=performance.now();
+    if(now-CROSS.t0>30000){ crossEnd(false); return; }
+    if(HEAD.v==null) return;
+    const d=angDiff(HEAD.v, CROSS.target);
+    if(Math.abs(d)>18){ CROSS.off = CROSS.off || now;
+      if(now-CROSS.off>1200 && now-CROSS.lastSay>3000){ CROSS.lastSay=now; CROSS.told=true; beep('listen');
+        say(d>0 ? '왼쪽으로 조금 틀어 주세요.' : '오른쪽으로 조금 틀어 주세요.', 'warn', 2); } }
+    else { CROSS.off=0; if(CROSS.told && Math.abs(d)<8){ CROSS.told=false; say('좋아요. 그대로 가세요.'); } }
+  }, 300);
+}
+function crossEnd(spoken){ if(CROSS.iv) clearInterval(CROSS.iv); CROSS.iv=null; const was=CROSS.on; CROSS.on=false; if(spoken && was) say('횡단보도 안내를 마쳤어요.'); }
+function crossBearingFromRoute(st){              /* 길 안내 중 횡단보도: 그 지점에서 경로 선을 따라 15 m 앞 방향 = 건너편 */
+  if(!NAV.line.length) return null;
+  let bi=0, bd=1e9; NAV.line.forEach((p,i)=>{ const d=dist(st.lat,st.lon,p[0],p[1]); if(d<bd){ bd=d; bi=i; } });
+  for(let j=bi+1;j<NAV.line.length;j++){ const p=NAV.line[j]; if(dist(st.lat,st.lon,p[0],p[1])>=15) return bearing(st.lat,st.lon,p[0],p[1]); }
+  return null;
 }
 
 function sos(){ sendCmd({type:'sos'}); beep(3); vibrate(3); say('보호자에게 도움을 요청했어요.'); }
