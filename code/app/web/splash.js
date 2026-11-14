@@ -19,21 +19,21 @@
     <linearGradient id="spBeam" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
   </defs>
   <g class="walker">
-    <g filter="url(#spS2)" opacity=".45" mask="url(#spFade)"><ellipse cx="210" cy="320" rx="130" ry="260" fill="#B9C2FF"/></g>
+    <g filter="url(#spS2)" opacity=".5" mask="url(#spFade)"><ellipse cx="210" cy="320" rx="130" ry="260" fill="#7FB8FF"/></g>
     <g mask="url(#spFade)"><g mask="url(#spSil)"><g filter="url(#spS2)">
-      <rect width="390" height="660" fill="#D3A7C8"/>
-      <circle cx="212" cy="82" r="72" fill="#A6E8A0"/><circle cx="285" cy="240" r="66" fill="#CBEA98"/>
-      <circle cx="200" cy="168" r="38" fill="#FF9C73"/><circle cx="150" cy="250" r="70" fill="#B9B4E8"/>
-      <circle cx="210" cy="500" r="120" fill="#F49A82"/><circle cx="160" cy="400" r="80" fill="#FF8A4C"/>
-      <circle cx="150" cy="352" r="62" fill="#FF7038"/>
+      <rect width="390" height="660" fill="#4E7FF2"/>
+      <circle cx="212" cy="82" r="72" fill="#E6F6FF"/><circle cx="285" cy="240" r="66" fill="#8FDCFF"/>
+      <circle cx="200" cy="168" r="38" fill="#C2EEFF"/><circle cx="150" cy="250" r="70" fill="#9FB4FF"/>
+      <circle cx="210" cy="500" r="120" fill="#2F5CD6"/><circle cx="160" cy="400" r="80" fill="#5FA8FF"/>
+      <circle cx="150" cy="352" r="62" fill="#7CD0FF"/>
     </g></g></g>
   </g>
   <path class="beam" d="M120 312 L-10 228 L-10 420 Z" fill="url(#spBeam)" filter="url(#spB)"/>
-  <g class="hit"><rect x="26" y="300" width="58" height="40" rx="10" fill="#FFB27E" opacity=".55" filter="url(#spP)"/>
+  <g class="hit"><rect x="26" y="300" width="58" height="40" rx="10" fill="#A9E4FF" opacity=".6" filter="url(#spP)"/>
     <rect x="18" y="292" width="74" height="56" rx="12" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="14 8"/></g>
-  <circle class="ring" cx="138" cy="318" r="18" fill="none" stroke="#FFE1CF" stroke-width="2.5"/>
-  <circle class="ring r2" cx="138" cy="318" r="18" fill="none" stroke="#FFE1CF" stroke-width="2.5"/>
-  <rect x="122" y="290" width="32" height="56" rx="7" fill="#FF6A2A" transform="rotate(-22 138 318)" filter="url(#spP)"/>
+  <circle class="ring" cx="138" cy="318" r="18" fill="none" stroke="#D8F3FF" stroke-width="2.5"/>
+  <circle class="ring r2" cx="138" cy="318" r="18" fill="none" stroke="#D8F3FF" stroke-width="2.5"/>
+  <rect x="122" y="290" width="32" height="56" rx="7" fill="#F2FAFF" transform="rotate(-22 138 318)" filter="url(#spP)"/>
 </svg>`;
   const el = document.createElement("div");
   el.id = "splash";

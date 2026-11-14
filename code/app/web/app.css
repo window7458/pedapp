@@ -93,9 +93,9 @@ a{color:var(--blue);font-weight:700}
 :root[data-hc="1"] .btn{border:2px solid #FFD400}
 
 /* ── 로딩 화면 (splash.js 가 그린다) ── */
-#splash{position:fixed;inset:0;z-index:100;overflow:hidden;background:linear-gradient(180deg,#5D6BCB 0%,#6A6BC6 55%,#836FC0 100%);transition:opacity .7s var(--ease),visibility .7s}
+#splash{position:fixed;inset:0;z-index:100;overflow:hidden;background:linear-gradient(180deg,#0F2C74 0%,#1C4BBE 55%,#2F74E6 100%);transition:opacity .7s var(--ease),visibility .7s}
 #splash.done{opacity:0;visibility:hidden;pointer-events:none}
-#splash::before{content:"";position:absolute;inset:-20%;background:radial-gradient(40% 30% at 30% 30%,rgba(140,180,255,.35),transparent),radial-gradient(40% 30% at 75% 70%,rgba(200,140,230,.35),transparent);animation:sdrift 6s ease-in-out infinite alternate}
+#splash::before{content:"";position:absolute;inset:-20%;background:radial-gradient(40% 30% at 30% 30%,rgba(120,200,255,.32),transparent),radial-gradient(40% 30% at 75% 70%,rgba(110,140,255,.36),transparent);animation:sdrift 6s ease-in-out infinite alternate}
 @keyframes sdrift{to{transform:translate(6%,-5%) rotate(8deg)}}
 #splash svg.fig{position:absolute;left:50%;top:6%;width:min(100vw,460px);height:78%;transform:translateX(-50%)}
 #splash .walker{opacity:0;filter:blur(22px);animation:sappear 1.4s .1s var(--ease) forwards}
