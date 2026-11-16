@@ -508,6 +508,7 @@ async function busPoll(first){
                                     : `${BUSW.stop} 정류장에 ${BUSW.route}번 도착 정보가 아직 없어요. 계속 볼게요.`);
     const soon = a && ((a.min!=null && a.min<=1) || (a.stops_left!=null && a.stops_left!=='' && +a.stops_left<=1));
     if(soon && !BUSW.soonSaid){ BUSW.soonSaid=true; BUSW.soonAt=performance.now(); beep('ok'); vibrate(2);
+      S.latest=`타셔야 하는 ${BUSW.route}번 버스가 곧 와요.`; calmView();
       say(`타셔야 하는 ${BUSW.route}번 버스가 곧 와요.${S.running ? ' 앞에 오면 바로 알려 드릴게요.' : ''}`, 'warn', 2); }
     if(!soon && BUSW.soonSaid && !BUSW.hereSaid && a && a.min!=null && a.min>3){ BUSW.soonSaid=false; }   /* 지나갔으면 다음 차를 다시 기다림 */
   }catch(e){}
@@ -533,6 +534,7 @@ function busSeen(m){                          /* 안내 중 카메라: 앞에 �
   const now=performance.now();
   const due = BUSW.soonSaid && now-BUSW.soonAt < 4*60000;
   if(due && !BUSW.hereSaid){ BUSW.hereSaid=true; beep('ok'); vibrate(3);
+    S.latest=`타셔야 하는 ${BUSW.route}번 버스가 앞에 왔어요.`; calmView();
     say(`타셔야 하는 ${BUSW.route}번 버스가 앞에 왔어요.`, 'warn', 3);
     setTimeout(()=>{ if(BUSW.on) busWaitEnd(false); }, 90000); return; }
   if(!due && now-BUSW.otherAt>30000){ BUSW.otherAt=now;
