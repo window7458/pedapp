@@ -491,8 +491,9 @@ const earsSrv = (() => {
   const talking=()=> pending>0 || (inSp && performance.now()-midAt < 1500);   /* 말하는 중이거나 알아듣는 중 */
   return {start, pause, resume, stop, kick, talking};
 })();
-/* 듣기 고르기: 서버 인식(기본) → 안 되면 브라우저 인식 */
-let EAR_MODE = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'srv' : 'web';
+/* 듣기 고르기 (11/24 결정): 크롬 · 사파리에 들어 있는 음성 인식(크롬 = 구글, 사파리 = 애플, 무료)을 기본으로.
+   브라우저에 음성 인식이 없을 때(아이폰 크롬 등)만 서버 Whisper(earsSrv). */
+let EAR_MODE = SR ? 'web' : ((navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'srv' : 'web');
 const ears = {
   cur(){ return EAR_MODE==='srv' ? earsSrv : earsWeb; },
   start(){ this.cur().start(); }, pause(){ this.cur().pause(); }, resume(){ this.cur().resume(); },
@@ -500,7 +501,7 @@ const ears = {
   mode(){ return EAR_MODE; },
   fallback(why){ if(EAR_MODE==='web') return; EAR_MODE='web'; try{ earsSrv.stop(); }catch(e){} if(why) console.log('[ears] 브라우저 인식으로:', why); earsWeb.start(); },
 };
-fetch('/api/stt').then(r=>r.ok?r.json():{on:false}).then(j=>{ if(!j.on) ears.fallback('서버 인식 꺼짐'); }).catch(()=>{});
+if(EAR_MODE==='srv') fetch('/api/stt').then(r=>r.ok?r.json():{on:false}).then(j=>{ if(!j.on) ears.fallback('서버 인식 꺼짐'); }).catch(()=>{});
 /* 확정 결과는 말이 끝난 뒤 침묵까지 기다려서 늦다. 시작 · 그만 · 도와줘는 그 말만 들리면 바로 실행한다.
    시끄러운 곳에서는 "시자" · "씨작" · "시작해요"처럼 조금 다르게 들리므로 비슷한 말도 받고, 인식 후보 3개를 모두 본다.
    ("다시 시작"의 "다시"는 여기 안 걸림) */
@@ -1433,13 +1434,13 @@ function draw(){
         const ang=Math.atan2(y1-y0,x1-x0), W=Math.max(10, r.width*.07), HL=W*2.2, HW=W*2.4;
         const ex=x1-Math.cos(ang)*HL*.6, ey=y1-Math.sin(ang)*HL*.6;
         octx.save(); octx.globalAlpha=path.valid?0.95:0.55; octx.lineCap='round'; octx.setLineDash(path.valid?[]:[W*.8,W*.6]);
-        for(const [col,wid] of [['rgba(5,15,40,.85)',W+6],['#48F2D0',W]]){               // 검은 테두리 + 밝은 청록 (어디서나 잘 보이게)
+        for(const [col,wid] of [['rgba(5,15,40,.85)',W+6],['#FF3347',W]]){               // 검은 테두리 + 빨강 (어디서나 잘 보이게)
           octx.strokeStyle=col; octx.lineWidth=wid; octx.beginPath(); octx.moveTo(x0,y0); octx.lineTo(ex,ey); octx.stroke(); }
         octx.setLineDash([]);
         const nx=-Math.sin(ang), ny=Math.cos(ang);
         octx.beginPath(); octx.moveTo(x1,y1); octx.lineTo(ex-Math.cos(ang)*HL*.4+nx*HW/2, ey-Math.sin(ang)*HL*.4+ny*HW/2);
         octx.lineTo(ex-Math.cos(ang)*HL*.4-nx*HW/2, ey-Math.sin(ang)*HL*.4-ny*HW/2); octx.closePath();
-        octx.lineJoin='round'; octx.lineWidth=6; octx.strokeStyle='rgba(5,15,40,.85)'; octx.stroke(); octx.fillStyle='#48F2D0'; octx.fill();
+        octx.lineJoin='round'; octx.lineWidth=6; octx.strokeStyle='rgba(5,15,40,.85)'; octx.stroke(); octx.fillStyle='#FF3347'; octx.fill();
         octx.restore();
       }
       let pathShown=false;
