@@ -252,8 +252,12 @@ const speech = (() => {
   function push(kind, text, prio){
     prio = prio||1; let wait=0;
     if(kind==='warn'){
-      q = q.filter(i => i.kind==='warn' && (i.prio||1) >= prio);
-      if(cur && (cur.kind!=='warn' || prio > (cur.prio||1))){ cur=null; cancelNow(); wait=60; }
+      q = q.filter(i => i.kind!=='warn' || (i.prio||1) >= prio);   /* 대답(ui)은 버리지 않고 경고 뒤로 */
+      /* 끼어들기: 묘사는 모든 경고가, 대답(버스 · 길 안내 등)은 긴급(3)만 끊는다. 끊긴 대답은 경고 뒤에 처음부터 다시.
+         예전엔 '511번 …' 대답 중 앞 사람 경고가 대답을 끊고 버렸다. */
+      if(cur && ((cur.kind==='warn' && prio > (cur.prio||1)) || cur.kind==='desc' || cur.kind==='scene' || (cur.kind==='ui' && prio>=3))){
+        if(cur.kind==='ui') q.push({...cur, at:performance.now()});
+        cur=null; cancelNow(); wait=60; }
     }else if(kind==='ui' && cur && (cur.kind==='desc'||cur.kind==='scene')){ cur=null; cancelNow(); wait=60; }
     q.push({kind,text,prio,at:performance.now()});
     fetchClip(text);                                // 순서를 기다리는 동안 미리 받아 둔다
@@ -266,6 +270,9 @@ const speech = (() => {
     q = q.filter(i => now-i.at <= TTL[i.kind]);
     if(!q.length){ ears.resume(); return; }
     q.sort((a,b) => PRI[a.kind]-PRI[b.kind] || (b.prio||1)-(a.prio||1) || a.at-b.at);
+    /* 사용자가 말하는 중이면(인식 중간 결과가 방금 들어옴) 긴급(3) 경고 말고는 말이 끝날 때까지 기다린다.
+       예전엔 '12시 방향 사람…' 경고가 듣기를 끊어 "511 버스 언제 와"가 중간에 잘렸다. */
+    if(ears.talking() && !(q[0].kind==='warn' && (q[0].prio||1)>=3)){ setTimeout(pump, 250); return; }
     const it=q.shift(); cur=it;
     ears.pause();                                   // 내 목소리를 명령으로 알아듣지 않게, 말하는 동안은 듣기를 멈춘다
     const done=()=>{ if(cur===it){ cur=null; setTimeout(pump,40); } };
@@ -289,7 +296,7 @@ const speech = (() => {
   }
   function stop(){ q=[]; cur=null; cancelNow(); }
   function stopDesc(){ q=q.filter(i=>i.kind!=='desc'); if(cur && cur.kind==='desc'){ cur=null; cancelNow(); setTimeout(pump,40); } }
-  return {push, unlock, stop, stopDesc, prefetch, busy:()=>!!cur, kind:()=>cur && cur.kind};
+  return {push, unlock, stop, stopDesc, prefetch, busy:()=>!!cur, kind:()=>cur && cur.kind, idle:()=>!cur && !q.length};
 })();
 const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
@@ -298,7 +305,7 @@ const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
 const ears = (() => {
   /* fails: 결과 없이 1.5초 안에 끝난 횟수 → 다시 켜는 간격을 늘린다 (권한 창이 계속 뜨거나 계속 끊기는 것 막기).
      아이폰 사파리는 continuous 가 불안정해서 한 마디씩 듣는다. */
-  let rec=null, on=false, paused=false, retry=null, denied=false, fails=0, t0=0, heard=false;
+  let rec=null, on=false, paused=false, retry=null, denied=false, fails=0, t0=0, heard=false, midAt=0;
   const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
   function label(t, live){ $('#earText').textContent=t; $('#ear').classList.toggle('listening', !!live); }
   function start(){
@@ -311,8 +318,8 @@ const ears = (() => {
     rec.onresult = (e) => { heard=true; fails=0;
       for(let i=e.resultIndex;i<e.results.length;i++){ if(fired.has(i)) continue;
         const alts=[...e.results[i]].map(a=>a.transcript);
-        if(e.results[i].isFinal) handleSpeech(alts);
-        else if(handleQuick(alts)) fired.add(i); }
+        if(e.results[i].isFinal){ midAt=0; handleSpeech(alts); }
+        else { midAt=performance.now(); if(handleQuick(alts)){ fired.add(i); midAt=0; } } }
     };
     rec.onerror = (e) => { if(e.error==='not-allowed'||e.error==='service-not-allowed'){ denied=true; label('마이크 권한이 필요해요 · 화면을 누르면 다시 들어요'); } };
     rec.onend = () => { on=false;
@@ -325,7 +332,8 @@ const ears = (() => {
   function resume(){ if(!paused) return; paused=false; clearTimeout(retry); retry=setTimeout(start, 250); }
   function stop(){ paused=false; clearTimeout(retry); if(on){ try{ rec.abort(); }catch(e){} on=false; } label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐'); }
   function kick(){ if(denied || fails){ denied=false; fails=0; clearTimeout(retry); } start(); }   /* 화면을 누를 때: 권한 거절 · 실패 대기를 풀고 바로 듣기 */
-  return {start, pause, resume, stop, kick};
+  const talking=()=> on && midAt>0 && performance.now()-midAt < 1500;   /* 말하는 중 (중간 결과가 1.5초 안에 들어옴) */
+  return {start, pause, resume, stop, kick, talking};
 })();
 /* 확정 결과는 말이 끝난 뒤 침묵까지 기다려서 늦다. 시작 · 그만 · 도와줘는 그 말만 들리면 바로 실행한다.
    시끄러운 곳에서는 "시자" · "씨작" · "시작해요"처럼 조금 다르게 들리므로 비슷한 말도 받고, 인식 후보 3개를 모두 본다.
@@ -392,7 +400,7 @@ function parseCommand(text){
   if(/버스/.test(t) && /(몇번|번호|무슨버스|어떤버스|뭔버스|읽어|맞아)/.test(t) && !/언제|몇분|도착/.test(t)) return 'busnum';
   if(/(길|횡단보도|건널목|도로)?(건널게|건너갈게|건넌다|건너요|건널래|건너자|건너기시작)/.test(t)) return 'cross';
   if(/(다건넜|건너왔|건넜어|건넜다|횡단끝)/.test(t)) return 'cross_end';
-  if(/버스/.test(t) && /언제|와|도착|몇분|정보|기다|알려|오는/.test(t)){ const m=t.match(/(\d{1,4}(?:-\d{1,2})?)번/); S.busRoute = m ? m[1] : null; return 'bus'; }
+  if(/버스/.test(t) && /언제|와|도착|몇분|정보|기다|알려|오는/.test(t)){ const m=t.match(/(\d{1,4}(?:-\d{1,2})?)번/) || t.match(/(\d{1,4}(?:-\d{1,2})?)(?=버스)/); S.busRoute = m ? m[1] : null; return 'bus'; }   /* "511 버스 언제 와"처럼 '번'이 빠져도 */
   if(/풍경|묘사|둘러|앞에뭐|여기어때|여기어디|뭐가보여|뭐보여|주변.*(설명|보여|알려|어때|뭐|말해)/.test(t)) return 'scene';
   if(performance.now() < (S.sceneUntil||0) && /다시찍|새로찍|사진다시|자세히|자세하게|짧게|간단히/.test(t)) return null;   /* 주변 설명 대화로 넘김 */
   if(/(터치|안내모드|손가락).*(꺼|끄)/.test(t)) return 'guide_off';
@@ -416,6 +424,15 @@ function parseCommand(text){
   if(/시작|출발|가자|실행|켜줘/.test(t)) return 'start';
   return null;
 }
+/* ── 정보 묻기(버스 · 지하철 · 엘리베이터 · 승강장): 서 있다고 보고, 대답을 끝까지 듣고 말할 때까지 장애물 경고를 멈춘다.
+     카메라 · 판단은 계속 돈다(다시 켜는 시간 · 권한 창 없음). 긴급(3) 경고만 진동으로 알린다. 최대 40초. ── */
+const INFO={on:false, t:null};
+async function infoMode(fn){
+  INFO.on=true; clearTimeout(INFO.t); INFO.t=setTimeout(()=>{ INFO.on=false; }, 40000);
+  try{ await fn(); }catch(e){}
+  const t0=performance.now();
+  const iv=setInterval(()=>{ if(!INFO.on || (speech.idle() && performance.now()-t0>600) || performance.now()-t0>30000){ clearInterval(iv); clearTimeout(INFO.t); INFO.on=false; } }, 200);
+}
 function runCommand(cmd){
   S.lastAct=performance.now();
   switch(cmd){
@@ -425,16 +442,16 @@ function runCommand(cmd){
     case 'auto_on': case 'auto_off': S.auto=(cmd==='auto_on'); save(); say(S.auto ? '걷기 시작하면 안내를 켤지 여쭤볼게요. 집 근처에서는 묻지 않아요.' : '걸어도 자동으로 묻지 않을게요.'); break;
     case 'stop': if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'scene': sceneAsk('주변 설명해줘', true); break;
-    case 'bus': busAsk(S.busRoute); break;
+    case 'bus': infoMode(()=>busAsk(S.busRoute)); break;
     case 'setup': showVoiceSetup(); setTimeout(()=>{ if(VS.on && !VS.armed){ VS.armed=true; vsAsk(); } }, 3500); break;
     case 'bus_wait': busWait(S.busWaitRoute); break;
     case 'bus_wait_end': busWaitEnd(true); break;
     case 'busnum': if(BUSW.on){ busNumNow(); break; } sceneAsk('앞에 있는 버스의 노선 번호를 읽어 줘. 앞 유리 위나 옆면에 적힌 번호만 짧게 말해 줘. 버스가 없거나 번호가 안 보이면 안 보인다고 말해 줘.', true); break;
     case 'cross': crossStart(null, true); break;
     case 'cross_end': crossEnd(true); break;
-    case 'elevator': elevAsk(S.elevStation); break;
-    case 'train': trainAsk(S.trainStation); break;
-    case 'platform': platformAsk(S.plat||{}); break;
+    case 'elevator': infoMode(()=>elevAsk(S.elevStation)); break;
+    case 'train': infoMode(()=>trainAsk(S.trainStation)); break;
+    case 'platform': infoMode(()=>platformAsk(S.plat||{})); break;
     case 'nav': navStart(S.navQuery); break;
     case 'nav_stop': navStop(true); break;
     case 'saver_on': case 'saver_off': S.saver=(cmd==='saver_on'); $('#oSaver').checked=S.saver; save(); applySettings();
@@ -504,9 +521,9 @@ async function kricAsk(path, params, intro, fail404){
     const j=await r.json(); S.latest=j.sentence; say(j.sentence); calmView();
   }catch(e){ say('지금은 지하철 정보를 받을 수 없어요.'); }
 }
-function trainAsk(st){ kricAsk('/api/train', {q:st}, st ? `${st}역 열차 시간을 볼게요.` : '가까운 역의 열차 시간을 볼게요.',
+function trainAsk(st){ return kricAsk('/api/train', {q:st}, st ? `${st}역 열차 시간을 볼게요.` : '가까운 역의 열차 시간을 볼게요.',
                                st ? `${st}역을 찾지 못했어요.` : '가까운 지하철역을 찾지 못했어요.'); }
-function platformAsk(p){ kricAsk('/api/platform', {q:p.q, exit:p.exit, dir:p.dir}, p.q ? `${p.q}역 승강장 가는 길을 찾아볼게요.` : '가까운 역의 승강장 가는 길을 찾아볼게요.',
+function platformAsk(p){ return kricAsk('/api/platform', {q:p.q, exit:p.exit, dir:p.dir}, p.q ? `${p.q}역 승강장 가는 길을 찾아볼게요.` : '가까운 역의 승강장 가는 길을 찾아볼게요.',
                                  p.q ? `${p.q}역을 찾지 못했어요.` : '가까운 지하철역을 찾지 못했어요.'); }
 
 /* ── 버스 기다리기: "511번 탈게" → 가까운 정류장 도착 정보를 20초마다 보고, 1분 안 · 한 정거장 전이면 바로 알림.
@@ -588,6 +605,7 @@ function handle(m){
     case 'dets': S.dets=m; S.detsAt=performance.now(); busSeen(m); if(S.stallSaid){ S.stallSaid=false; notice(''); say('안내가 다시 시작됐어요.'); } if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
     case 'warn': {
       const prio=m.prio||1;
+      if(INFO.on){ if(prio>=3) vibrate(prio); break; }       /* 정보 묻는 중: 경고 말 안 함 (긴급만 진동) */
       S.lastWarns.unshift(m.text); S.lastWarns.length=Math.min(S.lastWarns.length,5);
       beep(prio); vibrate(prio); speech.push('warn', m.text, prio);
       S.latest=m.text;
