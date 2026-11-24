@@ -210,7 +210,7 @@ const S = {showBoxes:false /* 검출 상자 · 보행 통로 칸 (개발용, 기
 
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({saver:S.saver,indoor:S.indoor,fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,hc:S.hc,prev:S.prev,
-  mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps,auto:S.auto,autoIndoor:S.autoIndoor,home:S.home})); }catch(e){} }
+  mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps,auto:S.auto,home:S.home})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
 
 /* ── 화면 문구 (위쪽 에이전트 영역) ── */
@@ -1036,28 +1036,9 @@ setInterval(()=>{
       ()=>{ start(); }, ()=>{ Auto.cool=performance.now()+600000; say('알겠어요. 10분 동안은 묻지 않을게요.'); }, 25, ()=>{});
 }, 1000);
 
-/* 자동 실내 모드: 안내 중 20초마다 판단, 같은 판단이 두 번 이어지면 바꾼다. 사람이 직접 켜고 끈 뒤 10분은 건드리지 않는다 */
-const AutoIn = { last:null, same:0, manualAt:-1e9, askAt:0, building:null };
-async function indoorGuess(fix){
-  if(nearHome(fix)) return true;
-  if(Date.now()-AutoIn.askAt > 60000){
-    AutoIn.askAt=Date.now();
-    try{ const r=await fetch(`/api/indoor?lat=${fix.lat}&lon=${fix.lon}`); if(r.ok) AutoIn.building=(await r.json()).building; }catch(e){ AutoIn.building=null; }
-  }
-  if(AutoIn.building===true) return true;
-  if(fix.acc>35) return true;                                          // 건물 안에서는 위성이 가려 GPS 오차가 크게 늘어난다
-  if(fix.acc<20) return false;
-  return null;                                                         // 애매하면 그대로 둔다
-}
-setInterval(async ()=>{
-  if(!S.running || !S.autoIndoor || performance.now()-AutoIn.manualAt < 600000) return;
-  const fix = S.fix && Date.now()-S.fix.t < 30000 ? S.fix : null; if(!fix) return;
-  const g=await indoorGuess(fix); if(g==null) return;
-  AutoIn.same = g===AutoIn.last ? AutoIn.same+1 : 1; AutoIn.last=g;
-  if(AutoIn.same<2 || g===!!S.indoor) return;
-  S.indoor=g; $('#oIndoor').checked=S.indoor; save(); sendCmd({type:'indoor', on:S.indoor});
-  say(g ? '건물 안으로 들어오셨네요. 실내 모드를 켰어요. 책상과 의자도 알려 드려요.' : '밖으로 나오셨네요. 실내 모드를 껐어요.');
-}, 20000);
+/* (11/24 사용자 요청) 자동 실내 모드 켜고 끄기는 뺐다 — 실내 모드는 "실내 모드 켜줘 / 꺼줘"나 설정에서만.
+   AutoIn 은 길 안내의 '건물 안이면 걷는 안내 멈춤'(navGpsOk)이 GPS 오차만 보도록 남겨 둔 빈 값 */
+const AutoIn = { last:null, manualAt:-1e9 };
 
 /* ── 넘어짐 감지: 큰 충격(약 2.5g 이상, 직전에 떨어지는 느낌이 있으면 더 낮은 문턱) 뒤 2.5초 동안 거의 움직임이 없으면 묻는다.
        안내 중에만. 30초 동안 대답이 없으면 보호자에게 SOS(위치 · 영상 30분 공유) ── */
@@ -1295,7 +1276,7 @@ async function navStart(q){
     tripEnd(); navStop(false); S.latest=j.intro;
     if(c.accuracy>25 || (S.indoor && AutoIn.last===true)){          /* 건물 안: 걷는 안내 문장 대신 '먼저 밖으로' */
       say(j.mode==='transit' ? j.intro : `${j.dest.name}까지 걸어서 약 ${j.minutes}분이에요.`);
-      say('지금 건물 안이거나 위치가 정확하지 않아요. 먼저 건물 밖으로 나가 주세요. 밖에서 바로 안내할게요.');
+      say('지금 건물 안이거나 위치가 정확하지 않아요. 먼저 건물 밖으로 나가 주세요. 밖에서 바로 안내할게요.'); NAV.badPre=true;
     } else say(j.intro);
     if(j.mode==='transit' && j.trip){
       Object.assign(TRIP, {on:true, legs:j.trip.legs, i:0, dest:j.dest, riding:false});
@@ -1308,7 +1289,7 @@ async function navStart(q){
   }catch(e){ say('지금은 길을 찾을 수 없어요.'); }
 }
 function navLoad(j){
-  NAV.on=true; NAV.steps=j.steps||[]; NAV.idx=0; NAV.line=j.line||[]; NAV.off=0; NAV.view=null;
+  NAV.on=true; NAV.steps=j.steps||[]; NAV.idx=0; NAV.line=j.line||[]; NAV.off=0; NAV.view=null; NAV.badSaid=!!NAV.badPre; NAV.badPre=false;   /* 시작 때 이미 '밖으로' 말했으면 다시 안 함 */
   Object.assign(NAV, {offAt:0, dirSaidAt:0, progAt:performance.now()});
   if(NAV.watch==null && navigator.geolocation)
     NAV.watch=navigator.geolocation.watchPosition(p=>navTick(p.coords), ()=>{}, {enableHighAccuracy:true, maximumAge:2000, timeout:20000});
