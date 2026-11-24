@@ -77,6 +77,9 @@ class _Token:
 _LABELS = ["사람", "장애물"] + [p + v for v in ["자전거", "킥보드", "오토바이"] for p in ("", "세워진 ", "이동 중인 ")]           + [p + v for v in ["차량", "버스"] for p in ("", "멈춰 있는 ", "이동 중인 ")]
 TRIGGER_SENTENCES = [f"{c}시 방향, {l}에 유의하세요." for c in (12, 1, 11, 2, 10, 3, 9, 4, 8, 5, 7, 6) for l in _LABELS]                     + ["신호가 초록불로 바뀌었습니다.", "신호가 빨간불로 바뀌었습니다."]
 
+# 앱이 줄여 말하는 경고 (web/index.html shortWarn): 위험 "멈추세요. 1시 킥보드." · 주의 "1시 킥보드 조심."
+SHORT_SENTENCES = [f"멈추세요. {c}시 {l}." for c in (12, 1, 11, 2, 10, 3, 9, 4, 8, 5, 7, 6) for l in _LABELS] + [f"{c}시 {l} 조심." for c in (12, 1, 11, 2, 10, 3, 9, 4, 8, 5, 7, 6) for l in _LABELS]
+
 
 class AppTTS:
     def __init__(self, cache_dir: Path, log=print, voice: str = VOICE, rate: float = RATE):
@@ -113,9 +116,10 @@ class AppTTS:
         tmp.write_bytes(data)
         tmp.replace(target)
 
-    async def prewarm(self, sentences=TRIGGER_SENTENCES, gap_s: float = 0.25):
+    async def prewarm(self, sentences=None, gap_s: float = 0.25):
         """서버가 켜질 때 한 번: 경고 문장을 앞쪽 방향부터 미리 만들어 둔다. 이미 있으면 건너뛴다 (버킷이라 다음엔 바로 끝남).
         분당 요청 한도에 걸리지 않게 하나씩 천천히."""
+        sentences = sentences if sentences is not None else SHORT_SENTENCES + TRIGGER_SENTENCES   # 짧은 경고 먼저
         made = 0
         for s in sentences:
             if not self.ok:

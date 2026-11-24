@@ -50,5 +50,17 @@ async def main():
     await pg.evaluate("()=>window.__insight.handle({type:'warn', text:'1시 방향, 자전거에 유의하세요.', prio:1})")
     await asyncio.sleep(2); print('case4', await pg.evaluate("window.__played"))
     #print('dbg', await pg.evaluate("({latest: window.__insight.S.latest, info: INFO.on, talking: ears.talking(), mode: ears.mode(), busy: speech.busy(), idle: speech.idle()})"))
+    # 5) 끼어들기: 긴 대답 중 사용자가 다른 말을 시작 → 대답을 멈춤
+    await pg.evaluate("""()=>{ window.__played=[]; say('지하철은 3분 뒤에 도착하고 그다음 열차는 12분 뒤에 도착해요. 엘리베이터는 2번 출구에 있어요.');
+      setTimeout(()=>{ const R=window.__rec; const a=[{transcript:'인하대역 가자'}]; a.isFinal=false; R.onresult({resultIndex:0, results:[a]}); }, 600); }""")
+    await asyncio.sleep(1.5); p5 = await pg.evaluate("window.__played"); print('case5', p5); assert p5 and p5[0].startswith('[끊김]'), p5
+    await asyncio.sleep(1.6)   # 5번의 '사용자가 말하는 중' 상태가 끝나기를 기다림
+    # 6) 메아리: 앱이 하는 말이 마이크로 다시 들어옴 → 멈추지 않음
+    await pg.evaluate("""()=>{ window.__played=[]; say('지하철은 3분 뒤에 도착해요.');
+      setTimeout(()=>{ const R=window.__rec; const a=[{transcript:'지하철은 3분 뒤에'}]; a.isFinal=false; R.onresult({resultIndex:0, results:[a]}); }, 300); }""")
+    await asyncio.sleep(2); p6 = await pg.evaluate("window.__played"); print('case6', p6); assert p6 == ['지하철은 3분 뒤에 도착해요.'], p6
+    # 7) 짧은 경고: 위험 "멈추세요. 1시 킥보드." · 화면 큰 글씨 '멈추세요'
+    await pg.evaluate("()=>{ window.__played=[]; window.__insight.handle({type:'warn', text:'1시 방향, 킥보드에 유의하세요.', prio:3}); }")
+    await asyncio.sleep(1.2); print('case7', await pg.evaluate("window.__played"), await pg.evaluate("document.querySelector('#sayH').textContent + ' / ' + document.querySelector('#sayP').textContent"))
     await b.close()
 asyncio.run(main())

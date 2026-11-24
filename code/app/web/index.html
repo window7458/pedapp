@@ -16,8 +16,8 @@
 <link rel="stylesheet" href="tactile.css?v=6">
 <style>
 .agent{cursor:pointer}
-#stage{position:absolute;right:18px;top:64px;width:min(44vw,210px);aspect-ratio:3/4;height:auto;border-radius:16px;cursor:zoom-in;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
-#stage.big{left:18px;right:18px;width:auto;max-width:520px;margin:0 auto;z-index:20;cursor:zoom-out}   /* 검증용: 누르면 크게 · 다시 누르면 작게 */
+#stage{position:absolute;right:18px;top:64px;width:96px;height:128px;border-radius:16px;cursor:zoom-in;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
+#stage.big{left:18px;right:18px;width:auto;height:auto;aspect-ratio:3/4;max-width:520px;margin:0 auto;z-index:20;cursor:zoom-out}   /* 검증용: 누르면 크게 · 다시 누르면 작게 */
 #stage video,#stage img,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .hasvideo .say{padding-right:104px}
 #notice{position:relative;margin:10px 6px 0 0;padding:12px 14px;border-radius:16px;background:#FFF1F0;color:#C8283A;font-weight:700;font-size:14px;z-index:5}
@@ -204,7 +204,7 @@
 const $ = (s) => document.querySelector(s);
 /* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
 const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
-const S = {showBoxes:false /* 검출 상자 · 보행 통로 칸 (개발용, 기본 끔) */, showPath:true /* 걷는 방향 큰 화살표 */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
+const S = {showBoxes:false /* 검출 상자 · 보행 통로 칸 (개발용, 기본 끔) */, showPath:false /* 걷는 방향 화살표 (11/24 사용자: 빼 달라고 함) */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
@@ -227,6 +227,15 @@ function calmView(){
   if(document.body.classList.contains('warn')||document.body.classList.contains('caut')) return;
   if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을 살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
   else say3('대기 중', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
+}
+/* 경고 짧게 (11/24 사용자: 말이 너무 길다, 멈추세요 · 피하세요가 잘 안 보인다).
+   트리거 문장 "1시 방향, 킥보드에 유의하세요." → 위험(3): "멈추세요. 1시 킥보드." · 주의(2): "1시 킥보드 조심."
+   화면은 큰 글씨로 할 일(멈추세요 / 조심하세요), 작은 글씨로 방향 · 대상. 서버 app_tts.SHORT_SENTENCES 와 같은 형식(미리 합성). */
+function shortWarn(text, prio){
+  const m=String(text||'').match(/^(\d{1,2})시 방향, (.+?)에 유의하세요\.?$/);
+  if(!m) return null;
+  const where=`${m[1]}시 ${m[2]}`;
+  return prio>=3 ? {say:`멈추세요. ${where}.`, head:'멈추세요', sub:where} : {say:`${where} 조심.`, head:'조심하세요', sub:where};
 }
 function flash(level, text){             // level: warn(멈추세요) | caut(피하세요)
   const parts = text.split(/(?<=[.?!])\s+/), act = parts.length>1 ? parts.slice(1).join(' ') : '';
@@ -325,7 +334,7 @@ const speech = (() => {
     if(ears.talking() && !(q[0].kind==='warn' && (q[0].prio||1)>=3)){ setTimeout(pump, 250); return; }
     const it=q.shift(); cur=it;
     ears.pause();                                   // 내 목소리를 명령으로 알아듣지 않게, 말하는 동안은 듣기를 멈춘다
-    const done=(ok=true)=>{ if(cur===it){ cur=null; setTimeout(pump,40);
+    const done=(ok=true)=>{ if(cur===it){ lastSaid={text:it.text, at:performance.now()}; cur=null; setTimeout(pump,40);
       if(it.hooks && it.hooks.onDone)it.hooks.onDone(ok);
     } };
     if(it.kind==='tactile'){ speakSynth(it,done); return; }
@@ -355,12 +364,30 @@ const speech = (() => {
   function stop(){ q=[]; cur=null; cancelNow(); }
   function stopDesc(){ q=q.filter(i=>i.kind!=='desc'); if(cur && cur.kind==='desc'){ cur=null; cancelNow(); setTimeout(pump,40); } }
   function dropTactile(){ q=q.filter(i=>i.kind!=='tactile'); if(cur && cur.kind==='tactile'){ cur=null; cancelNow(); setTimeout(pump,40); } }
-  return {push, unlock, stop, stopDesc, dropTactile, prefetch, busy:()=>!!cur, kind:()=>cur && cur.kind, idle:()=>!cur && !q.length};
+  /* 끼어들기: 사용자가 말을 시작하면 지금 말하던 안내 · 대답 · 설명을 멈추고 줄도 비운다. 위험(3) 경고만 그대로 */
+  function bargeIn(){
+    q=q.filter(i=>i.kind==='warn' && (i.prio||1)>=3);
+    if(cur && !(cur.kind==='warn' && (cur.prio||1)>=3)){ lastSaid={text:cur.text, at:performance.now()}; cur=null; cancelNow(); setTimeout(pump,40); return true; }
+    return false;
+  }
+  let lastSaid={text:'', at:0};
+  const heardText=()=> cur ? cur.text : (performance.now()-lastSaid.at<1200 ? lastSaid.text : '');   /* 스피커 메아리는 거의 바로 들어온다 */
+  return {push, unlock, stop, stopDesc, dropTactile, prefetch, bargeIn, heardText, busy:()=>!!cur, kind:()=>cur && cur.kind, idle:()=>!cur && !q.length,
+          _done(t){ lastSaid={text:t, at:performance.now()}; }};
 })();
 const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
 /* ── 항상 듣기: 버튼 없이 음성 명령 (말하는 중엔 잠시 멈춤) ── */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+/* 들은 말이 앱이 방금 한 말(스피커 소리)인지: 들은 말의 두 글자 묶음이 60% 넘게 앱 문장에 있으면 메아리로 본다 */
+function isEcho(heard){
+  const said=speech.heardText(); if(!said) return false;
+  const n=(t)=>String(t||'').replace(/[\s.,!?~…·]/g,'');
+  const h=n(heard); if(h.length<2) return true;
+  const a=n(said), b=n(spokenNums(said));
+  let hit=0, tot=0; for(let i=0;i<h.length-1;i++){ const g=h.slice(i,i+2); tot++; if(a.includes(g)||b.includes(g)) hit++; }
+  return tot>0 && hit/tot>=0.6;
+}
 const earsWeb = (() => {
   /* fails: 결과 없이 1.5초 안에 끝난 횟수 → 다시 켜는 간격을 늘린다 (권한 창이 계속 뜨거나 계속 끊기는 것 막기).
      아이폰 사파리는 continuous 가 불안정해서 한 마디씩 듣는다. */
@@ -377,6 +404,8 @@ const earsWeb = (() => {
     rec.onresult = (e) => { heard=true; fails=0;
       for(let i=e.resultIndex;i<e.results.length;i++){ if(fired.has(i)) continue;
         const alts=[...e.results[i]].map(a=>a.transcript);
+        if(isEcho(alts[0])) continue;                          // 앱이 말한 소리 → 무시
+        if(speech.busy()) speech.bargeIn();                    // 사용자가 말을 시작함 → 하던 안내를 멈춤
         if(e.results[i].isFinal){ midAt=0; handleSpeech(alts); }
         else { midAt=performance.now(); if(handleQuick(alts)){ fired.add(i); midAt=0; } } }
     };
@@ -387,8 +416,10 @@ const earsWeb = (() => {
       else if(!S.listen) label('항상 듣기 꺼짐'); };
     try{ rec.start(); on=true; label('듣고 있어요', true); }catch(e){ on=false; }
   }
-  function pause(){ paused=true; if(on){ try{ rec.abort(); }catch(e){} on=false; } if(S.listen && !denied && SR) label('말하는 중'); }
-  function resume(){ if(!paused) return; paused=false; clearTimeout(retry); retry=setTimeout(start, 250); }
+  /* 앱이 말하는 동안에도 계속 듣는다(끼어들기). 내 목소리는 isEcho 로 거른다. 아이폰은 말하기와 듣기를 함께 못 해서 예전처럼 멈춘다 */
+  function pause(){ if(!IOS){ if(S.listen && !denied && SR) label('말하는 중 · 말하면 멈춰요', true); return; }
+    paused=true; if(on){ try{ rec.abort(); }catch(e){} on=false; } if(S.listen && !denied && SR) label('말하는 중'); }
+  function resume(){ if(!IOS){ if(on) label('듣고 있어요', true); return; } if(!paused) return; paused=false; clearTimeout(retry); retry=setTimeout(start, 250); }
   function stop(){ paused=false; clearTimeout(retry); if(on){ try{ rec.abort(); }catch(e){} on=false; } label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐'); }
   function kick(){ if(denied || fails){ denied=false; fails=0; clearTimeout(retry); } start(); }   /* 화면을 누를 때: 권한 거절 · 실패 대기를 풀고 바로 듣기 */
   const talking=()=> on && midAt>0 && performance.now()-midAt < 1500;   /* 말하는 중 (중간 결과가 1.5초 안에 들어옴) */
@@ -778,11 +809,12 @@ function handle(m){
     case 'tactile': if(window.SayEyeTactile) window.SayEyeTactile.handle(m); break;
     case 'warn': {
       const prio=m.prio||1;
+      { const w=shortWarn(m.text, prio); if(w){ m.text=w.say; m.head=w.head; m.sub=w.sub; } }
       if(INFO.on){ if(prio>=3) vibrate(prio); break; }       /* 정보 묻는 중: 경고 말 안 함 (긴급만 진동) */
       S.lastWarns.unshift(m.text); S.lastWarns.length=Math.min(S.lastWarns.length,5);
       beep(prio); vibrate(prio); speech.push('warn', m.text, prio);
       S.latest=m.text;
-      if(prio>=3) flash('warn', m.text); else if(prio===2) flash('caut', m.text); else calmView();
+      if(prio>=3) flash('warn', m.head ? `${m.sub}. ${m.head}` : m.text); else if(prio===2) flash('caut', m.head ? `${m.sub}. ${m.head}` : m.text); else calmView();
       break; }
     case 'source': if(m.state==='error'){ notice(m.error); } else if(m.state==='ok') notice(''); break;
     case 'status': S.fps=m.fps; S.rx=m.rx_fps; S.black=m.black; break;
