@@ -971,7 +971,9 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                 user.ped = max(0, user.ped - 1)
                 if user.ped == 0:
                     user.state.pop("pending_tactile", None)
-                    if user.pipe is not None:
+                    # 점자블록 모드일 때만 끈다. 늘 끄면 판단 장치의 세대가 바뀌어, 다시 연결할 때마다 추적 · 판단 상태가 초기화되고
+                    # 보호자 실시간 영상도 멈췄다 (smoke_test 로 확인, 11/24)
+                    if user.pipe is not None and user.pipe.tactile.snapshot()[1]:
                         user.pipe.tactile.cancel()
                 user.last_ped = time.time()
 
