@@ -10,7 +10,7 @@ param([Parameter(Mandatory)][string]$Project, [string]$Region = "asia-southeast1
 $ErrorActionPreference = "Stop"
 gcloud config set project $Project
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
-$bucket = "$Project-sayeye-data"
+$bucket = "$Project-sayeye-data-sg"   # 싱가포르 버킷 (서버와 같은 지역. 예전 서울 버킷 -sayeye-data 는 지역이 달라 모델 · 기록 읽기 쓰기가 느렸음)
 
 $ErrorActionPreference = "Continue"
 gcloud artifacts repositories describe sayeye --location $Region 2>$null | Out-Null

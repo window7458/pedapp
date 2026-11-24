@@ -6,14 +6,14 @@
 # - 마지막 접속 뒤 몇 분 동안은 켜진 채 기다리다가(그동안은 요금이 나감) 0대로 줄어든다. 깨어나는 데 약 20초.
 # - 시연 때 깨어나는 시간이 싫으면 -MinInstances 1 (항상 켜 둠, 켜 둔 시간만큼 요금). 끝나면 -MinInstances 0 으로 다시.
 param([Parameter(Mandatory)][string]$Project, [Parameter(Mandatory)][string]$Key, [string]$Pin = "",
-      [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-northeast3",
+      [string]$Region = "asia-southeast1", [string]$Name = "sayeye-gpu", [string]$DataRegion = "asia-southeast1",
       [int]$MinInstances = 0, [string]$DataKey = "")
 $ErrorActionPreference = "Stop"
 gcloud config set project $Project
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com
 
 # 데이터 버킷 (CPU 판이 이미 만들었으면 그대로 씀)
-$bucket = "$Project-sayeye-data"
+$bucket = "$Project-sayeye-data-sg"   # 싱가포르 버킷 (서버와 같은 지역. 예전 서울 버킷 -sayeye-data 는 지역이 달라 모델 · 기록 읽기 쓰기가 느렸음)
 $ErrorActionPreference = "Continue"
 gcloud storage buckets describe "gs://$bucket" --format "value(name)" 2>$null | Out-Null
 if (-not $?) { gcloud storage buckets create "gs://$bucket" --location $DataRegion --uniform-bucket-level-access --public-access-prevention }
@@ -27,7 +27,7 @@ gcloud storage buckets add-iam-policy-binding "gs://$bucket" --member "serviceAc
 $image = "$Region-docker.pkg.dev/$Project/sayeye/sayeye-gpu:latest"
 gcloud builds submit --config deploy/cloudbuild-gpu.yaml --substitutions "_IMAGE=$image" .
 
-$envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data"
+$envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data,IDLE_EXIT_S=0"
 if ($Pin) { $envs += ",GUARDIAN_PIN=$Pin" }
 if ($DataKey) { $envs += ",DATA_GO_KR_KEY=$DataKey" }   # 버스 도착 정보 (공공데이터포털 일반 인증키)
 gcloud run deploy $Name --image $image --region $Region `

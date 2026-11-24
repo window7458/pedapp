@@ -19,8 +19,8 @@ gcloud config set project $Project
 $image = "$Region-docker.pkg.dev/$Project/sayeye/sayeye-lite:latest"
 gcloud builds submit --config deploy/cloudbuild-lite.yaml --substitutions "_IMAGE=$image" .
 
-$bucket = "$Project-sayeye-data"
-$envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data,INFER=onnx,STT=0"
+$bucket = "$Project-sayeye-data-sg"   # 싱가포르 버킷 (서버와 같은 지역. 예전 서울 버킷 -sayeye-data 는 지역이 달라 모델 · 기록 읽기 쓰기가 느렸음)
+$envs = "SAYEYE_KEY=$Key,DEVICE=0,DATA_DIR=/data,INFER=onnx,STT=0,IDLE_EXIT_S=0"
 foreach ($k in "DATA_GO_KR_KEY", "TMAP_KEY", "KRIC_KEY") { if ($cfg[$k]) { $envs += ",$k=$($cfg[$k])" } }
 $ErrorActionPreference = "Continue"
 $svc = gcloud run services describe sayeye-gpu --region $Region --format json 2>$null | ConvertFrom-Json   # 풍경 서버 주소는 기존 판 설정에서

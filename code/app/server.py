@@ -258,7 +258,7 @@ def load_pin(arg: str | None) -> str:
 UID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_ACTIVE = int(os.environ.get("MAX_USERS", "8"))      # 동시에 판단 장치를 돌리는 보행자 수 상한 (GPU 하나 기준)
 IDLE_S = 300                                            # 보행자가 5분 동안 연결이 없으면 그 사람의 판단 장치를 내린다
-IDLE_EXIT_S = int(os.environ.get("IDLE_EXIT_S", "300"))  # Cloud Run: 5분 동안 아무 연결 · 요청이 없으면 서버가 스스로 꺼짐 (GPU 요금 멈춤). 0 이면 안 씀
+IDLE_EXIT_S = int(os.environ.get("IDLE_EXIT_S", "0"))  # 0 = 안 씀(기본). 스스로 꺼지면 Cloud Run 이 곧바로 새 서버를 띄워 재시작이 반복됨(11/24 로그) → 끄기는 Cloud Run 에 맡김
 
 
 def _pin_file(path: Path, given: str | None = None) -> str:

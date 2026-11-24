@@ -8,6 +8,8 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HF_HUB_ENABLE_HF_TRANSFER=1 \
     VLLM_URL=http://127.0.0.1:8000/v1 VLM_MODEL=Qwen/Qwen3.5-9B \
     WHISPER_MODEL=tiny WHISPER_DEVICE=cpu ASR_THREADS=2 LIVE_DIR=/tmp/live
 RUN pip install "fastapi" "uvicorn[standard]" "python-multipart" "faster-whisper" "pillow" "hf_transfer"
+# 모델 조각을 동시에 읽어 켜지는 시간을 줄인다 (start.sh). vllm 과 맞는 판을 받으려고 vllm 의 runai 묶음으로. 실패해도 이미지는 만든다(start.sh 가 기본 방식으로)
+RUN pip install "vllm[runai]==0.32.0" || echo "runai streamer 설치 실패 - 기본 방식으로 읽음"
 COPY voice_demo /srv/voice_demo
 COPY scene_describe /srv/scene_describe
 COPY start.sh /srv/start.sh
