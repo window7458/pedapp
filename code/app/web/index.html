@@ -296,28 +296,36 @@ const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 /* ── 항상 듣기: 버튼 없이 음성 명령 (말하는 중엔 잠시 멈춤) ── */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
 const ears = (() => {
-  let rec=null, on=false, paused=false, retry=null, denied=false;
+  /* fails: 결과 없이 1.5초 안에 끝난 횟수 → 다시 켜는 간격을 늘린다 (권한 창이 계속 뜨거나 계속 끊기는 것 막기).
+     아이폰 사파리는 continuous 가 불안정해서 한 마디씩 듣는다. */
+  let rec=null, on=false, paused=false, retry=null, denied=false, fails=0, t0=0, heard=false;
+  const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
   function label(t, live){ $('#earText').textContent=t; $('#ear').classList.toggle('listening', !!live); }
   function start(){
-    if(!SR){ label('이 브라우저는 음성 명령을 못 써요'); return; }
-    if(!S.listen || denied){ label(denied?'마이크 권한이 필요해요':'항상 듣기 꺼짐'); return; }
+    if(!SR){ label(IOS ? '음성 명령은 사파리에서 돼요' : '이 브라우저는 음성 명령을 못 써요'); return; }
+    if(!S.listen || denied){ label(denied?'마이크 권한이 필요해요 · 화면을 누르면 다시 들어요':'항상 듣기 꺼짐'); return; }
     if(on || paused) return;
-    rec = new SR(); rec.lang='ko-KR'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=3;
+    rec = new SR(); rec.lang='ko-KR'; rec.continuous=!IOS; rec.interimResults=true; rec.maxAlternatives=3;
+    t0=performance.now(); heard=false;
     const fired=new Set();                          // 말이 끝나기 전에 이미 실행한 발화는 확정 결과에서 다시 실행하지 않는다
-    rec.onresult = (e) => {
+    rec.onresult = (e) => { heard=true; fails=0;
       for(let i=e.resultIndex;i<e.results.length;i++){ if(fired.has(i)) continue;
         const alts=[...e.results[i]].map(a=>a.transcript);
         if(e.results[i].isFinal) handleSpeech(alts);
         else if(handleQuick(alts)) fired.add(i); }
     };
-    rec.onerror = (e) => { if(e.error==='not-allowed'||e.error==='service-not-allowed'){ denied=true; label('마이크 권한이 필요해요'); } };
-    rec.onend = () => { on=false; if(!paused && S.listen && !denied){ clearTimeout(retry); retry=setTimeout(start, 400); } else if(!S.listen) label('항상 듣기 꺼짐'); };
+    rec.onerror = (e) => { if(e.error==='not-allowed'||e.error==='service-not-allowed'){ denied=true; label('마이크 권한이 필요해요 · 화면을 누르면 다시 들어요'); } };
+    rec.onend = () => { on=false;
+      if(!heard && performance.now()-t0 < 1500) fails=Math.min(fails+1, 5); else if(heard) fails=0;
+      if(!paused && S.listen && !denied){ clearTimeout(retry); retry=setTimeout(start, fails ? Math.min(8000, 400*2**fails) : 300); }
+      else if(!S.listen) label('항상 듣기 꺼짐'); };
     try{ rec.start(); on=true; label('듣고 있어요', true); }catch(e){ on=false; }
   }
   function pause(){ paused=true; if(on){ try{ rec.abort(); }catch(e){} on=false; } if(S.listen && !denied && SR) label('말하는 중'); }
   function resume(){ if(!paused) return; paused=false; clearTimeout(retry); retry=setTimeout(start, 250); }
   function stop(){ paused=false; clearTimeout(retry); if(on){ try{ rec.abort(); }catch(e){} on=false; } label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐'); }
-  return {start, pause, resume, stop};
+  function kick(){ if(denied || fails){ denied=false; fails=0; clearTimeout(retry); } start(); }   /* 화면을 누를 때: 권한 거절 · 실패 대기를 풀고 바로 듣기 */
+  return {start, pause, resume, stop, kick};
 })();
 /* 확정 결과는 말이 끝난 뒤 침묵까지 기다려서 늦다. 시작 · 그만 · 도와줘는 그 말만 들리면 바로 실행한다.
    시끄러운 곳에서는 "시자" · "씨작" · "시작해요"처럼 조금 다르게 들리므로 비슷한 말도 받고, 인식 후보 3개를 모두 본다.
@@ -920,7 +928,7 @@ function showVoiceSetup(){
 function vsClose(){ VS.on=false; clearTimeout(VS.t); $('#voiceSetup').hidden=true; }
 $('#voiceSetup').addEventListener('click', (e)=>{
   if(e.target.id==='vsManual') return;
-  speech.unlock(); ears.start();
+  speech.unlock(); ears.kick();
   if(VS.step>=VS_STEPS.length){ vsClose(); return; }
   if(!VS.armed){ VS.armed=true; vsAsk(); } else vsAsk();          /* 누를 때마다 지금 질문을 다시 들려줌 */
 });
@@ -1144,8 +1152,8 @@ document.addEventListener('click', (e)=>{
   else firstTouch();
 });
 $('#agent').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); repeatLast(); } });
-function firstTouch(){ if(!S.seen){ S.seen=true; save(); } speech.unlock(); ears.start(); }
-document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
+function firstTouch(){ if(!S.seen){ S.seen=true; save(); } speech.unlock(); ears.kick(); }
+document.addEventListener('pointerdown', ()=>{ ears.kick(); });   /* 누를 때마다: 꺼져 있으면 바로 다시 듣기 (아이폰은 터치 안에서 켜야 잘 됨) */
 
 /* ── 설정 ── */
 function applySettings(){
@@ -1189,7 +1197,23 @@ function draw(){
   requestAnimationFrame(draw);
 }
 
-load(); applySettings(); calmView(); connect(); requestAnimationFrame(draw);
+/* ── 앱 안의 브라우저(카카오톡 · 네이버 · 인스타 등)는 카메라 · 마이크 허락을 기억하지 못해 계속 묻고, 음성 인식도 잘 안 된다.
+     → 카카오톡은 바깥 브라우저로 바로 열고, 안드로이드는 크롬으로 넘긴다. 아이폰 다른 앱 · 아이폰 크롬은 사파리로 열라고 안내. ── */
+function escapeInApp(){
+  const ua=navigator.userAgent, ios=/iPhone|iPad|iPod/.test(ua);
+  const kakao=/KAKAOTALK/i.test(ua), inapp=kakao || /NAVER\(inapp|Instagram|FB_IAB|FBAN|Line\/|DaumApps|; wv\)/i.test(ua);
+  let tried=false; try{ tried=sessionStorage.getItem('sayeye-escape')==='1'; sessionStorage.setItem('sayeye-escape','1'); }catch(e){}
+  if(inapp && !tried){
+    if(kakao){ location.href='kakaotalk://web/openExternal?url='+encodeURIComponent(location.href); return true; }
+    if(!ios){ location.href='intent://'+location.host+location.pathname+location.search+'#Intent;scheme=https;package=com.android.chrome;end'; return true; }
+  }
+  if(inapp) notice(ios ? '앱 안의 브라우저예요. 오른쪽 아래 메뉴에서 "사파리로 열기"를 눌러 주세요. 그래야 카메라 · 마이크 허락을 한 번만 해요.'
+                       : '앱 안의 브라우저예요. 메뉴에서 "다른 브라우저로 열기(크롬)"를 눌러 주세요. 그래야 카메라 · 마이크 허락을 한 번만 해요.');
+  else if(ios && /CriOS|FxiOS|EdgiOS/.test(ua)) notice('아이폰에서는 사파리로 열어 주세요. 크롬에서는 음성 명령과 음성 설정이 안 돼요.');
+}
+function boot(){ load(); applySettings(); calmView(); connect(); requestAnimationFrame(draw); }
+if(escapeInApp()) setTimeout(()=>{ if(document.visibilityState==='visible'){ escapeInApp(); boot(); } }, 2500);   /* 넘기기가 안 됐으면(크롬 없음 등) 여기서 그대로 */
+else boot();
 window.__insight = {parseCommand, S, handleSpeech, flash, handle};
 
 /* ── 설정 시트 ── */
