@@ -21,6 +21,7 @@ UA = "SayEye/1.0 (blind navigation capstone demo)"
 TMAP = "https://apis.openapi.sk.com/tmap"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 OSRM = "https://routing.openstreetmap.de/routed-foot/route/v1/foot"
+OVERPASS = "https://overpass-api.de/api/interpreter"
 CROSSWALK = set(range(211, 218))          # TMAP turnType: 횡단보도 (좌측 · 우측 · 8시 … 방향)
 _lock = threading.Lock()
 _last = [0.0]
@@ -137,6 +138,7 @@ def _bends(line, steps, look=15.0, min_deg=35.0, near_step=30.0, gap=40.0):
 class Nav:
     def __init__(self, key: str | None = None):
         self.key = key if key is not None else (os.environ.get("TMAP_KEY") or "")
+        self._bcache: dict = {}
 
     # ── TMAP ──
     def _tmap_get(self, path, params):
@@ -254,6 +256,36 @@ class Nav:
         except Exception:
             pass                                 # 휘는 길 계산이 틀려도 길 안내는 그대로
         return r
+
+    def place(self, q: str, lat: float, lon: float) -> dict:
+        """'인천 미추홀구 인하로 100' 같은 집 주소 · 장소 → 위치 하나 (처음 설정의 집 주소)."""
+        dest = None
+        if self.key:
+            try:
+                dest = self._tmap_search(q, lat, lon)
+            except Exception:
+                dest = None
+        dest = dest or self._osm_search(q, lat, lon)
+        if dest is None:
+            raise LookupError(f"'{q}'을 찾지 못했어요")
+        return dest
+
+    def in_building(self, lat: float, lon: float) -> bool | None:
+        """OpenStreetMap 건물 윤곽 안에 이 점이 있나 (Overpass is_in). 모르면 None. 결과는 약 15 m 칸으로 10분 기억."""
+        k = (round(lat, 4), round(lon, 4))
+        hit = self._bcache.get(k)
+        if hit and time.time() - hit[0] < 600:
+            return hit[1]
+        q = f'[out:json][timeout:6];is_in({lat},{lon})->.a;(way(pivot.a)[building];rel(pivot.a)[building];);out ids 1;'
+        try:
+            req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": q}).encode(),
+                                         headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                ans = bool(json.loads(r.read().decode("utf-8")).get("elements"))
+        except Exception:
+            return None
+        self._bcache[k] = (time.time(), ans)
+        return ans
 
     def plan(self, q: str, lat: float, lon: float) -> dict:
         dest = None

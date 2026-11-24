@@ -45,6 +45,46 @@ _STEP_LOCK = threading.Lock()
 INDOOR_COCO = {56: "chair", 57: "couch", 59: "bed", 60: "dining table", 13: "bench", 58: "potted plant",
                61: "toilet", 62: "tv", 72: "refrigerator", 28: "suitcase"}
 _COCO = None
+# 실내 모드에서 팀 모델 오검출 거르기: 의자에 앉은 사람이 '오토바이'로 잡히는 일이 잦다.
+#   · 오토바이 · 자동차 · 버스 · 기타 차량은 실내에 없으므로 실내 모드에서는 버린다.
+#   · 자전거 · 킥보드는 실내에도 있을 수 있어, COCO 가 사람 · 의자로 본 상자와 겹칠 때만 버린다.
+#   · 버린 상자가 COCO 사람과 겹치고 팀 모델이 그 자리에 사람을 안 냈으면, COCO 사람을 '사람'으로 넣는다.
+INDOOR_DROP = {"motorcycle", "car", "bus", "other_vehicle"}
+INDOOR_CHECK = {"bicycle", "scooter"}
+COCO_PERSON, COCO_CHAIR = 0, 56
+
+
+def _overlap(a, b) -> float:
+    """두 상자의 겹침: IoU 와 '작은 상자가 덮인 비율' 중 큰 값."""
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    if inter <= 0:
+        return 0.0
+    sa = (a[2] - a[0]) * (a[3] - a[1])
+    sb = (b[2] - b[0]) * (b[3] - b[1])
+    return max(inter / (sa + sb - inter), inter / max(1e-6, min(sa, sb)))
+
+
+def indoor_filter(ds: list[dict], coco: list[list[float]] | None) -> list[dict]:
+    """실내 모드: 팀 검출 ds 에서 실내에 없을 탈것을 거르고, 대신 COCO 사람을 넣는다.
+    coco 는 [x1, y1, x2, y2, conf, cls] 목록 (잘라 보기 검출처럼 COCO 가 없으면 None → 종류만 거름)."""
+    people = [c for c in (coco or []) if int(c[5]) == COCO_PERSON]
+    seats = people + [c for c in (coco or []) if int(c[5]) == COCO_CHAIR]
+    out, dropped = [], []
+    for d in ds:
+        cls = d.get("class")
+        if cls in INDOOR_DROP or (cls in INDOOR_CHECK and any(_overlap(d["box"], c) >= 0.5 for c in seats)):
+            dropped.append(d)
+        else:
+            out.append(d)
+    team_people = [d["box"] for d in out if d.get("class") == "person"]
+    for p in people:
+        if any(_overlap(d["box"], p) >= 0.5 for d in dropped) and not any(_overlap(t, p) >= 0.5 for t in team_people):
+            out.append(dict(box=[p[0], p[1], p[2], p[3]], confidence=float(p[4]), class_id=0,
+                            **{"class": "person"}, source="custom"))
+            team_people.append(p[:4])
+    return out
 
 
 def _coco():
@@ -183,17 +223,23 @@ class NavTrigger:
 
         def predict(img, size, offset=(0, 0), source="custom"):
             ds = team_predict(img, size, offset, source)
-            if self.indoor and offset == (0, 0) and source == "custom":     # 전체 화면 검출에만 (잘라 보기 제외)
-                try:
-                    r = _coco().predict(img, imgsz=640, conf=0.35, device=self.p.device, verbose=False)[0]
-                    for b in r.boxes.data.cpu().tolist():
-                        if int(b[5]) in INDOOR_COCO:
-                            ds.append(dict(box=[b[0], b[1], b[2], b[3]], confidence=float(b[4]), class_id=7,
-                                           **{"class": "obstacle"}, source="custom"))
-                except Exception as e:
-                    if time.time() - self._err_t > 5.0:
-                        self._err_t = time.time()
-                        self.log(f"[실내 모드] {e!r}")
+            if not self.indoor:
+                return ds
+            if not (offset == (0, 0) and source == "custom"):              # 잘라 보기: COCO 없이 종류만 거름
+                return indoor_filter(ds, None)
+            try:                                                           # 전체 화면 검출: COCO 로 거르고 가구 더함
+                r = _coco().predict(img, imgsz=640, conf=0.35, device=self.p.device, verbose=False)[0]
+                coco = r.boxes.data.cpu().tolist()
+                ds = indoor_filter(ds, coco)
+                for b in coco:
+                    if int(b[5]) in INDOOR_COCO:
+                        ds.append(dict(box=[b[0], b[1], b[2], b[3]], confidence=float(b[4]), class_id=7,
+                                       **{"class": "obstacle"}, source="custom"))
+            except Exception as e:
+                ds = indoor_filter(ds, None)
+                if time.time() - self._err_t > 5.0:
+                    self._err_t = time.time()
+                    self.log(f"[실내 모드] {e!r}")
             return ds
         self.p.predict = predict
         self._cam_h = None           # 이 보행자의 카메라 높이 (처음 설정)

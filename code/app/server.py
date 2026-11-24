@@ -694,6 +694,21 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         except Exception as e:
             raise HTTPException(502, f"길을 찾지 못했어요 ({type(e).__name__})")
 
+    @app.get("/api/place")
+    async def api_place(q: str, lat: float = 37.4505, lon: float = 126.6566):
+        """처음 설정의 집 주소 → 위치 (lat · lon 은 찾을 때 기준점, 모르면 인하대 근처)."""
+        try:
+            return await asyncio.to_thread(nav.place, q[:80], lat, lon)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except Exception as e:
+            raise HTTPException(502, f"주소를 찾지 못했어요 ({type(e).__name__})")
+
+    @app.get("/api/indoor")
+    async def api_indoor(lat: float, lon: float):
+        """지금 자리가 건물 안인지 (OpenStreetMap 건물 윤곽). 모르면 building=null → 폰이 GPS 정확도로 판단."""
+        return {"building": await asyncio.to_thread(nav.in_building, lat, lon)}
+
     @app.get("/api/nav/route")
     async def api_nav_route(lat: float, lon: float, dlat: float, dlon: float, name: str = ""):
         """길에서 벗어났을 때 지금 자리에서 다시 찾기."""

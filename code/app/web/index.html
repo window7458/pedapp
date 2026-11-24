@@ -15,7 +15,8 @@
 <link rel="stylesheet" href="app.css">
 <style>
 .agent{cursor:pointer}
-#stage{position:absolute;right:18px;top:64px;width:96px;height:128px;border-radius:16px;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
+#stage{position:absolute;right:18px;top:64px;width:min(44vw,210px);aspect-ratio:3/4;height:auto;border-radius:16px;cursor:zoom-in;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
+#stage.big{left:18px;right:18px;width:auto;max-width:520px;margin:0 auto;z-index:20;cursor:zoom-out}   /* 검증용: 누르면 크게 · 다시 누르면 작게 */
 #stage video,#stage img,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .hasvideo .say{padding-right:104px}
 #notice{position:relative;margin:10px 6px 0 0;padding:12px 14px;border-radius:16px;background:#FFF1F0;color:#C8283A;font-weight:700;font-size:14px;z-index:5}
@@ -144,7 +145,7 @@
   <div class="vs-orb" id="vsOrb" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
   <p class="vs-q" id="vsQ" aria-live="polite">화면 아무 곳이나 누르면 시작해요</p>
   <p class="vs-heard" id="vsHeard" aria-live="polite"></p>
-  <div class="vs-chips" id="vsChips"><span data-k="age">나이</span><span data-k="height">키</span><span data-k="mount">카메라 위치</span></div>
+  <div class="vs-chips" id="vsChips"><span data-k="age">나이</span><span data-k="height">키</span><span data-k="mount">카메라 위치</span><span data-k="home">집</span></div>
   <button class="vs-manual" id="vsManual" type="button">도와주는 분이 버튼으로 설정하기</button>
 </div>
 <div id="dimView" hidden aria-hidden="true" style="position:fixed;inset:0;z-index:58;background:#000;color:#6b6f80;display:flex;align-items:flex-end;justify-content:center;padding-bottom:60px;font-size:14px">절전 중 · 화면을 누르면 밝아져요</div>
@@ -181,13 +182,13 @@
 const $ = (s) => document.querySelector(s);
 /* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
 const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
-const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
+const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
 function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem('sayeye')||'{}')); }catch(e){} S.running=false; S.mode='phone'; }   /* 스마트폰 전용 */
 function save(){ try{ localStorage.setItem('sayeye', JSON.stringify({saver:S.saver,indoor:S.indoor,fall:S.fall,rate:S.rate,vol:S.vol,guide:S.guide,beep:S.beep,vib:S.vib,hc:S.hc,prev:S.prev,
-  mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps})); }catch(e){} }
+  mode:S.mode,seen:S.seen,listen:S.listen,gps:S.gps,auto:S.auto,autoIndoor:S.autoIndoor,home:S.home})); }catch(e){} }
 function notice(t){ const n=$('#notice'); n.textContent=t||''; n.hidden=!t; }
 
 /* ── 화면 문구 (위쪽 에이전트 영역) ── */
@@ -232,7 +233,7 @@ function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibra
 /* ── 말하기: 모든 말을 Zephyr(구글 04번 여자 목소리)로. 자주 하는 말과 트리거 경고 206문장은 미리 만들어 두어 바로 나온다.
    폰 기본 음성은 서버에 아예 닿지 않을 때(2.5초 안에 음성을 못 받음)만 비상용으로 쓴다 — 아무 말도 못 하는 것보다는 낫기 때문. ──
    자주 하는 말(FIXED)은 앱을 열 때 미리 받아 두므로 바로 나온다. 경고처럼 처음 나오는 문장은 한 번 받은 뒤로 바로 나온다. */
-const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 탈 버스가 있으면 511번 탈게라고 말하면 오는 순간 알려 드려요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
+const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 탈 버스가 있으면 511번 탈게라고 말하면 오는 순간 알려 드려요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 const speech = (() => {
   let q=[], cur=null, voice=null;
   const PRI={warn:0,ui:1,desc:2,scene:3}, TTL={warn:2500,ui:9000,desc:6500,scene:14000};
@@ -325,7 +326,7 @@ const QUICK=[[/^(시작|시작해|시작해줘|시작해요|시작할게|시작�
              [/^(그만|그만해|그만해줘|그만해요|중지|정지|멈춰|멈춰줘|스톱|안내그만|안내종료|종료)$/,'stop'],
              [/^(도와줘|도와주세요|살려줘|살려주세요|도움)$/,'sos']];
 function handleQuick(alts){
-  if(VS.on && VS.step<4) return false;
+  if(VS.on && VS.step<VS_STEPS.length) return false;
   if(VS.on) vsClose();
   for(const a of alts){                               /* 인식 후보 여러 개 중 하나라도 맞으면 */
     const raw=(a||'').replace(/\s+/g,'').replace(/[.,!?]/g,'').replace(/세이아이|쎄이아이|세이|sayeye|say/ig,'');
@@ -335,7 +336,7 @@ function handleQuick(alts){
   return false;
 }
 function handleSpeech(alts){
-  if(VS.on && VS.step<4){ vsHear(alts); return 'setup'; }
+  if(VS.on && VS.step<VS_STEPS.length){ vsHear(alts); return 'setup'; }
   if(VS.on) vsClose();
   for(const t of alts){
     const raw=(t||'').replace(/\s+/g,'');
@@ -356,6 +357,10 @@ function handleSpeech(alts){
 function parseCommand(text){
   const t = (text||'').replace(/\s+/g,'').toLowerCase();
   if(!t) return null;
+  if(/^(여기가집|여기집|여기가우리집|집여기)/.test(t) || /여기.*집으로(설정|저장|해)/.test(t)) return 'home_here';
+  { const m=t.match(/^(우리)?집주소(는|가|를)?(.{3,60}?)(이야|야|예요|이에요|로해줘|로바꿔줘|로설정해줘)?$/); if(m && !/^(바꿔|바꿔줘|설정|다시)$/.test(m[3])){ S.homeQuery=m[3]; return 'home_addr'; } }
+  if(/자동(시작|으로시작|안내)?/.test(t) && /(꺼|끄)/.test(t)) return 'auto_off';
+  if(/자동(시작|으로시작|안내)/.test(t) && /(켜|시작해)/.test(t)) return 'auto_on';
   if(/(설정|정보|카메라위치|키|나이).*(다시|바꿔|새로|처음)|처음설정|설정다시/.test(t)) return 'setup';
   if(/(버스|기다리기|기다리는거).*(그만|취소|안탈|됐어)|그만기다려|기다리지마|버스탔어|버스탔다|탔어요?$/.test(t)) return 'bus_wait_end';   /* '그만'(안내 중지)보다 먼저 */
   if(/(길안내|안내|네비|내비).*(그만|끝|종료|꺼|취소)/.test(t)) return 'nav_stop';
@@ -406,7 +411,10 @@ function parseCommand(text){
 function runCommand(cmd){
   S.lastAct=performance.now();
   switch(cmd){
-    case 'start': if(S.running) say('이미 안내 중이에요.'); else start(); break;
+    case 'start': if(Ask.kind==='auto') closeAsk(); if(S.running) say('이미 안내 중이에요.'); else start(); break;
+    case 'home_here': homeFrom('여기').then(h=>{ if(h){ S.home=h; save(); say('지금 자리를 집으로 정했어요. 집 근처에서는 걸어도 안내를 켤지 묻지 않아요.'); } else say('지금 위치를 몰라서 집으로 정하지 못했어요.'); }); break;
+    case 'home_addr': homeFrom(S.homeQuery).then(h=>{ if(h){ S.home=h; save(); say(`집을 ${h.name}로 정했어요.`); } else say('그 주소를 찾지 못했어요.'); }); break;
+    case 'auto_on': case 'auto_off': S.auto=(cmd==='auto_on'); save(); say(S.auto ? '걷기 시작하면 안내를 켤지 여쭤볼게요. 집 근처에서는 묻지 않아요.' : '걸어도 자동으로 묻지 않을게요.'); break;
     case 'stop': if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'scene': sceneAsk('주변 설명해줘', true); break;
     case 'bus': busAsk(S.busRoute); break;
@@ -423,7 +431,7 @@ function runCommand(cmd){
     case 'nav_stop': navStop(true); break;
     case 'saver_on': case 'saver_off': S.saver=(cmd==='saver_on'); $('#oSaver').checked=S.saver; save(); applySettings();
       say(S.saver ? '절전 모드를 켰어요. 안내는 그대로예요.' : '절전 모드를 껐어요.'); break;
-    case 'indoor_on': case 'indoor_off': S.indoor=(cmd==='indoor_on'); $('#oIndoor').checked=S.indoor; save(); sendCmd({type:'indoor', on:S.indoor});
+    case 'indoor_on': case 'indoor_off': AutoIn.manualAt=performance.now(); S.indoor=(cmd==='indoor_on'); $('#oIndoor').checked=S.indoor; save(); sendCmd({type:'indoor', on:S.indoor});
       say(S.indoor ? '실내 모드를 켰어요. 책상과 의자도 장애물로 알려 드려요.' : '실내 모드를 껐어요.'); break;
     case 'repeat': repeatLast(); break;
     case 'sos': if(Ask.kind) closeAsk(); sos(); break;
@@ -655,6 +663,7 @@ setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){
 function startGeo(){
   if(!S.gps || !navigator.geolocation || S.geo!=null) return;
   S.geo = navigator.geolocation.watchPosition(p=>{
+    S.fix={lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:Date.now()};
     const now=Date.now(); if(now-S.lastGeo<5000) return; S.lastGeo=now;
     sendCmd({type:'gps', lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy});
   }, ()=>{}, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
@@ -705,6 +714,83 @@ function onShare(m){
   if(!m.on && was) say('위치와 화면 공유가 끝났어요.');
 }
 
+/* ── 집 · 걸으면 자동 시작 · 건물 안이면 자동 실내 모드 ──
+   집: 처음 설정에서 주소(또는 '여기')로 정한다. 집에서 120 m 안에서는 걸어도 묻지 않는다 (집 안에서 화장실 갈 때 켜지지 않게).
+   자동 시작: 앱이 화면에 열려 있고 안내가 꺼져 있을 때, 걸음이 15초 넘게 이어지고 집 밖이면 "걷고 계시네요. 안내를 시작할까요?"
+   자동 실내: 안내 중 건물 윤곽(OpenStreetMap) 안이거나 GPS 정확도가 크게 나빠지면 실내 모드를 켜고, 밖으로 나오면 끈다.
+   (웹앱이라 화면이 꺼져 있거나 앱이 닫혀 있으면 동작하지 않는다) */
+const HOME_R=120, AUTO_WALK_S=15;
+function distM(a,b){ const R=6371000, r=Math.PI/180, dLa=(b.lat-a.lat)*r, dLo=(b.lon-a.lon)*r;
+  const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+function homeKo(h){ return !h || h.skip ? '나중에 정하기' : h.name; }
+async function homeFrom(text){
+  const raw=String(text||'').replace(/\s+/g,'');
+  if(/건너|나중|없어|안할|패스|스킵/.test(raw)) return {skip:true};
+  const c=await hereNow();
+  if(/^(여기|지금여기|여기야|여기요|지금집|집이야|여기가집)/.test(raw)) return c ? {name:'지금 자리', lat:c.latitude, lon:c.longitude} : null;
+  try{
+    const q=new URLSearchParams({q:String(text).trim().replace(/([가-힣])(\d)/g,'$1 $2')});   /* 음성 명령은 띄어쓰기가 빠져 온다: '인하로100' → '인하로 100' */ if(c){ q.set('lat',c.latitude); q.set('lon',c.longitude); }
+    const r=await fetch('/api/place?'+q); if(!r.ok) return null;
+    const d=await r.json(); return {name:String(text).trim(), lat:d.lat, lon:d.lon};   /* 말한 주소 그대로 부른다 (찾은 장소 이름은 '주차관리실'처럼 엉뚱할 수 있음) */
+  }catch(e){ return null; }
+}
+function nearHome(fix){ return !!(S.home && fix && distM(S.home, fix) < HOME_R + Math.min(80, fix.acc||0)); }
+
+/* 걸음 세기: 가속도 크기가 평균보다 확 올라가는 봉우리 (0.28초 이상 간격). 최근 3초에 4걸음 넘으면 걷는 중 */
+const Auto = { buf:[], steps:[], up:false, since:0, lastWalk:0, cool:0, geo:null };
+window.addEventListener('devicemotion', (e)=>{
+  const g=e.accelerationIncludingGravity; if(!g || g.x==null) return;
+  const now=performance.now(), m=Math.hypot(g.x, g.y, g.z);
+  Auto.buf.push([now,m]); while(Auto.buf.length && now-Auto.buf[0][0]>2000) Auto.buf.shift();
+  const mean=Auto.buf.reduce((a,[,v])=>a+v,0)/Auto.buf.length;
+  if(!Auto.up && m>mean+1.2 && (!Auto.steps.length || now-Auto.steps[Auto.steps.length-1]>280)){ Auto.up=true; Auto.steps.push(now); }
+  else if(Auto.up && m<mean) Auto.up=false;
+  while(Auto.steps.length && now-Auto.steps[0]>3000) Auto.steps.shift();
+  if(Auto.steps.length>=4){ if(!Auto.since || now-Auto.lastWalk>3000) Auto.since=now; Auto.lastWalk=now; }
+  else if(now-Auto.lastWalk>3000) Auto.since=0;                       // 3초 넘게 멈추면 처음부터 다시 센다
+});
+function autoGeo(){                                                    /* 안내가 꺼져 있어도 집인지 알려면 위치가 필요하다 */
+  if(Auto.geo!=null || !navigator.geolocation || !S.auto) return;
+  Auto.geo=navigator.geolocation.watchPosition(p=>{ S.fix={lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:Date.now()}; },
+                                               ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:30000});
+}
+setInterval(()=>{
+  const now=performance.now();
+  if(!S.auto || S.running || VS.on || Ask.kind || document.visibilityState!=='visible' || now<Auto.cool) return;
+  if(!Auto.since || now-Auto.since < AUTO_WALK_S*1000) return;
+  autoGeo();
+  const fix = S.fix && Date.now()-S.fix.t < 60000 ? S.fix : null;
+  if(S.home && !fix) return;                                           // 집을 정해 뒀는데 위치를 모르면 묻지 않는다 (집 안일 수 있음)
+  if(nearHome(fix)){ Auto.cool=now+60000; return; }
+  Auto.cool=now+180000; beep('listen'); vibrate(2);
+  speech.push('warn', '걷고 계시네요. 안내를 시작할까요? 네, 또는 아니요라고 말해 주세요.', 2);
+  ask('auto', '걷고 계시네요', '안내를 시작할까요?', '시작', '아니요',
+      ()=>{ start(); }, ()=>{ Auto.cool=performance.now()+600000; say('알겠어요. 10분 동안은 묻지 않을게요.'); }, 25, ()=>{});
+}, 1000);
+
+/* 자동 실내 모드: 안내 중 20초마다 판단, 같은 판단이 두 번 이어지면 바꾼다. 사람이 직접 켜고 끈 뒤 10분은 건드리지 않는다 */
+const AutoIn = { last:null, same:0, manualAt:-1e9, askAt:0, building:null };
+async function indoorGuess(fix){
+  if(nearHome(fix)) return true;
+  if(Date.now()-AutoIn.askAt > 60000){
+    AutoIn.askAt=Date.now();
+    try{ const r=await fetch(`/api/indoor?lat=${fix.lat}&lon=${fix.lon}`); if(r.ok) AutoIn.building=(await r.json()).building; }catch(e){ AutoIn.building=null; }
+  }
+  if(AutoIn.building===true) return true;
+  if(fix.acc>35) return true;                                          // 건물 안에서는 위성이 가려 GPS 오차가 크게 늘어난다
+  if(fix.acc<20) return false;
+  return null;                                                         // 애매하면 그대로 둔다
+}
+setInterval(async ()=>{
+  if(!S.running || !S.autoIndoor || performance.now()-AutoIn.manualAt < 600000) return;
+  const fix = S.fix && Date.now()-S.fix.t < 30000 ? S.fix : null; if(!fix) return;
+  const g=await indoorGuess(fix); if(g==null) return;
+  AutoIn.same = g===AutoIn.last ? AutoIn.same+1 : 1; AutoIn.last=g;
+  if(AutoIn.same<2 || g===!!S.indoor) return;
+  S.indoor=g; $('#oIndoor').checked=S.indoor; save(); sendCmd({type:'indoor', on:S.indoor});
+  say(g ? '건물 안으로 들어오셨네요. 실내 모드를 켰어요. 책상과 의자도 알려 드려요.' : '밖으로 나오셨네요. 실내 모드를 껐어요.');
+}, 20000);
+
 /* ── 넘어짐 감지: 큰 충격(약 2.5g 이상, 직전에 떨어지는 느낌이 있으면 더 낮은 문턱) 뒤 2.5초 동안 거의 움직임이 없으면 묻는다.
        안내 중에만. 30초 동안 대답이 없으면 보호자에게 SOS(위치 · 영상 30분 공유) ── */
 const Fall = { buf:[], lastFree:0, cand:0, cool:0 };
@@ -745,7 +831,7 @@ function loadProfile(){ try{ return JSON.parse(localStorage.getItem('sayeye-prof
 /* ── 음성 처음 설정: 시각장애인은 입력칸 · 버튼으로 설정하기 어려우니 말로 묻고 답한다.
      나이 → 키 → 카메라 위치 → 확인("맞으면 네"). 못 알아들으면 예시와 함께 다시 묻는다. 손으로 하는 화면(showSetup)은 도우미용. ── */
 const VS={on:false, step:0, p:{}, miss:0, t:null, armed:false};
-const VS_STEPS=['age','height','mount','confirm'];
+const VS_STEPS=['age','height','mount','home','confirm'];
 const MOUNT_KO={eye:'눈높이', neck:'목걸이', chest:'가슴', waist:'허리', hand:'손'};
 function koNum(t){
   t=String(t||'').replace(/\s+/g,'');
@@ -778,7 +864,7 @@ function vsMount(t){
 function vsChips(){
   for(const el of document.querySelectorAll('#vsChips span')){
     const k=el.dataset.k, v=VS.p[k];
-    el.textContent = k==='age' ? (v ? `만 ${v}세` : '나이') : k==='height' ? (v ? `${v} cm` : '키') : (v ? MOUNT_KO[v] : '카메라 위치');
+    el.textContent = k==='age' ? (v ? `만 ${v}세` : '나이') : k==='height' ? (v ? `${v} cm` : '키') : k==='home' ? (v ? (v.skip ? '집: 나중에' : `집: ${v.name}`) : '집') : (v ? MOUNT_KO[v] : '카메라 위치');
     el.classList.toggle('done', !!v);
   }
 }
@@ -787,9 +873,10 @@ function vsAsk(again){
   const Q={age:['나이가 어떻게 되세요? 만 나이로 말해 주세요.', '나이를 숫자로 말해 주세요. 예를 들어 스물다섯 살.'],
            height:['키는 몇 센티미터예요?', '키를 센티미터로 말해 주세요. 예를 들어 백칠십.'],
            mount:['카메라는 어디에 다나요? 눈높이, 목걸이, 가슴, 허리, 손 중에서 말해 주세요.', '눈높이, 목걸이, 가슴, 허리, 손 중에서 하나만 말해 주세요.'],
-           confirm:[`만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}로 할게요. 맞으면 네, 다시 하려면 다시라고 말해 주세요.`, '맞으면 네, 다시 하려면 다시라고 말해 주세요.']};
+           home:['집 주소를 말해 주세요. 지금 집에 계시면 여기, 나중에 하려면 건너뛰기라고 말해 주세요. 집 밖에서 걷기 시작하면 안내를 켤지 여쭤볼게요.', '집 주소를 말하거나, 여기, 또는 건너뛰기라고 말해 주세요.'],
+           confirm:[`만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}, 집은 ${homeKo(VS.p.home)}로 할게요. 맞으면 네, 다시 하려면 다시라고 말해 주세요.`, '맞으면 네, 다시 하려면 다시라고 말해 주세요.']};
   const q=Q[k][again?1:0];
-  $('#vsStep').textContent = k==='confirm' ? '확인' : `처음 설정 ${VS.step+1} / 3`;
+  $('#vsStep').textContent = k==='confirm' ? '확인' : `처음 설정 ${VS.step+1} / ${VS_STEPS.length-1}`;
   $('#vsQ').textContent=q; say(q);
   VS.t=setTimeout(()=>{ if(VS.on && VS_STEPS[VS.step]===k && ++VS.miss<=2) vsAsk(true); }, 16000);   /* 대답이 없으면 두 번까지 다시 물음 */
 }
@@ -801,10 +888,14 @@ function vsHear(alts){
   if(k==='age'){ const n=alts.map(koNum).find(v=>v>=3&&v<=120); if(!n){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.age=n; }
   else if(k==='height'){ const n=alts.map(koNum).find(v=>v>=80&&v<=230); if(!n){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.height=n; }
   else if(k==='mount'){ const m=alts.map(vsMount).find(Boolean); if(!m){ say('잘 못 들었어요.'); vsAsk(true); return; } VS.p.mount=m; }
+  else if(k==='home'){ clearTimeout(VS.t); homeFrom(t).then(h=>{ if(!VS.on || VS_STEPS[VS.step]!=='home') return;
+      if(!h){ say('주소를 찾지 못했어요.'); vsAsk(true); return; }
+      VS.p.home=h; VS.miss=0; vsChips(); beep('ok'); VS.step++; vsAsk(); }); return; }
   else {
     const r=all.replace(/\s+/g,'');
     if(/^(네|예|응|맞아|맞아요|좋아|그래|저장|오케이|ok)/i.test(r) || /맞아|좋아요/.test(r)){
       saveProfile({age:VS.p.age, height_cm:VS.p.height, mount:VS.p.mount});
+      S.home = VS.p.home && !VS.p.home.skip ? VS.p.home : null; save();
       vsDone(); return;
     }
     if(/다시|아니|틀렸/.test(r)){ VS.step=0; VS.p={}; VS.miss=0; vsChips(); vsAsk(); return; }
@@ -813,8 +904,8 @@ function vsHear(alts){
   VS.miss=0; vsChips(); beep('ok'); VS.step++; vsAsk();
 }
 function vsDone(){                       /* 마지막에 한 번 더: 정한 값을 화면과 음성으로 확인 → 다 읽으면 닫힘 */
-  VS.step=4; clearTimeout(VS.t); vsChips(); beep('ok');
-  const msg=`설정을 마쳤어요. 만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}. 시작이라고 말하면 안내를 시작해요.`;
+  VS.step=VS_STEPS.length; clearTimeout(VS.t); vsChips(); beep('ok');
+  const msg=`설정을 마쳤어요. 만 ${VS.p.age}세, 키 ${VS.p.height}센티미터, 카메라는 ${MOUNT_KO[VS.p.mount]}, 집은 ${homeKo(VS.p.home)}. 시작이라고 말하거나 화면을 두 번 누르면 안내를 시작해요.`;
   $('#vsStep').textContent='설정 완료'; $('#vsQ').textContent=msg; $('#vsHeard').textContent=''; say(msg);
   const t0=performance.now();
   const wait=setInterval(()=>{ if(!VS.on){ clearInterval(wait); return; }
@@ -830,7 +921,7 @@ function vsClose(){ VS.on=false; clearTimeout(VS.t); $('#voiceSetup').hidden=tru
 $('#voiceSetup').addEventListener('click', (e)=>{
   if(e.target.id==='vsManual') return;
   speech.unlock(); ears.start();
-  if(VS.step>=4){ vsClose(); return; }
+  if(VS.step>=VS_STEPS.length){ vsClose(); return; }
   if(!VS.armed){ VS.armed=true; vsAsk(); } else vsAsk();          /* 누를 때마다 지금 질문을 다시 들려줌 */
 });
 $('#vsManual').onclick=()=>{ vsClose(); showSetup(); };
@@ -1018,7 +1109,7 @@ if(navigator.getBattery) navigator.getBattery().then(b=>{
 
 function repeatLast(){ speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
 function speakHelp(){
-  say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 위쪽 아무 데나 눌러도 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
+  say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
 }
 
 /* ── 터치 안내: 한 번 누르면 이름을 읽고, 4초 안에 같은 버튼을 한 번 더 누르면 실행 ── */
@@ -1039,7 +1130,19 @@ for(const id of Object.keys(ACT)){
   });
 }
 $('#agent').addEventListener('click', ()=>{ firstTouch(); repeatLast(); });
-$('.upper').addEventListener('click', (e)=>{ if(e.target.closest('button,a,select,input,#stage')) return; firstTouch(); repeatLast(); });
+$('#stage').addEventListener('click', ()=> $('#stage').classList.toggle('big'));
+/* 화면 아무 데나 두 번 연속 누르면 시작 (버튼 · 입력칸 · 설정 창 위는 제외).
+   위쪽 한 번 누르기(다시 듣기)는 두 번 누르기와 헷갈리지 않게 잠깐(0.33초) 기다렸다가 실행한다. */
+const TAP2_MS=330; let tapAt=0, tapTimer=null;
+function tapIgnored(t){ return !!t.closest('button,a,select,input,textarea,label,#stage,#voiceSetup,#setupView,.sheet,[role="dialog"],[role="alertdialog"]'); }
+document.addEventListener('click', (e)=>{
+  if(tapIgnored(e.target)) return;
+  const now=performance.now();
+  if(now-tapAt < TAP2_MS){ tapAt=0; clearTimeout(tapTimer); tapTimer=null; firstTouch(); beep('listen'); runCommand('start'); return; }
+  tapAt=now;
+  if(e.target.closest('.upper')){ clearTimeout(tapTimer); tapTimer=setTimeout(()=>{ tapTimer=null; firstTouch(); repeatLast(); }, TAP2_MS); }
+  else firstTouch();
+});
 $('#agent').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); repeatLast(); } });
 function firstTouch(){ if(!S.seen){ S.seen=true; save(); } speech.unlock(); ears.start(); }
 document.addEventListener('pointerdown', ()=>{ ears.start(); }, {once:true});
@@ -1053,7 +1156,7 @@ function applySettings(){
 }
 const bind=(id,key,conv=(v)=>v)=>{ $('#'+id).addEventListener('input',e=>{ S[key]=conv(e.target.type==='checkbox'?e.target.checked:e.target.value); save(); applySettings();
   if(key==='listen'){ S.listen ? ears.start() : ears.stop(); }
-  if(key==='indoor'){ sendCmd({type:'indoor', on:S.indoor}); say(S.indoor ? '실내 모드를 켰어요. 책상과 의자도 장애물로 알려 드려요.' : '실내 모드를 껐어요.'); }
+  if(key==='indoor'){ AutoIn.manualAt=performance.now(); sendCmd({type:'indoor', on:S.indoor}); say(S.indoor ? '실내 모드를 켰어요. 책상과 의자도 장애물로 알려 드려요.' : '실내 모드를 껐어요.'); }
   if(key==='gps'){ S.gps && S.running ? startGeo() : stopGeo(); } }); };
 bind('oGuide','guide'); bind('oFall','fall'); bind('oIndoor','indoor'); bind('oSaver','saver'); bind('oBeep','beep'); bind('oVib','vib'); bind('oHc','hc'); bind('oPrev','prev'); bind('oRate','rate',Number); bind('oVol','vol',Number);
 bind('oListen','listen'); bind('oGps','gps');
@@ -1074,7 +1177,14 @@ function draw(){
     let k=1, ox=0, oy=0, fw=r.width, fh=r.height;
     if(sw&&sh){ k=Math.max(r.width/sw, r.height/sh); fw=sw*k; fh=sh*k; ox=(r.width-fw)/2; oy=(r.height-fh)/2; }
     octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,.95)';
-    for(const [id,cls,x1,y1,x2,y2] of S.dets.d){ octx.beginPath(); octx.roundRect(ox+x1*fw,oy+y1*fh,(x2-x1)*fw,(y2-y1)*fh,5); octx.stroke(); }
+    octx.font='600 11px system-ui,sans-serif'; octx.textBaseline='top';
+    for(const [id,cls,x1,y1,x2,y2] of S.dets.d){
+      const bx=ox+x1*fw, by=oy+y1*fh;
+      octx.beginPath(); octx.roundRect(bx,by,(x2-x1)*fw,(y2-y1)*fh,5); octx.stroke();
+      if(cls!=null){ const t=String(cls), tw=octx.measureText(t).width+8;          /* 검증용: 무엇으로 인식했는지 이름 표시 */
+        octx.fillStyle='rgba(10,20,40,.75)'; octx.fillRect(bx,Math.max(0,by-16),tw,16);
+        octx.fillStyle='#fff'; octx.fillText(t,bx+4,Math.max(0,by-16)+2); }
+    }
   }
   requestAnimationFrame(draw);
 }
