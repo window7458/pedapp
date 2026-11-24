@@ -1,7 +1,12 @@
-# GPU 이미지 빌드 (CUDA 판 PyTorch). deploy_gpu.ps1 이 부른다. 이미지가 커서(약 3GB) 빌드 시간을 넉넉히.
+# GPU 이미지 빌드 (CUDA 판 PyTorch). deploy_gpu.ps1 이 부른다.
+# 빠르게: 지난번 이미지를 먼저 받아 그 층(PyTorch · 패키지 · 음성 인식 모델)을 다시 쓴다 → 코드만 바뀌면 코드 층만 새로 만든다.
+# (처음이거나 requirements · Dockerfile 이 바뀌면 그 아래 층부터 다시 만든다)
 steps:
 - name: gcr.io/cloud-builders/docker
-  args: [build, --build-arg, TORCH_INDEX=https://download.pytorch.org/whl/cu124, -t, $_IMAGE, .]
+  entrypoint: bash
+  args: ['-c', 'docker pull $_IMAGE || echo "지난 이미지 없음 - 처음부터 만든다"']
+- name: gcr.io/cloud-builders/docker
+  args: [build, --cache-from, $_IMAGE, --build-arg, TORCH_INDEX=https://download.pytorch.org/whl/cu124, -t, $_IMAGE, .]
 images: [$_IMAGE]
 timeout: 2700s
 options:
