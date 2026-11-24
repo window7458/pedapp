@@ -1292,7 +1292,11 @@ async function navStart(q){
     const r=await fetch('/api/nav?'+new URLSearchParams({q, lat:c.latitude, lon:c.longitude}));
     if(!r.ok){ say(r.status===404 ? `${q}을 찾지 못했어요. 다른 이름으로 말해 주세요.` : '지금은 길을 찾을 수 없어요.'); return; }
     const j=await r.json();
-    tripEnd(); navStop(false); S.latest=j.intro; say(j.intro);
+    tripEnd(); navStop(false); S.latest=j.intro;
+    if(c.accuracy>25 || (S.indoor && AutoIn.last===true)){          /* 건물 안: 걷는 안내 문장 대신 '먼저 밖으로' */
+      say(j.mode==='transit' ? j.intro : `${j.dest.name}까지 걸어서 약 ${j.minutes}분이에요.`);
+      say('지금 건물 안이거나 위치가 정확하지 않아요. 먼저 건물 밖으로 나가 주세요. 밖에서 바로 안내할게요.');
+    } else say(j.intro);
     if(j.mode==='transit' && j.trip){
       Object.assign(TRIP, {on:true, legs:j.trip.legs, i:0, dest:j.dest, riding:false});
       const L=TRIP.legs[0];
@@ -1376,9 +1380,25 @@ function tripEnd(){
   TRIP.on=false; TRIP.view=null;
 }
 /* ── 걷는 구간 ── */
+/* GPS 를 믿을 수 없으면(오차 25 m 넘음 · 건물 안) 거리 · 방향 안내를 하지 않는다 (11/24: 방 안에서 "30미터 걸어가세요"라고 했다).
+   두 번 이어서 정확해지면 "밖으로 나왔어요" + 갈 방향 */
+function navGpsOk(c){
+  const bad = c.accuracy>25 || (S.indoor && AutoIn.last===true);
+  if(bad){ NAV.goodN=0;
+    if(!NAV.badSaid){ NAV.badSaid=true; speech.push('ui', '지금 건물 안이거나 위치가 정확하지 않아요. 밖으로 나가면 길 안내를 이어갈게요.'); }
+    NAV.view={lab:'길 안내', head:'건물 밖으로<br>나가 주세요', sub:`위치 오차 약 ${Math.round(c.accuracy)}m`}; calmView(); return false; }
+  NAV.goodN=(NAV.goodN||0)+1;
+  if(NAV.badSaid){ if(NAV.goodN<2) return false; NAV.badSaid=false; NAV.dirSaidAt=0; NAV.offAt=1; speech.push('ui', '위치가 잡혔어요. 길 안내를 이어갈게요.'); }
+  return true;
+}
 async function navTick(c){
-  if((window.SayEyeTactile && window.SayEyeTactile.selected()) || !NAV.on || c.accuracy>50) return;                          /* 너무 부정확한 위치는 버림 */
+  if((window.SayEyeTactile && window.SayEyeTactile.selected()) || !NAV.on) return;
+  if(!navGpsOk(c)) return;
   const lat=c.latitude, lon=c.longitude, now=performance.now();
+  /* 꺾은 뒤 확인: 다음 구간 방향을 20초 안에 30° 안으로 향하면 "좋아요, 그 방향이에요" */
+  if(NAV.turnCheck && HEAD.v!=null){ const tc=NAV.turnCheck;
+    if(now-tc.at>20000) NAV.turnCheck=null;
+    else if(Math.abs(angDiff(tc.bear, HEAD.v))<30){ NAV.turnCheck=null; speech.push('ui', '좋아요, 그 방향이에요.'); } }
   /* 휘는 길 안내(curve)를 GPS 가 건너뛰었으면(다음 안내 지점이 더 가까움) 조용히 넘어간다 — 지난 커브를 늦게 말하지 않게 */
   while(NAV.steps[NAV.idx] && NAV.steps[NAV.idx].kind==='curve' && NAV.steps[NAV.idx+1] &&
         dist(lat,lon,NAV.steps[NAV.idx+1].lat,NAV.steps[NAV.idx+1].lon) < dist(lat,lon,NAV.steps[NAV.idx].lat,NAV.steps[NAV.idx].lon)) NAV.idx++;
@@ -1395,7 +1415,9 @@ async function navTick(c){
     if(st.kind!=='arrive' && d<25){
       const t = st.kind==='crosswalk' ? `횡단보도예요. 신호를 확인하세요. ${st.text}` : st.text;
       if(st.kind==='crosswalk'){ const b=crossBearingFromRoute(st); if(b!=null) setTimeout(()=>crossStart(b, false), 8000); }   /* 신호 기다린 뒤 건너는 동안 방향 지키기 */
-      S.latest=t; speech.push('ui', t); NAV.idx++; NAV.off=0; return; }
+      S.latest=t; speech.push('ui', t); NAV.idx++; NAV.off=0;
+      { const nx=NAV.steps[NAV.idx]; if(nx && st.kind==='turn') NAV.turnCheck={bear:bearing(st.lat,st.lon,nx.lat,nx.lon), at:now}; }
+      return; }
     /* 걷는 방향: 다음 지점 방향과 나침반이 40° 넘게 다르면 (두 번 연속, 12초에 한 번) */
     if(HEAD.v!=null && d>15 && st.kind!=='curve'){
       const rel=angDiff(bearing(lat,lon,st.lat,st.lon), HEAD.v);

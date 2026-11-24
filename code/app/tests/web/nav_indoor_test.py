@@ -1,0 +1,74 @@
+"""건물 안(위치 오차 큼)에서 길 안내: 걷는 안내 대신 '먼저 밖으로', 밖에 나오면 이어서 · 꺾은 뒤 방향 확인.
+(trip_test.py 의 가짜 길찾기 · GPS 를 같이 씀)
+원래 설명: 길 안내 + 대중교통 흐름 시험 (서버 없이, 길찾기 응답 · GPS 를 가짜로):
+걷기(갈림길 미리 안내 → 정류장 도착) → 511번 버스 기다리기 → "탔어" → 정류장 따라가며 "다음 정류장" · "이번 정류장"
+→ "내렸어" → 갈아타러 걷기 → "다 왔어" → 지하철 안내 → "탔어" → "내렸어" → 마지막 걷기 → "다 왔어" → 도착.
+실행: python code/app/tests/web/trip_test.py (크롬 · pip install playwright)"""
+import asyncio, http.server, threading, functools, json, pathlib
+from playwright.async_api import async_playwright
+
+WEB = str(pathlib.Path(__file__).resolve().parents[2] / 'web')
+H = functools.partial(http.server.SimpleHTTPRequestHandler, directory=WEB); H.log_message = lambda *a: None
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+O = (37.4500, 126.6560)                                  # 출발
+def pt(dn, de): return (O[0] + dn / 111320, O[1] + de / (111320 * 0.7934))   # 북 · 동으로 m 만큼
+A = pt(0, 120); TURN = pt(0, 60)                          # 정류장 A (동쪽 120 m), 60 m 지점에서 우회전
+STATIONS = [A, pt(0, 600), pt(0, 1100), pt(0, 1600)]       # 511번: A → 정류장 4개
+S1 = pt(30, 1650); DEST = pt(30, 3000)
+LEG = lambda m, mode, num, a, b, an, bn, stations=(), route='', toward='': dict(
+    mode=mode, num=num, route=route or num, toward=toward, minutes=m, meters=500, stops=max(0, len(stations) - 1),
+    start=dict(name=an, lat=a[0], lon=a[1]), end=dict(name=bn, lat=b[0], lon=b[1]),
+    stations=[dict(name=f'정류장{i}', lat=p[0], lon=p[1]) for i, p in enumerate(stations)])
+TRIP = dict(minutes=40, transfers=1, walk_m=300, legs=[
+    LEG(2, 'WALK', '', O, A, '출발', '학산정류장'),
+    LEG(6, 'BUS', '511', A, STATIONS[-1], '학산정류장', '주안역정류장', STATIONS),
+    LEG(1, 'WALK', '', STATIONS[-1], S1, '주안역정류장', '주안'),
+    LEG(1, 'SUBWAY', '', S1, DEST, '주안', '용산', [S1, DEST], route='수도권1호선', toward='도화'),
+    LEG(1, 'WALK', '', DEST, DEST, '용산', '용산역 광장')])
+PLAN = dict(dest=dict(name='용산역 광장', lat=DEST[0], lon=DEST[1]), intro='용산역 광장까지 버스와 지하철로 안내할게요.', mode='transit', trip=TRIP,
+            steps=[dict(lat=TURN[0], lon=TURN[1], kind='turn', text='우회전한 뒤 60미터 가세요.'), dict(lat=A[0], lon=A[1], kind='arrive', text='도착했어요.')],
+            line=[[O[0], O[1]], [A[0], A[1]]], distance=120, minutes=2, first='동쪽으로 가세요.')
+ROUTE = dict(steps=[dict(lat=S1[0], lon=S1[1], kind='arrive', text='도착했어요.')], line=[], distance=60, minutes=1, first='앞으로 가세요.')
+INIT = """
+window.__played=[];
+class FakeSR { start(){ window.__rec=this; } abort(){} stop(){} }
+Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:FakeSR}); Object.defineProperty(window,'SpeechRecognition',{configurable:true,value:FakeSR});
+Object.defineProperty(window,'Audio',{configurable:true,value:function(){ return {play:()=>Promise.reject(new Error('x')), pause(){}, set src(v){}, get src(){return ''}}; }});
+Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{ getVoices:()=>[], cancel(){ if(window.__u){ clearTimeout(window.__u.t); window.__u=null; } },
+  speak(u){ if(u.text.trim()==='') return; window.__u=u; window.__played.push(u.text); u.t=setTimeout(()=>{ window.__u=null; u.onend&&u.onend(); }, 60); } }});
+"""
+
+
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(channel='chrome'); c = await b.new_context(permissions=['geolocation'], geolocation={'latitude': O[0], 'longitude': O[1], 'accuracy': 5})
+        pg = await c.new_page(); pg.on('pageerror', lambda e: print('PAGEERR', e))
+        await pg.route('**/api/tts*', lambda r: r.fulfill(status=404, body=''))
+        await pg.route('**/api/nav/route*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(ROUTE, ensure_ascii=False)))
+        await pg.route('**/api/nav?*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(PLAN, ensure_ascii=False)))
+        await pg.route('**/api/bus*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(dict(sentence='511번은 3분 뒤에 와요.', min=3, left=2, stop='학산정류장'), ensure_ascii=False)))
+        await pg.add_init_script(INIT)
+        await pg.goto(f'http://127.0.0.1:{srv.server_port}/index.html', wait_until='domcontentloaded'); await asyncio.sleep(1.5)
+
+        async def go(lat, lon, wait=1.0):
+            await c.set_geolocation({'latitude': lat, 'longitude': lon, 'accuracy': 5}); await asyncio.sleep(wait)
+        async def hear(t, wait=1.2):
+            await pg.evaluate(f"window.__insight.handleSpeech([{json.dumps(t, ensure_ascii=False)}])"); await asyncio.sleep(wait)
+
+        await c.set_geolocation({'latitude': O[0], 'longitude': O[1], 'accuracy': 60})
+        await hear('용산역 광장 가자', 2)
+        await c.set_geolocation({'latitude': O[0]+0.00002, 'longitude': O[1], 'accuracy': 45}); await asyncio.sleep(1)
+        await go(*pt(0, 10)); await go(*pt(0, 12))                # 밖으로 나옴 (오차 5 m 두 번)
+        await go(*pt(0, 22)); await go(*pt(0, 55))
+        await pg.evaluate("HEAD.v = 180")                         # 우회전 뒤 남쪽을 향함 (갈림길 → 정류장은 동쪽이지만 시험용 방향)
+        await go(*pt(0, 58), 1.5)
+        said = await pg.evaluate("window.__played")
+        for x in said: print(' ·', x)
+        need = ['먼저 건물 밖으로 나가 주세요', '위치가 잡혔어요', '미터 앞에서 우회전이에요']
+        bad = [x for x in said if '걸어서 약' in x and '분이에요. ' in x and '보행자' in x]
+        miss = [n for n in need if not any(n in x for x in said)]
+        print('MISSING', miss) if miss else print('indoor ok')
+        await b.close()
+
+asyncio.run(main())
