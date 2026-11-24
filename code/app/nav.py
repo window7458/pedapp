@@ -22,6 +22,8 @@ TMAP = "https://apis.openapi.sk.com/tmap"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 OSRM = "https://routing.openstreetmap.de/routed-foot/route/v1/foot"
 OVERPASS = "https://overpass-api.de/api/interpreter"
+TRANSIT = "https://apis.openapi.sk.com/transit/routes"
+WALK_MAX_MIN = int(os.environ.get("NAV_WALK_MAX_MIN") or 20)   # 이보다 오래 걸으면 버스 · 지하철로 안내
 CROSSWALK = set(range(211, 218))          # TMAP turnType: 횡단보도 (좌측 · 우측 · 8시 … 방향)
 _lock = threading.Lock()
 _last = [0.0]
@@ -287,6 +289,52 @@ class Nav:
         self._bcache[k] = (time.time(), ans)
         return ans
 
+    # ── 대중교통 (TMAP 대중교통 API) ──
+    def transit(self, lat, lon, dlat, dlon) -> dict | None:
+        """버스 · 지하철 길: 구간(걷기 · 버스 · 지하철)마다 타는 곳 · 내리는 곳 · 노선 · 정류장 수 · 시간. 실패하면 None."""
+        if not self.key:
+            return None
+        body = json.dumps(dict(startX=str(lon), startY=str(lat), endX=str(dlon), endY=str(dlat), count=3, lang=0, format="json")).encode()
+        req = urllib.request.Request(TRANSIT, data=body, headers={"appKey": self.key, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            its = d["metaData"]["plan"]["itineraries"]
+        except Exception:
+            return None
+        if not its:
+            return None
+        it = min(its, key=lambda x: (x.get("transferCount", 9), x.get("totalTime", 1e9)))   # 환승 적은 길 먼저 (시각장애인)
+        legs = []
+        for l in it.get("legs") or []:
+            mode = l.get("mode") or "WALK"
+            stations = ((l.get("passStopList") or {}).get("stations")) or []
+            route = l.get("route") or ""
+            num = route.split(":")[-1] if mode == "BUS" else route
+            legs.append(dict(mode=mode, route=route, num=num,
+                             start=dict(name=l["start"]["name"], lat=float(l["start"]["lat"]), lon=float(l["start"]["lon"])),
+                             end=dict(name=l["end"]["name"], lat=float(l["end"]["lat"]), lon=float(l["end"]["lon"])),
+                             minutes=max(1, round(int(l.get("sectionTime") or 60) / 60)), meters=int(l.get("distance") or 0),
+                             stops=max(0, len(stations) - 1),
+                             toward=stations[1]["stationName"] if mode == "SUBWAY" and len(stations) > 1 else "",
+                             stations=[dict(name=x["stationName"], lat=float(x["lat"]), lon=float(x["lon"])) for x in stations]))
+        legs = [x for x in legs if not (x["mode"] == "WALK" and x["meters"] < 15)]       # 같은 역 안 0분 걷기는 뺌
+        return dict(minutes=max(1, round(int(it.get("totalTime") or 60) / 60)), transfers=int(it.get("transferCount") or 0),
+                    walk_m=int(it.get("totalWalkDistance") or 0), fare=((it.get("fare") or {}).get("regular") or {}).get("totalFare"),
+                    legs=legs)
+
+    @staticmethod
+    def leg_say(leg: dict) -> str:
+        """타는 구간 한 문장: '정석항공과학고 정류장에서 511번 버스를 타요. 7개 정류장, 약 14분 뒤 주안역환승정류장에서 내려요.'"""
+        if leg["mode"] == "BUS":
+            return (f"{leg['start']['name']} 정류장에서 {leg['num']}번 버스를 타요. "
+                    f"{leg['stops']}개 정류장, 약 {leg['minutes']}분 뒤 {leg['end']['name']}에서 내려요.")
+        if leg["mode"] == "SUBWAY":
+            to = f" {leg['toward']} 방향" if leg["toward"] else ""
+            return (f"{leg['start']['name']}역에서 {leg['route']}{to} 열차를 타요. "
+                    f"{leg['stops']}개 역, 약 {leg['minutes']}분 뒤 {leg['end']['name']}역에서 내려요.")
+        return f"{leg['end']['name']}까지 약 {leg['minutes']}분 걸어요."
+
     def plan(self, q: str, lat: float, lon: float) -> dict:
         dest = None
         if self.key:
@@ -298,5 +346,27 @@ class Nav:
         if dest is None:
             raise LookupError(f"'{q}'을 찾지 못했어요")
         r = self.route(lat, lon, dest["lat"], dest["lon"], dest["name"])
+        if r["minutes"] > WALK_MAX_MIN:                     # 멀면 버스 · 지하철 (가까우면 걸어서)
+            t = self.transit(lat, lon, dest["lat"], dest["lon"])
+            rides = [x for x in (t or {}).get("legs", []) if x["mode"] != "WALK"]
+            if t and rides:
+                first = t["legs"][0]
+                walk = None
+                if first["mode"] == "WALK":                  # 첫 타는 곳까지 걷는 길 (갈림길 안내)
+                    try:
+                        walk = self.route(lat, lon, first["end"]["lat"], first["end"]["lon"], first["end"]["name"])
+                    except Exception:
+                        walk = None
+                tr = f"환승 {t['transfers']}번" if t["transfers"] else "갈아타지 않고"
+                lead = (f"먼저 약 {first['minutes']}분 걸어서 {first['end']['name']}까지 가요. " if first["mode"] == "WALK" else "")
+                intro = (f"{dest['name']}까지 걸으면 약 {r['minutes']}분이라 버스와 지하철로 안내할게요. "
+                         f"모두 약 {t['minutes']}분, {tr}이에요. {lead}{self.leg_say(rides[0])}")
+                out = dict(dest=dest, intro=intro, mode="transit", trip=t, walk_minutes=r["minutes"])
+                if walk:
+                    out.update(steps=walk["steps"], line=walk["line"], distance=walk["distance"], minutes=walk["minutes"], first=walk["first"])
+                else:
+                    out.update(steps=[], line=[], distance=0, minutes=0, first="")
+                return out
+            r["note"] = "대중교통 길을 찾지 못해 걷는 길로 안내해요."
         intro = f"{dest['name']}까지 {_meters(r['distance'])}, 걸어서 약 {r['minutes']}분이에요. {r['first']}"
-        return dict(dest=dest, intro=intro, **r)
+        return dict(dest=dest, intro=intro, mode="walk", **r)

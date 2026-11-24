@@ -225,7 +225,9 @@ addEventListener('splashdone', ()=>document.body.classList.add('enter'));   /* �
 function minutes(){ return Math.max(1, Math.round((performance.now()-S.t0)/60000)); }
 function calmView(){
   if(document.body.classList.contains('warn')||document.body.classList.contains('caut')) return;
-  if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을 살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
+  if(NAV.on && NAV.view) say3(NAV.view.lab, NAV.view.head, NAV.view.sub);          /* 길 안내 중: 다음 갈림길까지 거리 · 남은 거리를 큰 글씨로 */
+  else if(TRIP.on && TRIP.view) say3(TRIP.view.lab, TRIP.view.head, TRIP.view.sub);
+  else if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을 살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
   else say3('대기 중', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
 }
 /* 경고 짧게 (11/24 사용자: 말이 너무 길다, 멈추세요 · 피하세요가 잘 안 보인다).
@@ -576,6 +578,8 @@ function parseCommand(text){
   if(/자동(시작|으로시작|안내)?/.test(t) && /(꺼|끄)/.test(t)) return 'auto_off';
   if(/자동(시작|으로시작|안내)/.test(t) && /(켜|시작해)/.test(t)) return 'auto_on';
   if(/(설정|정보|카메라위치|키|나이).*(다시|바꿔|새로|처음)|처음설정|설정다시/.test(t)) return 'setup';
+  if(/^(나)?(내렸어|내렸다|내렸어요|내렸습니다|하차했어|다내렸어)/.test(t)) return 'trip_off';
+  if(TRIP.on && /^(다왔어|다왔다|다왔어요|도착했어|여기야)$/.test(t)) return 'trip_walk_done';
   if(/(버스|기다리기|기다리는거).*(그만|취소|안탈|됐어)|그만기다려|기다리지마|버스탔어|버스탔다|탔어요?$/.test(t)) return 'bus_wait_end';   /* '그만'(안내 중지)보다 먼저 */
   if(/(길안내|안내|네비|내비).*(그만|끝|종료|꺼|취소)/.test(t)) return 'nav_stop';
   if(/(승강장|타는곳|방면|방향)/.test(t) && /(가는길|어떻게|가는법|길알려|안내|찾아)/.test(t) && !/버스/.test(t)){
@@ -643,7 +647,9 @@ function runCommand(cmd){
     case 'bus': infoMode(()=>busAsk(S.busRoute)); break;
     case 'setup': showVoiceSetup(); setTimeout(()=>{ if(VS.on && !VS.armed){ VS.armed=true; vsAsk(); } }, 3500); break;
     case 'bus_wait': busWait(S.busWaitRoute); break;
-    case 'bus_wait_end': busWaitEnd(true); break;
+    case 'bus_wait_end': if(TRIP.on && tripRideBoard()) break; busWaitEnd(true); break;
+    case 'trip_off': tripAlight(true); break;
+    case 'trip_walk_done': if(TRIP.on && TRIP.legs[TRIP.i] && TRIP.legs[TRIP.i].mode==='WALK'){ navStop(false); tripGo(TRIP.i+1); } break;
     case 'busnum': if(BUSW.on){ busNumNow(); break; } sceneAsk('앞에 있는 버스의 노선 번호를 읽어 줘. 앞 유리 위나 옆면에 적힌 번호만 짧게 말해 줘. 버스가 없거나 번호가 안 보이면 안 보인다고 말해 줘.', true); break;
     case 'cross': crossStart(null, true); break;
     case 'cross_end': crossEnd(true); break;
@@ -651,7 +657,7 @@ function runCommand(cmd){
     case 'train': infoMode(()=>trainAsk(S.trainStation)); break;
     case 'platform': infoMode(()=>platformAsk(S.plat||{})); break;
     case 'nav': navStart(S.navQuery); break;
-    case 'nav_stop': navStop(true); break;
+    case 'nav_stop': tripEnd(); navStop(true); break;
     case 'saver_on': case 'saver_off': S.saver=(cmd==='saver_on'); $('#oSaver').checked=S.saver; save(); applySettings();
       say(S.saver ? '절전 모드를 켰어요. 안내는 그대로예요.' : '절전 모드를 껐어요.'); break;
     case 'indoor_on': case 'indoor_off': AutoIn.manualAt=performance.now(); S.indoor=(cmd==='indoor_on'); $('#oIndoor').checked=S.indoor; save(); sendCmd({type:'indoor', on:S.indoor});
@@ -1272,6 +1278,11 @@ setInterval(()=>{
 const NAV={on:false, watch:null, steps:[], idx:0, line:[], dest:null, off:0, rerouting:false};
 function dist(a,b,c,d){ const k=111320, x=(a-c)*k, y=(b-d)*k*Math.cos(a*Math.PI/180); return Math.hypot(x,y); }
 function offRoute(lat,lon){ let m=1e9; for(const p of NAV.line) m=Math.min(m, dist(lat,lon,p[0],p[1])); return m; }
+/* 길 안내 (11/24): "어디 가자" → 가까우면 걸어서, 걸어서 20분 넘으면 버스 · 지하철 (TMAP 대중교통).
+   걷는 구간은 네이버 AR 도보 길찾기처럼: 갈림길 50 m 앞에서 미리 · 25 m 안에서 다시, 걷는 방향(나침반)이 다음 지점과 40° 넘게 다르면
+   "2시 방향으로 가세요", 3분마다 남은 거리. 화면엔 '다음 갈림길까지 m · 할 일'을 큰 글씨로. */
+const TRIP={on:false, legs:[], i:0, dest:null, riding:false, rideWatch:null, rideT:[], lastIdx:-1, view:null, nextSaid:false, thisSaid:false};
+function turnWord(t){ const m=String(t||'').match(/^(.*?)(한 뒤|한 후| 후|하세요|,)/); return (m && m[1].length<=12) ? m[1] : ''; }
 async function navStart(q){
   if(!q){ say('어디로 갈지 말해 주세요. 예를 들어 인하대역 가자.'); return; }
   say(`${q}까지 가는 길을 찾을게요.`);
@@ -1280,43 +1291,133 @@ async function navStart(q){
   try{
     const r=await fetch('/api/nav?'+new URLSearchParams({q, lat:c.latitude, lon:c.longitude}));
     if(!r.ok){ say(r.status===404 ? `${q}을 찾지 못했어요. 다른 이름으로 말해 주세요.` : '지금은 길을 찾을 수 없어요.'); return; }
-    const j=await r.json(); navLoad(j); NAV.dest=j.dest;
-    S.latest=j.intro; say(j.intro); calmView();
+    const j=await r.json();
+    tripEnd(); navStop(false); S.latest=j.intro; say(j.intro);
+    if(j.mode==='transit' && j.trip){
+      Object.assign(TRIP, {on:true, legs:j.trip.legs, i:0, dest:j.dest, riding:false});
+      const L=TRIP.legs[0];
+      if(L.mode==='WALK' && (j.steps||[]).length){ navLoad(j); NAV.dest={name:L.end.name, lat:L.end.lat, lon:L.end.lon}; NAV.trip=true; }
+      else tripGo(L.mode==='WALK' ? 1 : 0);
+    } else { navLoad(j); NAV.dest=j.dest; NAV.trip=false; }
+    calmView();
     if(!S.running) say('안내를 시작하려면 시작이라고 말하세요. 장애물도 같이 알려 드려요.');
   }catch(e){ say('지금은 길을 찾을 수 없어요.'); }
 }
 function navLoad(j){
-  NAV.on=true; NAV.steps=j.steps||[]; NAV.idx=0; NAV.line=j.line||[]; NAV.off=0;
+  NAV.on=true; NAV.steps=j.steps||[]; NAV.idx=0; NAV.line=j.line||[]; NAV.off=0; NAV.view=null;
+  Object.assign(NAV, {offAt:0, dirSaidAt:0, progAt:performance.now()});
   if(NAV.watch==null && navigator.geolocation)
     NAV.watch=navigator.geolocation.watchPosition(p=>navTick(p.coords), ()=>{}, {enableHighAccuracy:true, maximumAge:2000, timeout:20000});
 }
 function navStop(spoken){
-  NAV.on=false; if(NAV.watch!=null){ navigator.geolocation.clearWatch(NAV.watch); NAV.watch=null; }
-  if(spoken) say('길 안내를 멈췄어요.');
+  NAV.on=false; NAV.view=null; if(NAV.watch!=null){ navigator.geolocation.clearWatch(NAV.watch); NAV.watch=null; }
+  if(spoken) say('길 안내를 멈췄어요.'); calmView();
 }
+/* ── 대중교통 구간 차례로 ── */
+async function tripGo(i){
+  TRIP.i=i; TRIP.riding=false; TRIP.nextSaid=false; TRIP.thisSaid=false; TRIP.lastIdx=-1;
+  const L=TRIP.legs[i];
+  if(!L){ const n=TRIP.dest ? TRIP.dest.name : ''; tripEnd(); say(`${n}에 도착했어요.`); beep('ok');
+    sendCmd({type:'client_event', kind:'arrived', dest:n}); calmView(); return; }
+  if(L.mode==='WALK'){
+    const last=i===TRIP.legs.length-1, to=last && TRIP.dest ? TRIP.dest : {name:L.end.name, lat:L.end.lat, lon:L.end.lon};
+    const c=await hereNow();
+    if(c){
+      try{
+        const r=await fetch('/api/nav/route?'+new URLSearchParams({lat:c.latitude, lon:c.longitude, dlat:to.lat, dlon:to.lon, name:to.name}));
+        if(r.ok){ const j=await r.json(); navLoad(j); NAV.dest=to; NAV.trip=true; say(`${to.name}까지 약 ${j.minutes||L.minutes}분 걸어요. ${j.first||''}`); return; }
+      }catch(e){}
+    }
+    say(`${to.name}까지 약 ${L.minutes}분 걸어가세요. 걷는 길은 찾지 못했어요. 다 오면 다 왔어라고 말해 주세요.`); return;
+  }
+  const ride=L.mode==='BUS' ? `${L.num}번 버스` : `${L.route}`;
+  TRIP.view={lab:'대중교통', head:`${L.start.name}<br>${ride}`, sub:`${L.stops}${L.mode==='BUS'?'개 정류장':'개 역'} · 약 ${L.minutes}분 · ${L.end.name}에서 내림`}; calmView();
+  if(L.mode==='BUS'){ say(`여기서 ${L.num}번 버스를 기다릴게요. 오면 알려 드릴게요. 타면 탔어라고 말해 주세요.`); busWait(L.num); tripWatchBoard(); }
+  else { say(`${L.start.name}역에서 ${L.route}${L.toward ? ' '+L.toward+' 방향' : ''} 열차를 타요. 승강장 가는 길은 승강장 가는 길이라고 물어보세요. 타면 탔어라고 말해 주세요.`); }
+}
+function tripWatchBoard(){                     /* "탔어"를 안 해도: 정류장에서 150 m 넘게, 빠르게 멀어지면 탄 것으로 */
+  if(TRIP.rideWatch!=null || !navigator.geolocation) return;
+  TRIP.rideWatch=navigator.geolocation.watchPosition(p=>tripRideTick(p.coords), ()=>{}, {enableHighAccuracy:true, maximumAge:3000, timeout:20000});
+}
+function tripRideBoard(){
+  const L=TRIP.legs[TRIP.i]; if(!L || L.mode==='WALK' || TRIP.riding) return false;
+  TRIP.riding=true; busWaitEnd(false);
+  say(`좋아요. ${L.end.name}${L.mode==='SUBWAY'?'역':''}에서 내려요. 내리기 전에 알려 드릴게요.`);
+  if(L.mode==='SUBWAY'){                         /* 지하는 GPS 가 안 돼서 시간으로 */
+    TRIP.view={lab:L.route, head:`${L.end.name}역에서<br>내려요`, sub:`${L.stops}개 역 · 약 ${L.minutes}분`}; calmView();
+    TRIP.rideT.push(setTimeout(()=>say(`곧 ${L.end.name}역이에요. 내릴 준비하세요.`), Math.max(30, L.minutes*60-120)*1000));
+    TRIP.rideT.push(setTimeout(()=>say(`${L.end.name}역에서 내리세요. 내리면 내렸어라고 말해 주세요.`), Math.max(60, L.minutes*60-20)*1000));
+  } else tripWatchBoard();
+  return true;
+}
+function tripRideTick(c){
+  const L=TRIP.legs[TRIP.i]; if(!TRIP.on || !L || L.mode!=='BUS' || c.accuracy>80) return;
+  if(!TRIP.riding){ if(dist(c.latitude,c.longitude,L.start.lat,L.start.lon)>150 && (c.speed||0)>3) tripRideBoard(); return; }
+  const st=L.stations||[]; if(st.length<2) return;
+  let k=0, best=1e9; st.forEach((p,j)=>{ const d=dist(c.latitude,c.longitude,p.lat,p.lon); if(d<best){ best=d; k=j; } });
+  if(k<TRIP.lastIdx) k=TRIP.lastIdx; TRIP.lastIdx=k;
+  const left=st.length-1-k, dEnd=dist(c.latitude,c.longitude,L.end.lat,L.end.lon);
+  TRIP.view={lab:`${L.num}번 버스`, head:left>0?`${left}개 정류장<br>남았어요`:'이번 정류장', sub:`${L.end.name}에서 내림`}; calmView();
+  if(left<=1 && dEnd>150 && !TRIP.nextSaid){ TRIP.nextSaid=true; say(`다음 정류장 ${L.end.name}에서 내려요. 하차 벨을 눌러 주세요.`); }
+  if(dEnd<=150 && !TRIP.thisSaid){ TRIP.thisSaid=true; say(`이번 정류장 ${L.end.name}에서 내리세요.`);
+    TRIP.rideT.push(setTimeout(()=>{ if(TRIP.on && TRIP.legs[TRIP.i]===L) tripAlight(false); }, 90000)); }   /* 90초 뒤 다음 구간으로 */
+}
+function tripAlight(spoken){
+  if(!TRIP.on){ if(spoken) say('지금은 대중교통 안내 중이 아니에요.'); return; }
+  const L=TRIP.legs[TRIP.i]; if(!L || L.mode==='WALK') return;
+  TRIP.rideT.forEach(clearTimeout); TRIP.rideT=[];
+  if(TRIP.rideWatch!=null){ navigator.geolocation.clearWatch(TRIP.rideWatch); TRIP.rideWatch=null; }
+  if(spoken) say('내리셨군요.');
+  tripGo(TRIP.i+1);
+}
+function tripEnd(){
+  TRIP.rideT.forEach(clearTimeout); TRIP.rideT=[];
+  if(TRIP.rideWatch!=null && navigator.geolocation){ navigator.geolocation.clearWatch(TRIP.rideWatch); TRIP.rideWatch=null; }
+  TRIP.on=false; TRIP.view=null;
+}
+/* ── 걷는 구간 ── */
 async function navTick(c){
   if((window.SayEyeTactile && window.SayEyeTactile.selected()) || !NAV.on || c.accuracy>50) return;                          /* 너무 부정확한 위치는 버림 */
-  const lat=c.latitude, lon=c.longitude;
+  const lat=c.latitude, lon=c.longitude, now=performance.now();
   /* 휘는 길 안내(curve)를 GPS 가 건너뛰었으면(다음 안내 지점이 더 가까움) 조용히 넘어간다 — 지난 커브를 늦게 말하지 않게 */
   while(NAV.steps[NAV.idx] && NAV.steps[NAV.idx].kind==='curve' && NAV.steps[NAV.idx+1] &&
         dist(lat,lon,NAV.steps[NAV.idx+1].lat,NAV.steps[NAV.idx+1].lon) < dist(lat,lon,NAV.steps[NAV.idx].lat,NAV.steps[NAV.idx].lon)) NAV.idx++;
   const st=NAV.steps[NAV.idx];
   if(st){
     const d=dist(lat,lon,st.lat,st.lon);
-    if(st.kind==='arrive' && d<20){ say(`${NAV.dest ? NAV.dest.name+'에 ' : ''}도착했어요.`); beep('ok');
+    if(st.kind==='arrive' && d<20){
+      if(NAV.trip){ say(`${NAV.dest ? NAV.dest.name+'에 ' : ''}다 왔어요.`); beep('ok'); navStop(false); tripGo(TRIP.i+1); return; }
+      say(`${NAV.dest ? NAV.dest.name+'에 ' : ''}도착했어요.`); beep('ok');
       if(NAV.dest && /역(\[|\s|$|\d)/.test(NAV.dest.name)) say('엘리베이터 위치가 궁금하면 엘리베이터 어디야라고 말하세요.');
       sendCmd({type:'client_event', kind:'arrived', dest:NAV.dest ? NAV.dest.name : ''}); navStop(false); return; }
+    const tw=turnWord(st.text);
+    if(st.kind!=='arrive' && d<60 && d>=32 && !st.pre && tw){ st.pre=true; speech.push('ui', `${Math.round(d/10)*10}미터 앞에서 ${tw}이에요.`); }   /* 미리 */
     if(st.kind!=='arrive' && d<25){
       const t = st.kind==='crosswalk' ? `횡단보도예요. 신호를 확인하세요. ${st.text}` : st.text;
       if(st.kind==='crosswalk'){ const b=crossBearingFromRoute(st); if(b!=null) setTimeout(()=>crossStart(b, false), 8000); }   /* 신호 기다린 뒤 건너는 동안 방향 지키기 */
       S.latest=t; speech.push('ui', t); NAV.idx++; NAV.off=0; return; }
+    /* 걷는 방향: 다음 지점 방향과 나침반이 40° 넘게 다르면 (두 번 연속, 12초에 한 번) */
+    if(HEAD.v!=null && d>15 && st.kind!=='curve'){
+      const rel=angDiff(bearing(lat,lon,st.lat,st.lon), HEAD.v);
+      if(Math.abs(rel)>40){ NAV.offAt=(NAV.offAt||0)+1;
+        if(NAV.offAt>=2 && now-(NAV.dirSaidAt||0)>12000){ NAV.dirSaidAt=now; NAV.offAt=0;
+          const clock=Math.round(((rel+360)%360)/30)||12;
+          speech.push('ui', clock===6 ? '뒤로 돌아서 가세요.' : `${clock}시 방향으로 가세요.`); } }
+      else NAV.offAt=0;
+    }
+    /* 화면 · 3분마다 남은 거리 */
+    let rem=d; for(let k=NAV.idx;k<NAV.steps.length-1;k++) rem+=dist(NAV.steps[k].lat,NAV.steps[k].lon,NAV.steps[k+1].lat,NAV.steps[k+1].lon);
+    const dn=NAV.dest ? NAV.dest.name : '목적지', remTxt=rem>=1000 ? (rem/1000).toFixed(1)+'km' : Math.round(rem/10)*10+'m';
+    NAV.view={lab:'길 안내', head:`${Math.round(d)}m 뒤<br>${tw || (st.kind==='arrive' ? '도착' : '안내')}`, sub:`${dn}까지 ${remTxt}`};
+    calmView();
+    if(now-(NAV.progAt||0)>180000){ NAV.progAt=now; speech.push('ui', `${dn}까지 약 ${rem>=1000 ? (rem/1000).toFixed(1)+'킬로미터' : Math.round(rem/10)*10+'미터'} 남았어요.`); }
   }
   if(NAV.line.length && offRoute(lat,lon)>40){
     if(++NAV.off>=2 && !NAV.rerouting && NAV.dest){                 /* 두 번 연속 벗어나면 다시 찾기 */
       NAV.rerouting=true;
       try{
         const r=await fetch('/api/nav/route?'+new URLSearchParams({lat, lon, dlat:NAV.dest.lat, dlon:NAV.dest.lon, name:NAV.dest.name}));
-        if(r.ok){ const j=await r.json(); navLoad(j); say('길에서 벗어나서 다시 찾았어요. '+(j.first||'')); }
+        if(r.ok){ const j=await r.json(); const keep=NAV.trip, dd=NAV.dest; navLoad(j); NAV.trip=keep; NAV.dest=dd; say('길에서 벗어나서 다시 찾았어요. '+(j.first||'')); }
       }catch(e){}
       NAV.rerouting=false;
     }
