@@ -252,7 +252,37 @@ class NavTrigger:
         self.stairs = StairsWatch()
         self._stairs_t = -1e9
         self._lock = threading.Lock()
+        self.preview_overlay = None
         self.info = {"imgsz": imgsz, "crop": crop}
+
+    # SAYEYE_LARGE_CAMERA_V1: reuse the live policy geometry for display only.
+    def _set_preview_overlay(self, debug, width, height):
+        self.preview_overlay = None
+        try:
+            from dataclasses import replace
+            from hazard_policy import corridor_geometry
+            ctx = debug.get("context")
+            if not ctx or width <= 0 or height <= 0:
+                return
+            cfg = self.p.core.policy.config
+            # The polygon does not depend on the object's box. Request it even
+            # when no objects were detected, using the same current context.
+            box = (0.0, 0.0, float(width), float(height))
+            def points(config):
+                geo = corridor_geometry(box, ctx, width, height, config)
+                poly = np.asarray(geo["polygon"], dtype=float) / [width, height]
+                if poly.shape != (4, 2) or not np.isfinite(poly).all():
+                    raise ValueError("Invalid corridor polygon")
+                # Do not clamp vertices: canvas clips the projected polygon.
+                return np.round(poly, 6).tolist()
+            path = {"polygon": points(cfg), "valid": bool(ctx.get("path_valid"))}
+            if cfg.feedback2:
+                # HazardPolicy uses a narrower corridor for class 7 obstacles.
+                path["obstacle_polygon"] = points(replace(cfg, corridor_half_m=.80, path_min_overlap=.35))
+            self.preview_overlay = {"path": path}
+        except (KeyError, TypeError, ValueError, OverflowError, ZeroDivisionError):
+            # Display data must never interrupt detection or warning delivery.
+            self.preview_overlay = None
 
     def set_cam_h(self, h: float):
         """보행자 처음 설정(키 × 카메라 위치)으로 카메라 높이를 바꾼다. 원본 ego_motion 은 고치지 않고 모듈 값만 바꾼다."""
@@ -297,6 +327,7 @@ class NavTrigger:
             if self._last_t is not None and t <= self._last_t:
                 t = self._last_t + 1e-3
             self._last_t = t
+            self.preview_overlay = None
             try:
                 events, debug = self.p.step(image, fidx, t)
             except Exception:
@@ -316,6 +347,7 @@ class NavTrigger:
             except Exception:
                 pass
             self._pending = events
+            self._set_preview_overlay(debug, image.shape[1], image.shape[0])
             self.info = {"imgsz": self.imgsz, "crop": self.crop,
                          "ms": round(debug.get("processing_s", 0) * 1000, 1),
                          "walk": round(float(debug.get("ego", {}).get("walk_mps") or 0), 2),

@@ -211,6 +211,12 @@ class LivePipeline:
         self.last_frame = None              # 보호자 '지금 화면' · 알림 사진용
         self.on_frame = None                # (image) — 위험 구간 녹화기가 붙는다
         self.on_warn = None                 # (msg, ev, image) — 보호자 알림 센터가 붙는다
+        # SAYEYE_TACTILE_V2: exclusive mode; navigation resumes only on exit.
+        from tactile_feature.runtime import TactileMode
+        self.tactile = TactileMode(cfg.device, self.emit, self.log)
+        self._tactile_generation = -1
+        self._nav_generation = 0
+        self._resume_nav = False
         self._warmed = False
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
@@ -220,7 +226,7 @@ class LivePipeline:
     def submit(self, image: np.ndarray, meta: dict | None = None):
         """소스(폰 · 카메라 URL)가 호출. 항상 최신 한 장만 남긴다 — 밀리면 옛 프레임은 버린다."""
         self._rx.append(time.perf_counter())
-        self._latest = (image, meta)
+        self._latest = (image, {**(meta or {}), "_received_at": time.monotonic(), "_mode_generation": self.tactile.snapshot()[0]})
         self._evt.set()
 
 
@@ -250,6 +256,29 @@ class LivePipeline:
         if max(im.shape[:2]) > 1920:
             s = 1920 / max(im.shape[:2])
             im = cv2.resize(im, (round(im.shape[1] * s), round(im.shape[0] * s)), interpolation=cv2.INTER_AREA)
+        generation, tactile_selected = self.tactile.snapshot()
+        if (meta or {}).get("_mode_generation", generation) != generation:
+            return  # captured before a mode transition
+        if tactile_selected:
+            self._resume_nav = True
+            if generation != self._tactile_generation:
+                self._tactile_generation = generation
+                self.last_frame = None
+                self.preview_jpeg = None
+                self.buffer = FrameBuffer()
+                self._perc.clear(); self._lag.clear(); self._stamps.clear()
+            self._black = float(im[::16, ::16].mean()) < 3.0
+            elapsed = self.tactile.update(im, meta)
+            if elapsed is not None:
+                self._perc.append(elapsed); self._lag.append(elapsed)
+                self._stamps.append(time.perf_counter())
+            return  # no normal YOLO, Trigger, risk clips, or old detection boxes
+        if self._resume_nav or generation != self._nav_generation:
+            from tactile_feature.runtime import reset_navigation
+            reset_navigation(self)
+            self._resume_nav = False
+            self._nav_generation = generation
+            self._perc.clear(); self._lag.clear(); self._stamps.clear()
         if not self._warmed and hasattr(self.perception, "warmup"):
             self.perception.warmup(im)       # 첫 프레임 모델 올리는 시간을 시계 밖으로
             self._warmed = True
@@ -260,25 +289,30 @@ class LivePipeline:
         if hasattr(self.perception, "set_capture"):
             self.perception.set_capture((meta or {}).get("c"))   # 폰이 찍은 시각 → 센서와 시간 맞추기
         dets = self.perception(self._fidx, im)              # 인식 · 판단은 원본으로
-        self._perc.append(time.perf_counter() - tp)
-        tb = time.perf_counter()
-        safe = self.blur.apply(im, dets)                   # 여기부터 저장 · 전송되는 영상은 얼굴을 가린 사본
-        self._blur.append(time.perf_counter() - tb)
-        self.last_frame = safe
-        if self.on_frame is not None:
-            self.on_frame(safe)
-        H, W = im.shape[:2]
-        fr = Frame(self._fidx, t, safe, dets, W, H)
-        self.buffer.push(fr)
-        for ev in self.trigger.step(fr):
-            self._on_event(fr, ev)
-        self._lag.append(self.clock.now() - t)
-        self._stamps.append(time.perf_counter())
-        if (self.preview_enabled or self.live_viewers > 0) and self._fidx % 2 == 0:
-            self._make_preview(safe, dets)
-        self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
-                   "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
-                          round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
+        with self.tactile.lock:
+            if not self.tactile.normal_valid(generation):
+                return
+            self._perc.append(time.perf_counter() - tp)
+            tb = time.perf_counter()
+            safe = self.blur.apply(im, dets)                   # 여기부터 저장 · 전송되는 영상은 얼굴을 가린 사본
+            self._blur.append(time.perf_counter() - tb)
+            self.last_frame = safe
+            if self.on_frame is not None:
+                self.on_frame(safe)
+            H, W = im.shape[:2]
+            fr = Frame(self._fidx, t, safe, dets, W, H)
+            self.buffer.push(fr)
+            for ev in self.trigger.step(fr):
+                self._on_event(fr, ev)
+            self._lag.append(self.clock.now() - t)
+            self._stamps.append(time.perf_counter())
+            if (self.preview_enabled or self.live_viewers > 0) and self._fidx % 2 == 0:
+                self._make_preview(safe, dets)
+            self.emit({"type": "dets", "t": round(t, 2), "W": W, "H": H,
+                       # SAYEYE_LARGE_CAMERA_V1: same-frame normalized walking corridor
+                       "overlay": getattr(self.perception, "preview_overlay", None),
+                       "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
+                              round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
 
     def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))
@@ -327,15 +361,18 @@ class LivePipeline:
             if time.perf_counter() - (st[-1] if st else 0) > 2.0:
                 fps = 0.0
             now_ = time.perf_counter()
+            tactile_selected = self.tactile.snapshot()[1]
             rx = sum(1 for x in list(self._rx) if now_ - x <= 3.0) / 3.0
             self.emit({"type": "status", "fps": round(fps, 1), "rx_fps": round(rx, 1), "black": self._black,
                        "perc_ms": round(statistics.median(self._perc) * 1000, 1) if self._perc else None,
                        "blur_ms": round(statistics.median(self._blur) * 1000, 1) if self._blur else None,
                        "face": self.blur.name,
                        "lag_s": round(statistics.median(self._lag), 3) if self._lag else None,
-                       "source": self.source_label, "perception": self.perception.name,
-                       "trigger": getattr(self.trigger, "name", "?"), "events": self.events,
-                       "hb": getattr(self.trigger, "info", None) or None})
+                       "source": self.source_label, "mode": "tactile" if tactile_selected else "navigation",
+                       "perception": "tactile" if tactile_selected else self.perception.name,
+                       "trigger": "paused" if tactile_selected else getattr(self.trigger, "name", "?"), "events": self.events,
+                       "hb": None if tactile_selected else (getattr(self.trigger, "info", None) or None)})
 
     def stop(self):
+        self.tactile.cancel()
         self._stop.set()

@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>SayEye</title>
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="tactile.css?v=6">
 <style>
 .agent{cursor:pointer}
 #stage{position:absolute;right:18px;top:64px;width:min(44vw,210px);aspect-ratio:3/4;height:auto;border-radius:16px;cursor:zoom-in;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
@@ -37,6 +38,30 @@
 #sos{color:#C8283A}
 :root[data-hc="1"] .start{background:#000;border:3px solid #FFD400;color:#FFD400}
 @media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .tile{color:#fff}}
+
+/* SAYEYE_LARGE_CAMERA_V1: camera uses half the visible browser height. */
+.hasvideo .app{overflow-y:auto;overflow-x:hidden;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.hasvideo .upper{flex:0 0 auto;padding:0 12px;min-height:auto}
+.hasvideo .top{min-height:44px;margin-right:0}
+.hasvideo #stage{position:relative;inset:auto;flex:none;width:100%;height:50vh;height:50dvh;margin:10px 0 0;border-radius:18px}
+#stage video,#stage img{object-fit:contain}
+.hasvideo .say{margin-top:8px;padding-right:0}
+.hasvideo .say small{display:none}
+.hasvideo .say h1{font-size:22px;line-height:1.2;margin:0}
+.hasvideo .say p{font-size:15px;line-height:1.35;margin-top:4px;max-width:none}
+.hasvideo .ear{flex:none;margin:8px 0 10px;padding:8px 10px;border-radius:12px;font-size:12px;gap:8px}
+.hasvideo .ear .again{display:none}
+.hasvideo .lower{flex:none;gap:8px;padding:0 12px}
+.hasvideo .start{height:72px;min-height:72px;padding:0 16px;border-radius:18px}
+.hasvideo .start .pill{font-size:11px;padding:3px 8px;margin-right:8px;vertical-align:middle}
+.hasvideo .start h2{display:inline;font-size:26px;vertical-align:middle;margin:0}
+.hasvideo .start small{font-size:12px;margin-top:6px}
+.hasvideo .start .art{width:105px}
+.hasvideo .tiles{gap:8px}
+.hasvideo .tiles .tile{height:64px;min-height:64px;flex-direction:row;gap:8px;font-size:15px;border-radius:18px}
+.hasvideo .tile svg{width:34px;height:34px;padding:7px;flex:none}
+:root[data-hc="1"] #stage{outline:2px solid #FFD400;outline-offset:-2px}
+
 </style>
 </head>
 <body>
@@ -83,6 +108,22 @@
       <button class="gear" id="openSheet" aria-label="설정과 도움말" aria-haspopup="dialog"><svg><use href="#i-cog"/></svg></button>
     </header>
     <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div>
+    <!-- SAYEYE_TACTILE_V2 -->
+    <section id="tactilePanel" hidden aria-label="점자블록 찾기">
+      <div class="tactile-top"><button class="btn" id="tactileBack">← 기본 안내</button><b>점자블록 찾기</b></div>
+      <p class="tactile-mode">점자블록 전용 · 휴대폰은 몸 정면 · 장애물 경고 일시 정지</p>
+      <!-- SAYEYE_TACTILE_AUTO_V6 -->
+      <p class="tactile-mode">한 번 시작하면 촬영과 안내가 자동으로 반복돼요.</p>
+      <div id="tactileCamera"></div>
+      <div class="tactile-result"><strong id="tactileHeading" tabindex="-1">점자블록 찾기</strong>
+        <p id="tactileText" role="status"></p><p id="tactilePhase" aria-live="off"></p><small id="tactileStats"></small></div>
+      <div class="tactile-actions">
+        <button class="btn" id="tactileStop">찾기 중지</button>
+        <button class="btn" id="tactileRestart" hidden>다시 찾기</button>
+        <button class="btn" id="tactileRepeat">지금 다시 확인</button>
+        <button class="btn" id="tactileConfirm" hidden>도착을 직접 확인했어요</button>
+      </div>
+    </section>
     <p id="notice" role="alert" hidden></p>
     <p id="pinBox" hidden style="margin:6px 2px 0;font-size:15px;font-weight:700">보호자 확인번호 <b id="pinNum" style="letter-spacing:.12em"></b><small style="display:block;font-weight:400;opacity:.75">보호자 화면에 이 번호를 넣으면 연결돼요</small></p>
     <div class="say" id="say" aria-live="off"><small id="sayLab">대기 중</small><h1 id="sayH">안녕하세요,<br>준비됐어요</h1><p id="sayP">"시작"이라고 말하거나 아래 버튼을 두 번 누르세요</p></div>
@@ -154,6 +195,7 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="설정과 도움말" tabindex="-1">
   <div class="grab" aria-hidden="true"></div>
   <h2>설정</h2>
+  <div class="row-set"><button class="btn" id="tactileStart"><span>점자블록 찾기<small>별도 화면에서 점자블록만 찾기</small></span></button></div>
   <label><span>항상 듣기<small>버튼 없이 "시작", "그만", "다시 말해줘", "도와줘"를 알아들어요</small></span><input type="checkbox" class="sw" id="oListen"></label>
   <label><span>위치 공유<small>보호자 화면 지도에 지금 위치를 보여 줘요</small></span><input type="checkbox" class="sw" id="oGps"></label>
   <label><span>터치 안내<small>한 번 누르면 이름을 읽고, 한 번 더 누르면 실행</small></span><input type="checkbox" class="sw" id="oGuide"></label>
@@ -203,7 +245,7 @@ addEventListener('splashdone', ()=>document.body.classList.add('enter'));   /* �
 function minutes(){ return Math.max(1, Math.round((performance.now()-S.t0)/60000)); }
 function calmView(){
   if(document.body.classList.contains('warn')||document.body.classList.contains('caut')) return;
-  if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을<br>살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
+  if(S.running) say3(`${minutes()}분째 함께 걷는 중`, '주변을 살피고 있어요', S.latest ? `방금: ${S.latest}` : '');
   else say3('대기 중', '안녕하세요,<br>준비됐어요', '"시작"이라고 말하거나 아래 버튼을 두 번 누르세요');
 }
 function flash(level, text){             // level: warn(멈추세요) | caut(피하세요)
@@ -236,7 +278,7 @@ function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibra
 const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 탈 버스가 있으면 511번 탈게라고 말하면 오는 순간 알려 드려요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 const speech = (() => {
   let q=[], cur=null, voice=null;
-  const PRI={warn:0,ui:1,desc:2,scene:3}, TTL={warn:2500,ui:9000,desc:6500,scene:14000};
+  const PRI={warn:0,ui:1,tactile:2,desc:3,scene:4}, TTL={warn:2500,ui:9000,tactile:1800,desc:6500,scene:14000};
   const synth = window.speechSynthesis, aud = new Audio(), clips = new Map(), WAIT = 2500;
   aud.preload = 'auto';
   function pickVoice(){ if(!synth) return; voice = synth.getVoices().find(v => (v.lang||'').toLowerCase().startsWith('ko')) || null; }
@@ -249,7 +291,8 @@ const speech = (() => {
     return p;
   }
   function prefetch(list){ let i=0; const next=()=>{ if(i>=list.length) return; fetchClip(list[i++]).then(()=>setTimeout(next,40)); }; next(); }
-  function push(kind, text, prio){
+  // SAYEYE_TACTILE_STEPS_V5: optional completion hooks for tactile actions.
+  function push(kind, text, prio, hooks){
     prio = prio||1; let wait=0;
     if(kind==='warn'){
       q = q.filter(i => i.kind!=='warn' || (i.prio||1) >= prio);   /* 대답(ui)은 버리지 않고 경고 뒤로 */
@@ -259,15 +302,19 @@ const speech = (() => {
         if(cur.kind==='ui') q.push({...cur, at:performance.now()});
         cur=null; cancelNow(); wait=60; }
     }else if(kind==='ui' && cur && (cur.kind==='desc'||cur.kind==='scene')){ cur=null; cancelNow(); wait=60; }
-    q.push({kind,text,prio,at:performance.now()});
-    fetchClip(text);                                // 순서를 기다리는 동안 미리 받아 둔다
+    q.push({kind,text,prio,at:performance.now(),...(kind==='tactile' && hooks ? {hooks} : {})});
+    if(kind!=='tactile') fetchClip(text);            // 순서를 기다리는 동안 미리 받아 둔다
     setTimeout(pump, wait);
   }
   function cancelNow(){ try{ aud.pause(); }catch(e){} if(synth) synth.cancel(); }
   async function pump(){
     if(cur) return;
     const now=performance.now();
-    q = q.filter(i => now-i.at <= TTL[i.kind]);
+    q = q.filter(i => {
+      const keep=now-i.at <= TTL[i.kind];
+      if(!keep && i.hooks && i.hooks.onDone)setTimeout(()=>i.hooks.onDone(false),0);
+      return keep;
+    });
     if(!q.length){ ears.resume(); return; }
     q.sort((a,b) => PRI[a.kind]-PRI[b.kind] || (b.prio||1)-(a.prio||1) || a.at-b.at);
     /* 사용자가 말하는 중이면(인식 중간 결과가 방금 들어옴) 긴급(3) 경고 말고는 말이 끝날 때까지 기다린다.
@@ -275,7 +322,10 @@ const speech = (() => {
     if(ears.talking() && !(q[0].kind==='warn' && (q[0].prio||1)>=3)){ setTimeout(pump, 250); return; }
     const it=q.shift(); cur=it;
     ears.pause();                                   // 내 목소리를 명령으로 알아듣지 않게, 말하는 동안은 듣기를 멈춘다
-    const done=()=>{ if(cur===it){ cur=null; setTimeout(pump,40); } };
+    const done=(ok=true)=>{ if(cur===it){ cur=null; setTimeout(pump,40);
+      if(it.hooks && it.hooks.onDone)it.hooks.onDone(ok);
+    } };
+    if(it.kind==='tactile'){ speakSynth(it,done); return; }
     const url = await Promise.race([fetchClip(it.text), new Promise(r=>setTimeout(()=>r(null), it.kind==='desc' ? 7000 : WAIT))]);   /* 긴 묘사는 합성이 오래 걸려 더 기다림 */
     if(cur!==it) return;                            // 기다리는 사이 더 급한 경고가 끼어듦
     if(url){
@@ -286,9 +336,14 @@ const speech = (() => {
     } else speakSynth(it, done);
   }
   function speakSynth(it, done){
-    if(!synth){ done(); return; }
+    if(!synth){ done(false); return; }
     const u=new SpeechSynthesisUtterance(it.text); u.lang='ko-KR'; if(voice) u.voice=voice; u.rate=S.rate; u.volume=S.vol;
-    u.onend=done; u.onerror=done; synth.speak(u);
+    u.onstart=()=>{
+      if(cur!==it)return;
+      if(it.hooks && it.hooks.onStart && it.hooks.onStart()===false){ done(false); synth.cancel(); }
+    };
+    u.onend=()=>done(true); u.onerror=()=>done(false);
+    try{ synth.speak(u); }catch(e){ done(false); }
   }
   function unlock(){
     try{ aud.muted=true; aud.src='data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK////9bP/6XCykxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'; aud.play().then(()=>{ aud.pause(); aud.muted=false; }).catch(()=>{ aud.muted=false; }); }catch(e){}
@@ -296,7 +351,8 @@ const speech = (() => {
   }
   function stop(){ q=[]; cur=null; cancelNow(); }
   function stopDesc(){ q=q.filter(i=>i.kind!=='desc'); if(cur && cur.kind==='desc'){ cur=null; cancelNow(); setTimeout(pump,40); } }
-  return {push, unlock, stop, stopDesc, prefetch, busy:()=>!!cur, kind:()=>cur && cur.kind, idle:()=>!cur && !q.length};
+  function dropTactile(){ q=q.filter(i=>i.kind!=='tactile'); if(cur && cur.kind==='tactile'){ cur=null; cancelNow(); setTimeout(pump,40); } }
+  return {push, unlock, stop, stopDesc, dropTactile, prefetch, busy:()=>!!cur, kind:()=>cur && cur.kind, idle:()=>!cur && !q.length};
 })();
 const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
@@ -436,7 +492,7 @@ async function infoMode(fn){
 function runCommand(cmd){
   S.lastAct=performance.now();
   switch(cmd){
-    case 'start': if(Ask.kind==='auto') closeAsk(); if(S.running) say('이미 안내 중이에요.'); else start(); break;
+    case 'start': if(window.SayEyeTactile && window.SayEyeTactile.selected()){window.SayEyeTactile.begin();break;} if(Ask.kind==='auto') closeAsk(); if(S.running) say('이미 안내 중이에요.'); else start(); break;
     case 'home_here': homeFrom('여기').then(h=>{ if(h){ S.home=h; save(); say('지금 자리를 집으로 정했어요. 집 근처에서는 걸어도 안내를 켤지 묻지 않아요.'); } else say('지금 위치를 몰라서 집으로 정하지 못했어요.'); }); break;
     case 'home_addr': homeFrom(S.homeQuery).then(h=>{ if(h){ S.home=h; save(); say(`집을 ${h.name}로 정했어요.`); } else say('그 주소를 찾지 못했어요.'); }); break;
     case 'auto_on': case 'auto_off': S.auto=(cmd==='auto_on'); save(); say(S.auto ? '걷기 시작하면 안내를 켤지 여쭤볼게요. 집 근처에서는 묻지 않아요.' : '걸어도 자동으로 묻지 않을게요.'); break;
@@ -488,7 +544,7 @@ function connect(){
                       if(was && S.running) say('서버와 다시 연결됐어요.');
                       for(const o of S.pending.splice(0)) sendCmd(o);
                       if(!S.prefetched){ S.prefetched=true; setTimeout(()=>speech.prefetch(FIXED), 1500); } };
-  ws.onclose = () => { if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false);
+  ws.onclose = () => { if(window.SayEyeTactile) window.SayEyeTactile.connectionLost(); if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false);
                        if(S.ws===ws && !S.sleeping && !S.cpuBlocked) setTimeout(connect, 1500); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
@@ -585,6 +641,7 @@ addEventListener('pointerdown', ()=>wake(), {capture:true});
 SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 
 function handle(m){
+  if(window.SayEyeTactile && window.SayEyeTactile.selected() && ['warn','dets'].includes(m.type)) return;
   switch(m.type){
     case 'server_cpu': if(!S.cpuBlocked){ S.cpuBlocked=true; S.running=false;
                          notice('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요. 관리자에게 알려 주세요.');
@@ -603,6 +660,7 @@ function handle(m){
     case 'paired': S.paired=m.count||1; closePair(); beep('ok'); say('보호자가 연결됐어요.'); break;
     case 'unpaired': S.paired=0; say('연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.'); break;
     case 'dets': S.dets=m; S.detsAt=performance.now(); busSeen(m); if(S.stallSaid){ S.stallSaid=false; notice(''); say('안내가 다시 시작됐어요.'); } if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
+    case 'tactile': if(window.SayEyeTactile) window.SayEyeTactile.handle(m); break;
     case 'warn': {
       const prio=m.prio||1;
       if(INFO.on){ if(prio>=3) vibrate(prio); break; }       /* 정보 묻는 중: 경고 말 안 함 (긴급만 진동) */
@@ -619,14 +677,16 @@ function handle(m){
 /* ── 카메라 ── */
 async function start(){
   if(S.cpuBlocked){ say('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요.'); return; }
+  const tactileStartupToken=window.SayEyeTactile ? window.SayEyeTactile.frameToken() : null;
   wake();
   SayEyeSensors.askMotion();   /* 아이폰: 터치 안에서 바로 불러야 권한을 물어요 */
-  notice(''); $('#pinBox').hidden=true; speech.unlock(); S.spokeReady=false;
+  notice(''); $('#pinBox').hidden=true; speech.unlock(); S.spokeReady=false; S.dets=null; S.detsAt=0;
   try{
     if(S.mode==='phone'){
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const ios=/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent); if(ios){ say('아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.'); notice('아이폰은 사파리로 열어 주세요. 크롬 · 파이어폭스는 카메라를 쓸 수 없어요.'); return; }
         say('카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.'); notice(`카메라를 쓸 수 없어요. 주소: ${location.protocol}//${location.host} · 보안 연결: ${window.isSecureContext?'예':'아니오'} · 브라우저: ${/KAKAOTALK|NAVER|Instagram|FB_IAB|; wv\)/i.test(navigator.userAgent)?'앱 안의 브라우저(크롬이나 사파리로 열어 주세요)':'일반'}`); return; }
       S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+      if(window.SayEyeTactile && tactileStartupToken!==window.SayEyeTactile.frameToken()){S.stream.getTracks().forEach(t=>t.stop());S.stream=null;return;}
       const v=$('#cam'); v.srcObject=S.stream; await v.play(); v.hidden=false; $('#pv').hidden=true;
       sendCmd({type:'set_source', mode:'phone'}); startSending();
     }
@@ -636,11 +696,12 @@ async function start(){
     notice(denied ? '카메라 권한이 필요해요.' : '카메라 오류: '+(e&&e.message||e)); return;
   }
   S.running=true; S.t0=performance.now(); S.latest=''; S.warnedNoVideo=false; setGo(); calmView(); save();
-  say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
+  if(!(window.SayEyeTactile && window.SayEyeTactile.selected())) say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
   try{ if(navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen'); }catch(e){}
   startGeo();
 }
 function stop(){
+  if(window.SayEyeTactile) window.SayEyeTactile.stop();
   S.running=false; clearInterval(S.timer);
   if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
   $('#cam').hidden=true; $('#pv').hidden=true; $('#pv').removeAttribute('src');
@@ -656,27 +717,34 @@ function setGo(){
   $('#goSub').textContent = S.guide ? (S.running ? '두 번 누르면 안내를 멈춰요' : '두 번 누르면 안내가 시작돼요') : (S.running ? '누르면 안내를 멈춰요' : '누르면 안내가 시작돼요');
   b.setAttribute('aria-label', S.running?'중지':'시작');
   body.classList.toggle('running', S.running);
-  const vid = S.running && S.prev; body.classList.toggle('hasvideo', vid); $('#stage').hidden=!vid;
+  const vid = S.running && S.prev && !S.saver; body.classList.toggle('hasvideo', vid); $('#stage').hidden=!vid;
   setConn(S.wsOk);
 }
 function startSending(){
   const c=document.createElement('canvas'), ctx=c.getContext('2d'); let busy=false; const v=$('#cam');
   S.timer=setInterval(()=>{
+    // SAYEYE_TACTILE_SAMPLING_V4: independent snapshot sender; normal path unchanged.
+    if(window.SayEyeTactile && window.SayEyeTactile.selected()){
+      window.SayEyeTactile.sendFrame(v); return;
+    }
     if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
+    if(window.SayEyeTactile && !window.SayEyeTactile.allowFrame()) return;
     if(S.saver && performance.now()-S.lastFrame < 200) return;          /* 절전: 초당 5장 */
     S.lastFrame=performance.now();
     const vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
     const s=Math.min(1, (S.saver ? 720 : 960)/Math.max(vw,vh)); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
+    const tactileFrameToken=window.SayEyeTactile ? window.SayEyeTactile.frameToken() : null;
     ctx.drawImage(v,0,0,c.width,c.height); busy=true;
     const cap=Date.now();      /* 찍은 시각(폰 시계) — 센서 기록과 같은 시계라 서버에서 그 순간의 자이로 · 가속도를 찾는다 */
     c.toBlob(b=>{ busy=false; if(b) b.arrayBuffer().then(buf=>{
       if(!(S.ws && S.ws.readyState===1)) return;
+      if(window.SayEyeTactile && !window.SayEyeTactile.validFrame(tactileFrameToken)) return;
       const out=new Uint8Array(12+buf.byteLength), dv=new DataView(out.buffer);
       out.set([83,69,70,49],0); dv.setFloat64(4,cap,false); out.set(new Uint8Array(buf),12);   /* 'SEF1' + 시각 + JPEG */
-      S.ws.send(out.buffer); }); }, 'image/jpeg', 0.5);   /* 화질을 조금 낮춰 업로드 시간을 줄임 (해상도는 그대로) */
+      S.ws.send(out.buffer); }); }, 'image/jpeg', window.SayEyeTactile && window.SayEyeTactile.selected() ? .85 : .5);   /* 화질을 조금 낮춰 업로드 시간을 줄임 (해상도는 그대로) */
   }, 100);
 }
-setInterval(()=>{ if(S.running && S.wsOk && performance.now()-S.t0>15000){
+setInterval(()=>{ if(S.running && S.wsOk && !(window.SayEyeTactile && window.SayEyeTactile.selected()) && performance.now()-S.t0>15000){
     const bad = S.rx>0 && S.black ? '카메라 영상이 까맣게 나와요. 화면을 켠 채 이 앱을 앞에 띄워 주시고, 렌즈가 가려졌는지 확인해 주세요.'
               : S.fps===0 && !S.rx ? '영상이 서버로 전달되지 않고 있어요.'
               : S.fps===0 ? '서버 처리가 늦어지고 있어요. 경고가 늦을 수 있어요.' : '';
@@ -847,7 +915,7 @@ window.__fallTest = fallPrompt;   // 개발용: 콘솔에서 넘어짐 확인 �
 
 /* ── 안내 멈춤: 연결은 됐는데 서버 결과가 4초 넘게 안 오면 바로 말한다 (서버가 깨어나는 중, 처리 지연 등) ── */
 setInterval(()=>{
-  if(S.running && S.wsOk && S.spokeReady && !S.stallSaid && performance.now()-S.detsAt>4000){
+  if(!(window.SayEyeTactile && window.SayEyeTactile.selected()) && S.running && S.wsOk && S.spokeReady && !S.stallSaid && performance.now()-S.detsAt>4000){
     S.stallSaid=true; beep(2); vibrate(2); say('안내가 잠시 멈췄어요. 주변을 조심하세요.'); notice('서버 결과가 늦어요. 경고가 늦을 수 있어요.');
   }
 }, 1000);
@@ -1059,7 +1127,7 @@ function navStop(spoken){
   if(spoken) say('길 안내를 멈췄어요.');
 }
 async function navTick(c){
-  if(!NAV.on || c.accuracy>50) return;                          /* 너무 부정확한 위치는 버림 */
+  if((window.SayEyeTactile && window.SayEyeTactile.selected()) || !NAV.on || c.accuracy>50) return;                          /* 너무 부정확한 위치는 버림 */
   const lat=c.latitude, lon=c.longitude;
   /* 휘는 길 안내(curve)를 GPS 가 건너뛰었으면(다음 안내 지점이 더 가까움) 조용히 넘어간다 — 지난 커브를 늦게 말하지 않게 */
   while(NAV.steps[NAV.idx] && NAV.steps[NAV.idx].kind==='curve' && NAV.steps[NAV.idx+1] &&
@@ -1133,7 +1201,7 @@ if(navigator.getBattery) navigator.getBattery().then(b=>{
     if(!b.charging && pct<=20 && pct<said-9){ said=pct; sendCmd({type:'client_event', kind:'battery', pct}); if(S.running) say(`배터리가 ${pct}퍼센트 남았어요.`); } };
   b.addEventListener('levelchange', chk); chk(); }).catch(()=>{});
 
-function repeatLast(){ speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
+function repeatLast(){ if(window.SayEyeTactile && window.SayEyeTactile.selected()){window.SayEyeTactile.repeat();return;} speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
 function speakHelp(){
   say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
 }
@@ -1193,25 +1261,61 @@ $('#shareStopBtn').addEventListener('click', ()=>{ speech.unlock(); runCommand('
 $('#unpairBtn').addEventListener('click', ()=>{ speech.unlock(); if(confirm('연결된 보호자를 모두 끊을까요?')) runCommand('unpair'); });
 
 /* ── 미리보기 위 인식 박스 ── */
+/* SAYEYE_LARGE_CAMERA_V1: video and overlays use the same contain transform. */
 const ov=$('#ov'), octx=ov.getContext('2d');
+const DET_NAMES={person:'사람',bicycle:'자전거',scooter:'킥보드',motorcycle:'오토바이',car:'차량',bus:'버스',other_vehicle:'차량',obstacle:'장애물',stairs:'계단',traffic_light:'신호등'};
 function draw(){
   const r=ov.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-  if(r.width && ov.width!==Math.round(r.width*dpr)){ ov.width=Math.round(r.width*dpr); ov.height=Math.round(r.height*dpr); }
+  const pw=Math.round(r.width*dpr), ph=Math.round(r.height*dpr);
+  if(ov.width!==pw || ov.height!==ph){ ov.width=pw; ov.height=ph; }
   octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
-  if(S.running && S.prev && S.dets && performance.now()-S.detsAt<Math.max(700,S.fps>0?2500/S.fps:2500)){
-    const v=$('#cam'), im=$('#pv'); const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0, sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
-    let k=1, ox=0, oy=0, fw=r.width, fh=r.height;
-    if(sw&&sh){ k=Math.max(r.width/sw, r.height/sh); fw=sw*k; fh=sh*k; ox=(r.width-fw)/2; oy=(r.height-fh)/2; }
-    octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,.95)';
-    octx.font='600 11px system-ui,sans-serif'; octx.textBaseline='top';
-    for(const [id,cls,x1,y1,x2,y2] of S.dets.d){
-      const bx=ox+x1*fw, by=oy+y1*fh;
-      octx.beginPath(); octx.roundRect(bx,by,(x2-x1)*fw,(y2-y1)*fh,5); octx.stroke();
-      if(cls!=null){ const t=String(cls), tw=octx.measureText(t).width+8;          /* 검증용: 무엇으로 인식했는지 이름 표시 */
-        octx.fillStyle='rgba(10,20,40,.75)'; octx.fillRect(bx,Math.max(0,by-16),tw,16);
-        octx.fillStyle='#fff'; octx.fillText(t,bx+4,Math.max(0,by-16)+2); }
+  const fresh=Math.min(2500,Math.max(700,S.fps>0?2500/S.fps:2500));
+  if(!(window.SayEyeTactile && window.SayEyeTactile.selected()) && r.width && r.height && S.running && S.prev && !S.saver && S.wsOk && S.dets && performance.now()-S.detsAt<fresh){
+    const v=$('#cam'), im=$('#pv'), m=S.dets;
+    const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0;
+    const sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
+    // Discard old-orientation results until a matching frame reaches the server.
+    if(sw && sh && m.W>0 && m.H>0 && Math.abs((sw/sh)/(m.W/m.H)-1)<.02){
+      const k=Math.min(r.width/sw,r.height/sh), fw=sw*k, fh=sh*k;
+      const ox=(r.width-fw)/2, oy=(r.height-fh)/2;
+      octx.save(); octx.beginPath(); octx.rect(ox,oy,fw,fh); octx.clip();
+      const path=m.overlay && m.overlay.path;
+      function polygon(points,fill,dashed){
+        if(!Array.isArray(points) || points.length<3 || !points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))) return false;
+        octx.beginPath();
+        points.forEach(([x,y],i)=>{ if(i) octx.lineTo(ox+x*fw,oy+y*fh); else octx.moveTo(ox+x*fw,oy+y*fh); });
+        octx.closePath(); octx.strokeStyle='#48F2D0'; octx.lineWidth=2;
+        octx.setLineDash(dashed?[6,4]:[]);
+        if(fill){ octx.fillStyle='rgba(72,242,208,.13)'; octx.fill(); }
+        octx.stroke(); octx.setLineDash([]); return true;
+      }
+      let pathShown=false;
+      if(path){
+        pathShown=polygon(path.polygon,true,!path.valid);
+        if(path.obstacle_polygon) polygon(path.obstacle_polygon,false,true);
+      }
+      octx.font='600 11px system-ui'; octx.textBaseline='top';
+      for(const [id,cls,x1,y1,x2,y2] of m.d||[]){
+        if(![x1,y1,x2,y2].every(Number.isFinite)||x2<=x1||y2<=y1) continue;
+        const x=ox+x1*fw,y=oy+y1*fh,bw=(x2-x1)*fw,bh=(y2-y1)*fh;
+        octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,.95)';
+        octx.strokeRect(x,y,bw,bh);
+        const label=DET_NAMES[cls]||cls, tw=octx.measureText(label).width+8;
+        const tx=Math.max(ox,Math.min(x,ox+fw-tw)), ty=Math.max(oy,Math.min(y-17,oy+fh-17));
+        octx.fillStyle='rgba(11,18,32,.8)'; octx.fillRect(tx,ty,tw,17);
+        octx.fillStyle='#fff'; octx.fillText(label,tx+4,ty+2);
+      }
+      if(pathShown){
+        const label=path.valid?'보행 경로':'보행 경로 · 방향 추정 중';
+        octx.font='600 12px system-ui';
+        const tw=octx.measureText(label).width+12;
+        octx.fillStyle='rgba(11,18,32,.8)'; octx.fillRect(ox+6,oy+6,tw,22);
+        octx.fillStyle='#48F2D0'; octx.fillText(label,ox+12,oy+10);
+      }
+      octx.restore();
     }
   }
+  if(window.SayEyeTactile) window.SayEyeTactile.draw(ov,octx,r);
   requestAnimationFrame(draw);
 }
 
@@ -1244,5 +1348,6 @@ addEventListener('keydown',e=>{ if(e.key==='Escape') openSheet(false); });
   sheet.addEventListener('touchmove',e=>{ if(y0!==null){ const d=e.touches[0].clientY-y0; if(d>0){ sheet.style.transition='none'; sheet.style.transform=`translateY(${d}px)`; } } },{passive:true});
   sheet.addEventListener('touchend',e=>{ if(y0===null) return; const d=e.changedTouches[0].clientY-y0; sheet.style.transition=''; sheet.style.transform=''; y0=null; if(d>90) openSheet(false); }); })();
 </script>
+<script src="tactile.js?v=6"></script>
 </body>
 </html>

@@ -441,6 +441,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             try:
                 await asyncio.to_thread(user.start_pipe)
                 p = user.pipe
+                # SAYEYE_TACTILE_V2: a menu request can precede model startup.
+                pending_tactile = user.state.pop("pending_tactile", None)
+                if pending_tactile:
+                    p.tactile.command(*pending_tactile)
                 if user.state.pop("want_source", None) == "phone":
                     await asyncio.to_thread(user.src.use_phone)
                 user.hub.broadcast({"type": "ready", "perception": p.perception.name, "trigger": getattr(p.trigger, "name", "?")})
@@ -909,6 +913,22 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                                 pass
                         user.gws.clear()
                         await ws.send_text(json.dumps({"type": "unpaired"}))
+                    elif t == "tactile" and role == "pedestrian":
+                        action, session = cmd.get("action"), cmd.get("session")
+                        import re as _tactile_re
+                        if action not in ("start", "pause", "stop", "confirm") or not isinstance(session, str) or not _tactile_re.fullmatch(r"[A-Za-z0-9_-]{1,80}", session):
+                            continue
+                        if user.pipe is not None:
+                            accepted = user.pipe.tactile.command(action, session)
+                            if not accepted and action == "confirm":
+                                await ws.send_text(json.dumps({"type":"tactile", "session":session, "control":True,
+                                    "state":"confirm_wait", "text":"현재 영상에서 가까움을 다시 확인하고 있어요."}, ensure_ascii=False))
+                        elif action == "start":
+                            user.state["pending_tactile"] = (action, session)
+                        elif action in ("pause", "stop"):
+                            user.state.pop("pending_tactile", None)
+                            await ws.send_text(json.dumps({"type":"tactile", "session":session, "control":True,
+                                "state":"off" if action == "stop" else "paused", "text":"찾기를 중지했어요."}, ensure_ascii=False))
                     elif t == "indoor" and role == "pedestrian":
                         user.state["indoor"] = bool(cmd.get("on"))
                         if user.pipe is not None and hasattr(user.pipe.perception, "indoor"):
@@ -923,6 +943,10 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             user.gws.discard(ws)
             if role != "guardian":
                 user.ped = max(0, user.ped - 1)
+                if user.ped == 0:
+                    user.state.pop("pending_tactile", None)
+                    if user.pipe is not None:
+                        user.pipe.tactile.cancel()
                 user.last_ped = time.time()
 
     @app.get("/")
