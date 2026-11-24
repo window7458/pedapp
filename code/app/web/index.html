@@ -689,7 +689,10 @@ function runCommand(cmd){
 function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?u=${encodeURIComponent(UID)}`);
   ws.binaryType='arraybuffer'; S.ws=ws;
-  ws.onopen = () => { const was=!!S.dropSaid; S.dropSaid=false; clearTimeout(S.dropT); S.dropT=null; S.retryN=0; S.wsOk=true; S.everOk=true; setConn(true);
+  /* 서버가 잠들어 있으면 깨우는 데 1분쯤 걸린다 → 5초 넘게 안 열리면 한 번 알린다 (아무 말이 없으면 고장 난 줄 안다) */
+  clearTimeout(S.wakeT); S.wakeT=setTimeout(()=>{ if(S.ws===ws && ws.readyState===0 && !S.wakeSaid){ S.wakeSaid=true;
+    notice('서버를 깨우고 있어요. 1분쯤 걸릴 수 있어요.'); say('서버를 깨우고 있어요. 1분쯤 걸릴 수 있어요.'); } }, 5000);
+  ws.onopen = () => { clearTimeout(S.wakeT); if(S.wakeSaid){ S.wakeSaid=false; notice(''); } const was=!!S.dropSaid; S.dropSaid=false; clearTimeout(S.dropT); S.dropT=null; S.retryN=0; S.wsOk=true; S.everOk=true; setConn(true);
                       { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); }   /* 처음 설정을 띄울지는 서버 인사(hello)의 저장된 설정을 보고 정한다 */
                       sendCmd({type:'indoor', on:!!S.indoor});
                       if(S.running) sendCmd({type:'set_source', mode:S.mode});
