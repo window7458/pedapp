@@ -204,7 +204,7 @@
 const $ = (s) => document.querySelector(s);
 /* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
 const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
-const S = {showBoxes:false /* 검출 상자 · 보행 경로 그리기 (개발용, 기본 끔) */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
+const S = {showBoxes:false /* 검출 상자 · 보행 통로 칸 (개발용, 기본 끔) */, showPath:true /* 걷는 방향 큰 화살표 */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
@@ -788,6 +788,11 @@ function handle(m){
   }
 }
 
+/* 시작 안내: 처음 설정의 카메라 위치대로 (예전엔 눈높이로 설정해도 늘 '가슴 높이'라고 했다) */
+function startHint(){
+  const pf=loadProfile()||{}, PLACE={eye:'눈높이에', neck:'목걸이로 목 높이에', chest:'가슴 높이에', waist:'허리 높이에', hand:'손에 들고 가슴 앞에'};
+  return `안내를 시작합니다. 휴대폰을 세로로, ${PLACE[pf.mount]||'가슴 높이에'} 두고 앞을 향하게 해 주세요.`;
+}
 /* ── 카메라 ── */
 async function start(){
   if(S.cpuBlocked){ say('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요.'); return; }
@@ -810,7 +815,7 @@ async function start(){
     notice(denied ? '카메라 권한이 필요해요.' : '카메라 오류: '+(e&&e.message||e)); return;
   }
   S.running=true; S.t0=performance.now(); S.latest=''; S.warnedNoVideo=false; setGo(); calmView(); save();
-  if(!(window.SayEyeTactile && window.SayEyeTactile.selected())) say('안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.');
+  if(!(window.SayEyeTactile && window.SayEyeTactile.selected())) say(startHint());
   try{ if(navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen'); }catch(e){}
   startGeo();
 }
@@ -1400,13 +1405,13 @@ function draw(){
   if(ov.width!==pw || ov.height!==ph){ ov.width=pw; ov.height=ph; }
   octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
   const fresh=Math.min(2500,Math.max(700,S.fps>0?2500/S.fps:2500));
-  if(S.showBoxes && !(window.SayEyeTactile && window.SayEyeTactile.selected()) && r.width && r.height && S.running && S.prev && !S.saver && S.wsOk && S.dets && performance.now()-S.detsAt<fresh){
+  if((S.showBoxes || S.showPath) && !(window.SayEyeTactile && window.SayEyeTactile.selected()) && r.width && r.height && S.running && S.prev && !S.saver && S.wsOk && S.dets && performance.now()-S.detsAt<fresh){
     const v=$('#cam'), im=$('#pv'), m=S.dets;
     const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0;
     const sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
     // Discard old-orientation results until a matching frame reaches the server.
     if(sw && sh && m.W>0 && m.H>0 && Math.abs((sw/sh)/(m.W/m.H)-1)<.02){
-      const k=Math.min(r.width/sw,r.height/sh), fw=sw*k, fh=sh*k;
+      const k=Math.max(r.width/sw,r.height/sh), fw=sw*k, fh=sh*k;   /* 화면이 영상을 꽉 채우므로(cover) 같은 변환 */
       const ox=(r.width-fw)/2, oy=(r.height-fh)/2;
       octx.save(); octx.beginPath(); octx.rect(ox,oy,fw,fh); octx.clip();
       const path=m.overlay && m.overlay.path;
@@ -1419,13 +1424,31 @@ function draw(){
         if(fill){ octx.fillStyle='rgba(72,242,208,.13)'; octx.fill(); }
         octx.stroke(); octx.setLineDash([]); return true;
       }
+      /* 걷는 방향 큰 화살표: 보행 통로 다각형의 아래쪽 가운데 → 위쪽 가운데. 방향을 아직 못 정했으면 점선 · 흐리게 */
+      if(S.showPath && path && Array.isArray(path.polygon) && path.polygon.length>=3 && path.polygon.every(q=>Array.isArray(q)&&q.length===2&&q.every(Number.isFinite))){
+        const P=path.polygon, ys=P.map(q=>q[1]), ymax=Math.max(...ys), ymin=Math.min(...ys), h=ymax-ymin;
+        const mid=(sel)=>{ const pts=P.filter(sel); return pts.reduce((a,q)=>a+q[0],0)/Math.max(1,pts.length); };
+        let bx=mid(q=>q[1]>=ymax-h*.25), tx=mid(q=>q[1]<=ymin+h*.25);
+        const x0=ox+bx*fw, y0=oy+Math.min(ymax,.98)*fh, x1=ox+tx*fw, y1=oy+Math.max(ymin, ymax-.55)*fh;
+        const ang=Math.atan2(y1-y0,x1-x0), W=Math.max(10, r.width*.07), HL=W*2.2, HW=W*2.4;
+        const ex=x1-Math.cos(ang)*HL*.6, ey=y1-Math.sin(ang)*HL*.6;
+        octx.save(); octx.globalAlpha=path.valid?0.95:0.55; octx.lineCap='round'; octx.setLineDash(path.valid?[]:[W*.8,W*.6]);
+        for(const [col,wid] of [['rgba(5,15,40,.85)',W+6],['#48F2D0',W]]){               // 검은 테두리 + 밝은 청록 (어디서나 잘 보이게)
+          octx.strokeStyle=col; octx.lineWidth=wid; octx.beginPath(); octx.moveTo(x0,y0); octx.lineTo(ex,ey); octx.stroke(); }
+        octx.setLineDash([]);
+        const nx=-Math.sin(ang), ny=Math.cos(ang);
+        octx.beginPath(); octx.moveTo(x1,y1); octx.lineTo(ex-Math.cos(ang)*HL*.4+nx*HW/2, ey-Math.sin(ang)*HL*.4+ny*HW/2);
+        octx.lineTo(ex-Math.cos(ang)*HL*.4-nx*HW/2, ey-Math.sin(ang)*HL*.4-ny*HW/2); octx.closePath();
+        octx.lineJoin='round'; octx.lineWidth=6; octx.strokeStyle='rgba(5,15,40,.85)'; octx.stroke(); octx.fillStyle='#48F2D0'; octx.fill();
+        octx.restore();
+      }
       let pathShown=false;
-      if(path){
+      if(S.showBoxes && path){
         pathShown=polygon(path.polygon,true,!path.valid);
         if(path.obstacle_polygon) polygon(path.obstacle_polygon,false,true);
       }
       octx.font='600 11px system-ui'; octx.textBaseline='top';
-      for(const [id,cls,x1,y1,x2,y2] of m.d||[]){
+      for(const [id,cls,x1,y1,x2,y2] of (S.showBoxes ? m.d||[] : [])){
         if(![x1,y1,x2,y2].every(Number.isFinite)||x2<=x1||y2<=y1) continue;
         const x=ox+x1*fw,y=oy+y1*fh,bw=(x2-x1)*fw,bh=(y2-y1)*fh;
         octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,.95)';

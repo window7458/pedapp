@@ -24,3 +24,5 @@
 :root[data-hc="1"] .tactile-mode,:root[data-hc="1"] #tactileStats{color:#fff}
 :root[data-hc="1"] #tactilePhase{color:#ffd400}
 @media(orientation:landscape) and (max-height:500px){#tactileCamera #stage{height:65vh;max-height:none;min-height:190px}}
+/* 점자블록 화면은 사진 전체를 보여 준다 (본 화면의 '카메라 화면 반' 규칙을 뺐으므로 여기만) */
+#tactileCamera #stage video,#tactileCamera #stage img{object-fit:contain}
