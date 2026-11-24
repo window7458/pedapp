@@ -13,3 +13,4 @@ pywebpush
 segno==1.6.1
 httpx==0.28.1
 python-multipart==0.0.20
+transformers>=4.46,<6    # 음성 인식 Whisper (stt.py)

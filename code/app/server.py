@@ -43,6 +43,8 @@ from subway import Subway  # noqa: E402
 from nav import Nav  # noqa: E402
 from imu_fusion import ImuBuffer  # noqa: E402
 from push import Push  # noqa: E402
+import stt  # noqa: E402
+STT_ON = os.environ.get("STT", "1") != "0"   # 서버 음성 인식 (Whisper). STT=0 이면 폰 브라우저 인식만
 from sensors import SensorLog  # noqa: E402
 from pipeline import Config, LivePipeline  # noqa: E402
 from sources import SourceManager  # noqa: E402
@@ -482,6 +484,8 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
             for _ in range(2):
                 m.predict(np.zeros((960, 540, 3), np.uint8), imgsz=960, device=cfg.device, verbose=False)
             print("[warm] GPU 준비 끝", flush=True)
+            if STT_ON:
+                stt.load()                                  # 음성 인식 모델도 미리 (약 1.6 GB)
         except Exception as e:
             print(f"[warm] 건너뜀: {e!r}", flush=True)
 
@@ -656,6 +660,24 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
         if p is None:
             raise HTTPException(503, "음성을 만들 수 없어요")
         return FileResponse(p, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    @app.get("/api/stt")
+    async def api_stt_state():
+        """폰이 처음에 묻는다: 서버 음성 인식을 쓸 수 있나 (GPU 서버 · 모델 있음). 아니면 브라우저 음성 인식으로."""
+        return {"on": STT_ON and gpu_ok(), "ready": STT_ON and stt.ready()}
+
+    @app.post("/api/stt")
+    async def api_stt(request: Request):
+        """말한 구간(16 kHz 모노 int16 PCM, 최대 15초) → 글자. Whisper large-v3-turbo (stt.py)."""
+        if not (STT_ON and gpu_ok()):
+            raise HTTPException(503, "서버 음성 인식을 쓸 수 없어요")
+        body = await request.body()
+        if len(body) > 16000 * 2 * 16:
+            raise HTTPException(413, "너무 길어요")
+        try:
+            return await asyncio.to_thread(stt.transcribe, body)
+        except Exception as e:
+            raise HTTPException(503, f"음성 인식 실패 ({type(e).__name__})")
 
     @app.post("/api/scene")
     async def api_scene(request: Request):

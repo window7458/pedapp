@@ -381,7 +381,7 @@ const say = (text, kind='ui', prio) => { speech.push(kind, text, prio); };
 
 /* ── 항상 듣기: 버튼 없이 음성 명령 (말하는 중엔 잠시 멈춤) ── */
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-const ears = (() => {
+const earsWeb = (() => {
   /* fails: 결과 없이 1.5초 안에 끝난 횟수 → 다시 켜는 간격을 늘린다 (권한 창이 계속 뜨거나 계속 끊기는 것 막기).
      아이폰 사파리는 continuous 가 불안정해서 한 마디씩 듣는다. */
   let rec=null, on=false, paused=false, retry=null, denied=false, fails=0, t0=0, heard=false, midAt=0;
@@ -414,6 +414,88 @@ const ears = (() => {
   const talking=()=> on && midAt>0 && performance.now()-midAt < 1500;   /* 말하는 중 (중간 결과가 1.5초 안에 들어옴) */
   return {start, pause, resume, stop, kick, talking};
 })();
+
+/* ── 서버 음성 인식 (Whisper large-v3-turbo, /api/stt) ──
+   마이크는 처음 한 번만 허락받고 계속 켜 둔다 (브라우저 인식처럼 몇 초마다 다시 켜며 허락을 묻지 않는다).
+   폰이 소리 크기로 말 구간을 잘라(말 시작 0.3초 전부터 ~ 0.7초 조용할 때까지, 최대 10초) 16 kHz PCM 으로 보낸다.
+   앱이 말하는 동안은 버린다(내 목소리를 명령으로 알아듣지 않게). 서버가 못 하면(CPU 서버 · 모델 없음) 브라우저 인식으로. */
+const earsSrv = (() => {
+  let stream=null, ctx=null, proc=null, init=null, paused=false, off=false, denied=false, failed=false;
+  let inSp=false, seg=[], segMs=0, voiced=0, quiet=0, hot=0, floor=0.004, midAt=0, pending=0, resumeAt=0;
+  const pre=[], FR=320;                                   // 20 ms (16 kHz)
+  let carry=new Float32Array(0);
+  function label(t, live){ $('#earText').textContent=t; $('#ear').classList.toggle('listening', !!live); }
+  async function initMic(){
+    if(stream || init) return init;
+    init=(async()=>{
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1}});
+      }catch(e){ init=null; if(e && e.name==='NotAllowedError'){ denied=true; label('마이크 권한이 필요해요 · 화면을 누르면 다시 물어요'); } else { failed=true; } return false; }
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      const src=ctx.createMediaStreamSource(stream);
+      proc=ctx.createScriptProcessor(4096,1,1); src.connect(proc); proc.connect(ctx.destination);
+      const ratio=ctx.sampleRate/16000;
+      proc.onaudioprocess=(e)=>{                          // 출력은 조용한 그대로 (ScriptProcessor 는 출력에 연결해야 돈다)
+        const x=e.inputBuffer.getChannelData(0), n=Math.floor(x.length/ratio), y=new Float32Array(n);
+        for(let i=0;i<n;i++){ const a=Math.floor(i*ratio), b=Math.min(x.length, Math.floor((i+1)*ratio)); let s=0; for(let j=a;j<b;j++) s+=x[j]; y[i]=s/Math.max(1,b-a); }
+        const all=new Float32Array(carry.length+y.length); all.set(carry); all.set(y, carry.length);
+        let k=0; for(; k+FR<=all.length; k+=FR) frame(all.subarray(k,k+FR));
+        carry=all.slice(k);
+      };
+      if(ctx.state==='suspended'){ try{ await ctx.resume(); }catch(e){} }
+      label('듣고 있어요', true);
+      return true;
+    })();
+    return init;
+  }
+  function frame(f){
+    const now=performance.now();
+    if(off || paused || speech.busy() || now<resumeAt){ if(inSp){ inSp=false; seg=[]; } pre.length=0; return; }
+    let s=0; for(const v of f) s+=v*v; const rms=Math.sqrt(s/f.length);
+    const thr=Math.max(0.012, floor*3);
+    if(!inSp){
+      floor=Math.max(0.002, floor*0.97 + rms*0.03);
+      pre.push(f.slice()); if(pre.length>15) pre.shift();                         // 0.3초 앞부분
+      hot = rms>thr ? hot+1 : 0;
+      if(hot>=3){ inSp=true; seg=pre.splice(0); segMs=seg.length*20; voiced=hot*20; quiet=0; midAt=now; }
+      return;
+    }
+    seg.push(f.slice()); segMs+=20;
+    if(rms>thr*0.7){ quiet=0; voiced+=20; midAt=now; } else quiet+=20;
+    if(quiet>=700 || segMs>=10000){ inSp=false; const s2=seg; seg=[]; if(voiced>=300) send(s2); }
+  }
+  async function send(frames){
+    const n=frames.reduce((a,f)=>a+f.length,0), pcm=new Int16Array(n); let o=0;
+    for(const f of frames) for(const v of f) pcm[o++]=Math.max(-32768, Math.min(32767, Math.round(v*32767)));
+    pending++; label('알아듣는 중', true);
+    try{
+      const r=await fetch('/api/stt', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:pcm.buffer});
+      if(r.status===503){ ears.fallback('서버 음성 인식을 쓸 수 없어요'); return; }
+      if(!r.ok) return;
+      const j=await r.json();
+      if(j.text){ $('#earText').textContent=`들은 말: ${j.text}`; handleSpeech([j.text]); }
+    }catch(e){}
+    finally{ pending--; if(!off && !paused) setTimeout(()=>{ if(!pending && !inSp) label('듣고 있어요', true); }, 1200); }
+  }
+  function start(){ off=!S.listen; if(off){ label('항상 듣기 꺼짐'); return; } if(denied) return; initMic().then(ok=>{ if(ok===false && failed) ears.fallback(); }); }
+  function pause(){ paused=true; if(inSp){ inSp=false; seg=[]; } if(stream && S.listen) label('말하는 중'); }
+  function resume(){ if(!paused) return; paused=false; resumeAt=performance.now()+250; if(stream && S.listen) label('듣고 있어요', true); }
+  function stop(){ off=true; inSp=false; seg=[]; label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐');
+    if(!S.listen && stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; init=null; try{ ctx.close(); }catch(e){} ctx=null; } }   /* 항상 듣기를 끄면 마이크도 끈다 */
+  function kick(){ off=!S.listen; if(ctx && ctx.state==='suspended') ctx.resume().catch(()=>{}); if(denied){ denied=false; } start(); }
+  const talking=()=> pending>0 || (inSp && performance.now()-midAt < 1500);   /* 말하는 중이거나 알아듣는 중 */
+  return {start, pause, resume, stop, kick, talking};
+})();
+/* 듣기 고르기: 서버 인식(기본) → 안 되면 브라우저 인식 */
+let EAR_MODE = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'srv' : 'web';
+const ears = {
+  cur(){ return EAR_MODE==='srv' ? earsSrv : earsWeb; },
+  start(){ this.cur().start(); }, pause(){ this.cur().pause(); }, resume(){ this.cur().resume(); },
+  stop(){ this.cur().stop(); }, kick(){ this.cur().kick(); }, talking(){ return this.cur().talking(); },
+  mode(){ return EAR_MODE; },
+  fallback(why){ if(EAR_MODE==='web') return; EAR_MODE='web'; try{ earsSrv.stop(); }catch(e){} if(why) console.log('[ears] 브라우저 인식으로:', why); earsWeb.start(); },
+};
+fetch('/api/stt').then(r=>r.ok?r.json():{on:false}).then(j=>{ if(!j.on) ears.fallback('서버 인식 꺼짐'); }).catch(()=>{});
 /* 확정 결과는 말이 끝난 뒤 침묵까지 기다려서 늦다. 시작 · 그만 · 도와줘는 그 말만 들리면 바로 실행한다.
    시끄러운 곳에서는 "시자" · "씨작" · "시작해요"처럼 조금 다르게 들리므로 비슷한 말도 받고, 인식 후보 3개를 모두 본다.
    ("다시 시작"의 "다시"는 여기 안 걸림) */
@@ -434,10 +516,10 @@ function handleSpeech(alts){
   if(VS.on && VS.step<VS_STEPS.length){ vsHear(alts); return 'setup'; }
   if(VS.on) vsClose();
   for(const t of alts){
-    const raw=(t||'').replace(/\s+/g,'');
+    const raw=(t||'').replace(/\s+/g,'').replace(/[.,!?~…]/g,'');   /* Whisper 는 '그만.'처럼 문장 부호를 붙인다 */
     const wake=/세이|쎄이|say/i.test(raw);
     const inScene = performance.now() < (S.sceneUntil||0);
-    if(!wake && raw.length>10 && !inScene) continue;  // 지나가는 대화를 명령으로 오해하지 않게: 짧은 말이거나 "세이아이"로 부를 때만 (주변 설명 대화 중엔 질문도 받음)
+    if(!wake && !inScene && (raw.length>30 || (raw.length>10 && !parseCommand(raw)))) continue;   /* 긴 말은 명령일 때만 (예전엔 10자 넘으면 버려 "오백십일번 버스 언제 와요"도 버림) */  // 지나가는 대화를 명령으로 오해하지 않게: 짧은 말이거나 "세이아이"로 부를 때만 (주변 설명 대화 중엔 질문도 받음)
     const said=raw.replace(/세이아이|쎄이아이|세이|sayeye|say/ig,'');
     let cmd=parseCommand(said);
     /* 주변 설명 대화 중 "간판에 뭐라고 써 있어?" 는 질문이다 ("다시 말해줘" · "뭐라고?" 같은 짧은 말만 다시 듣기) */
