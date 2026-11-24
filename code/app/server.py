@@ -21,6 +21,7 @@ import re
 import socket
 import sys
 import secrets
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -284,7 +285,10 @@ class User:
         self.profile = Profile(self.root / "certs" / "profile.json")
         self.pin = _pin_file(self.root / "certs" / "guardian_pin.txt", pin)
         self.imu = ImuBuffer()
-        self.sensors = SensorLog(session_dir or (self.root / "sessions"))
+        # 센서 기록: Cloud Run 에선 버킷(/data, 서울 버킷을 싱가포르에서 붙임)에 2초마다 쓰다 웹소켓이 멈춰 40초에 끊겼다
+        #   → 서버 안 임시 폴더에 쓴다 (꺼지면 사라짐). 버킷에 꼭 남기려면 SENSOR_LOG_DATA=1
+        local = os.environ.get("K_SERVICE") and os.environ.get("SENSOR_LOG_DATA") != "1"
+        self.sensors = SensorLog(session_dir or ((Path(tempfile.gettempdir()) / "sayeye_sessions" / uid) if local else (self.root / "sessions")))
         self.alerts = AlertCenter(alerts_dir or (self.root / "alerts"), self.hub.broadcast)
         self.push = Push(DATA / "certs", self.alerts.dir)          # 푸시 키는 서버 하나, 구독은 사람마다
         self.alerts.on_new = self.push.on_alert
@@ -1042,7 +1046,8 @@ def main():
         print("   폰 카메라 · 푸시 알림은 HTTPS 가 필요해요 → cloudflared tunnel --url " + f"http://localhost:{port}")
     print(f"\n가중치={w.name} · 트리거={a.trigger} · 장치={a.device}\n")
     app = build_app(cfg, None, pin, session_dir=Path(a.session_dir) if a.session_dir else None, key=a.key)
-    uvicorn.run(app, host=a.host, port=port, log_level="warning", **kw)
+    # 웹소켓 살아 있나 확인: 25초마다 묻고 90초까지 기다린다 (기본 20초 · 20초는 폰이 영상을 올리는 중 답이 밀려 40초에 끊겼다)
+    uvicorn.run(app, host=a.host, port=port, log_level="warning", ws_ping_interval=25, ws_ping_timeout=90, **kw)
 
 
 if __name__ == "__main__":

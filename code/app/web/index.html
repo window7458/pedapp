@@ -39,27 +39,7 @@
 :root[data-hc="1"] .start{background:#000;border:3px solid #FFD400;color:#FFD400}
 @media (prefers-color-scheme:dark){:root:not([data-hc="1"]) .tile{color:#fff}}
 
-/* SAYEYE_LARGE_CAMERA_V1: camera uses half the visible browser height. */
-.hasvideo .app{overflow-y:auto;overflow-x:hidden;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
-.hasvideo .upper{flex:0 0 auto;padding:0 12px;min-height:auto}
-.hasvideo .top{min-height:44px;margin-right:0}
-.hasvideo #stage{position:relative;inset:auto;flex:none;width:100%;height:50vh;height:50dvh;margin:10px 0 0;border-radius:18px}
-#stage video,#stage img{object-fit:contain}
-.hasvideo .say{margin-top:8px;padding-right:0}
-.hasvideo .say small{display:none}
-.hasvideo .say h1{font-size:22px;line-height:1.2;margin:0}
-.hasvideo .say p{font-size:15px;line-height:1.35;margin-top:4px;max-width:none}
-.hasvideo .ear{flex:none;margin:8px 0 10px;padding:8px 10px;border-radius:12px;font-size:12px;gap:8px}
-.hasvideo .ear .again{display:none}
-.hasvideo .lower{flex:none;gap:8px;padding:0 12px}
-.hasvideo .start{height:72px;min-height:72px;padding:0 16px;border-radius:18px}
-.hasvideo .start .pill{font-size:11px;padding:3px 8px;margin-right:8px;vertical-align:middle}
-.hasvideo .start h2{display:inline;font-size:26px;vertical-align:middle;margin:0}
-.hasvideo .start small{font-size:12px;margin-top:6px}
-.hasvideo .start .art{width:105px}
-.hasvideo .tiles{gap:8px}
-.hasvideo .tiles .tile{height:64px;min-height:64px;flex-direction:row;gap:8px;font-size:15px;border-radius:18px}
-.hasvideo .tile svg{width:34px;height:34px;padding:7px;flex:none}
+/* (11/24) 점자블록 V6 가 넣은 "카메라를 화면 반으로" 규칙은 뺐다 — 시작 · 보호자 버튼이 작아져 시각장애인이 누르기 어려움 */
 :root[data-hc="1"] #stage{outline:2px solid #FFD400;outline-offset:-2px}
 
 </style>
@@ -224,7 +204,7 @@
 const $ = (s) => document.querySelector(s);
 /* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
 const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
-const S = {ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
+const S = {showBoxes:false /* 검출 상자 · 보행 경로 그리기 (개발용, 기본 끔) */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
@@ -429,9 +409,10 @@ const earsSrv = (() => {
     if(stream || init) return init;
     init=(async()=>{
       try{
-        stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1}});
+        stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:false, autoGainControl:true, channelCount:1}});   /* 브라우저 잡음 제거는 끈다: 말소리까지 뭉갰다. 시험(빠른 말 + 분홍 잡음, Silero + Whisper): 켰을 때 5 dB 에서 '도대체 기본 버스', 끄고 10 dB 에서 '오백십일번 버스 언제 와' 맞음, 5 dB 는 끄고도 틀림 */
       }catch(e){ init=null; if(e && e.name==='NotAllowedError'){ denied=true; label('마이크 권한이 필요해요 · 화면을 누르면 다시 물어요'); } else { failed=true; } return false; }
-      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      if(await useSilero()){ label('듣고 있어요', true); return true; }      // 신경망 말소리 판별 (시끄러워도 · 빨리 말해도)
+      ctx=new (window.AudioContext||window.webkitAudioContext)();          // 못 불러오면 소리 크기로
       const src=ctx.createMediaStreamSource(stream);
       proc=ctx.createScriptProcessor(4096,1,1); src.connect(proc); proc.connect(ctx.destination);
       const ratio=ctx.sampleRate/16000;
@@ -447,6 +428,30 @@ const earsSrv = (() => {
       return true;
     })();
     return init;
+  }
+  /* Silero VAD (@ricky0123/vad-web, MIT): 소리 크기 대신 신경망이 '사람 말소리'인지 본다.
+     시끄러운 곳에서도 말 끝을 잡고(0.45초 조용하면 끝), 빠르게 말할 때 단어 사이 짧은 쉼에 끊지 않는다. */
+  const ORT='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/', VADB='https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/';
+  let mv=null, segBlocked=false;
+  function loadJs(u){ return new Promise((ok,no)=>{ const e=document.createElement('script'); e.src=u; e.onload=ok; e.onerror=no; document.head.appendChild(e); }); }
+  const blocked=()=> off || paused || speech.busy() || performance.now()<resumeAt;
+  async function useSilero(){
+    try{
+      if(!window.ort) await loadJs(ORT+'ort.wasm.min.js');
+      if(!window.vad) await loadJs(VADB+'bundle.min.js');
+      mv=await window.vad.MicVAD.new({
+        model:'v5', baseAssetPath:VADB, onnxWASMBasePath:ORT,
+        getStream:async()=>stream, pauseStream:async()=>{}, resumeStream:async()=>stream,   // 마이크는 계속 켜 둔다
+        positiveSpeechThreshold:0.4, negativeSpeechThreshold:0.3, redemptionMs:450, preSpeechPadMs:300, minSpeechMs:250,
+        onSpeechStart:()=>{ segBlocked=blocked(); if(!segBlocked){ inSp=true; midAt=performance.now(); } },
+        onFrameProcessed:(p)=>{ if(inSp && p && p.isSpeech>0.5) midAt=performance.now(); },
+        onVADMisfire:()=>{ inSp=false; },
+        onSpeechEnd:(audio)=>{ const was=inSp; inSp=false; if(!was || segBlocked || blocked()) return; send([audio]); },
+      });
+      await mv.start();
+      ears.engine='silero';
+      return true;
+    }catch(e){ console.log('[ears] Silero 못 씀, 소리 크기로:', e && e.message); mv=null; return false; }
   }
   function frame(f){
     const now=performance.now();
@@ -481,8 +486,8 @@ const earsSrv = (() => {
   function pause(){ paused=true; if(inSp){ inSp=false; seg=[]; } if(stream && S.listen) label('말하는 중'); }
   function resume(){ if(!paused) return; paused=false; resumeAt=performance.now()+250; if(stream && S.listen) label('듣고 있어요', true); }
   function stop(){ off=true; inSp=false; seg=[]; label(S.listen?'듣기 준비 중':'항상 듣기 꺼짐');
-    if(!S.listen && stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; init=null; try{ ctx.close(); }catch(e){} ctx=null; } }   /* 항상 듣기를 끄면 마이크도 끈다 */
-  function kick(){ off=!S.listen; if(ctx && ctx.state==='suspended') ctx.resume().catch(()=>{}); if(denied){ denied=false; } start(); }
+    if(!S.listen && stream){ try{ mv && mv.destroy && mv.destroy(); }catch(e){} mv=null; stream.getTracks().forEach(t=>t.stop()); stream=null; init=null; try{ ctx.close(); }catch(e){} ctx=null; } }   /* 항상 듣기를 끄면 마이크도 끈다 */
+  function kick(){ off=!S.listen; if(ctx && ctx.state==='suspended') ctx.resume().catch(()=>{}); try{ if(mv && mv.audioContext && mv.audioContext.state==='suspended') mv.audioContext.resume(); }catch(e){} if(denied){ denied=false; } start(); }
   const talking=()=> pending>0 || (inSp && performance.now()-midAt < 1500);   /* 말하는 중이거나 알아듣는 중 */
   return {start, pause, resume, stop, kick, talking};
 })();
@@ -566,8 +571,8 @@ function parseCommand(text){
   if(performance.now() < (S.sceneUntil||0) && /다시찍|새로찍|사진다시|자세히|자세하게|짧게|간단히/.test(t)) return null;   /* 주변 설명 대화로 넘김 */
   if(/(터치|안내모드|손가락).*(꺼|끄)/.test(t)) return 'guide_off';
   if(/(터치|안내모드|손가락).*(켜)/.test(t)) return 'guide_on';
-  if(Ask.kind && /^(허락|허락해|허락할게|좋아|응|네|예|보여줘|괜찮아|괜찮아요|괜찮습니다|나괜찮아)/.test(t)) return 'yes';
-  if(Ask.kind && /^(거절|싫어|안돼|아니|아니요|하지마)/.test(t)) return 'no';
+  if(Ask.kind && /^(허락|허락해|허락할게|좋아|응|네|예|보여줘|괜찮아|괜찮아요|괜찮습니다|나괜찮아|그대로|맞아)/.test(t)) return 'yes';
+  if(Ask.kind && /^(거절|싫어|안돼|아니|아니요|하지마|바꿀|바꿔)/.test(t)) return 'no';
   if(/(공유|위치).*(그만|중지|끝|꺼|멈)/.test(t)) return 'share_stop';
   if(/알림.*(보내|줘)|안부/.test(t)) return 'ping';
   if(/보호자.*(연결|등록|추가).*(끊|해제|삭제|취소)|보호자.*(끊|해제)/.test(t)) return 'unpair';
@@ -642,15 +647,18 @@ function runCommand(cmd){
 function connect(){
   const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws?u=${encodeURIComponent(UID)}`);
   ws.binaryType='arraybuffer'; S.ws=ws;
-  ws.onopen = () => { const was=S.wsOk===false && S.everOk; S.wsOk=true; S.everOk=true; setConn(true);
-                      { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); else if($('#setupView').hidden && !VS.on) showVoiceSetup(); }
+  ws.onopen = () => { const was=!!S.dropSaid; S.dropSaid=false; clearTimeout(S.dropT); S.dropT=null; S.retryN=0; S.wsOk=true; S.everOk=true; setConn(true);
+                      { const pf=loadProfile(); if(pf) sendCmd({type:'profile', ...pf}); }   /* 처음 설정을 띄울지는 서버 인사(hello)의 저장된 설정을 보고 정한다 */
                       sendCmd({type:'indoor', on:!!S.indoor});
                       if(S.running) sendCmd({type:'set_source', mode:S.mode});
                       if(was && S.running) say('서버와 다시 연결됐어요.');
                       for(const o of S.pending.splice(0)) sendCmd(o);
                       if(!S.prefetched){ S.prefetched=true; setTimeout(()=>speech.prefetch(FIXED), 1500); } };
-  ws.onclose = () => { if(window.SayEyeTactile) window.SayEyeTactile.connectionLost(); if(S.wsOk && S.running) say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); S.wsOk=false; setConn(false);
-                       if(S.ws===ws && !S.sleeping && !S.cpuBlocked) setTimeout(connect, 1500); };
+  ws.onclose = () => { if(window.SayEyeTactile) window.SayEyeTactile.connectionLost(); S.wsOk=false; setConn(false);
+                       /* 끊기면 바로(0.3초, 거듭 끊기면 최대 3초) 다시 붙는다. 카메라는 그대로. 5초 넘게 못 붙을 때만 말한다 */
+                       if(S.running && !S.dropT) S.dropT=setTimeout(()=>{ S.dropT=null; if(!S.wsOk && S.running){ S.dropSaid=true; say('서버와 연결이 끊겼어요. 다시 연결하는 중이에요.'); } }, 5000);
+                       S.retryN=(S.retryN||0)+1;
+                       if(S.ws===ws && !S.sleeping && !S.cpuBlocked) setTimeout(connect, Math.min(3000, 300*S.retryN)); };
   ws.onmessage = (e) => { try{ handle(JSON.parse(e.data)); }catch(err){} };
 }
 function setConn(ok){ const c=$('#conn'); c.classList.toggle('off', !ok && !S.sleeping); c.lastChild.textContent = ok ? (S.running?'안내 중':'연결됨') : S.sleeping ? '절전' : (S.everOk?'연결 끊김':'연결 중'); }
@@ -753,7 +761,8 @@ function handle(m){
                          say('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요. 관리자에게 알려 주세요.'); } break;
     case 'server_busy': notice('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); say('지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.'); break;
     case 'ready': notice(''); if(S.running) sendCmd({type:'set_source', mode:S.mode}); break;
-    case 'hello': if(!m.trigger) notice('서버를 준비하고 있어요. 잠시만 기다려 주세요.'); if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
+    case 'hello': profileCheck(m.profile);
+     if(!m.trigger) notice('서버를 준비하고 있어요. 잠시만 기다려 주세요.'); if(m.pin){ $('#pinNum').textContent=m.pin; $('#pinBox').hidden=true; S.paired=m.paired||0; $('#sheetPin').textContent=`보호자 확인번호 ${m.pin}`; $('#sheetPin').hidden=false; } $('#sysInfo').textContent=`인식 ${m.weights||m.perception} · 판단 ${m.trigger}`; break;
     case 'pair_link': showPair(m); break;
     case 'share_req': askShare(); break;
     case 'profile': S.profile=m; if(m.set){ try{ localStorage.setItem('sayeye-profile', JSON.stringify({age:m.age, height_cm:m.height_cm, mount:m.mount})); }catch(e){} }   /* 서버 값(보호자가 바꾼 나이 포함)에 맞춤 */
@@ -832,7 +841,7 @@ function startSending(){
     if(window.SayEyeTactile && window.SayEyeTactile.selected()){
       window.SayEyeTactile.sendFrame(v); return;
     }
-    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>300000) return;
+    if(!S.running || S.mode!=='phone' || busy || !S.ws || S.ws.readyState!==1 || S.ws.bufferedAmount>80000) return;   /* 보낼 게 밀리면 이번 장은 건너뜀 (밀리면 서버의 '살아 있니' 확인 답도 늦어져 끊긴다) */
     if(window.SayEyeTactile && !window.SayEyeTactile.allowFrame()) return;
     if(S.saver && performance.now()-S.lastFrame < 200) return;          /* 절전: 초당 5장 */
     S.lastFrame=performance.now();
@@ -888,8 +897,24 @@ $('#pairShare').onclick=async()=>{
 };
 /* ── 묻는 화면 (공유 허락 · 넘어짐 확인): 음성 "허락/괜찮아", "거절" 또는 큰 버튼 ── */
 const Ask = { kind:null, t:null, yes(){}, no(){} };
+/* 앱을 열 때 한 번: 이 폰이나 서버에 설정이 있으면 처음 설정을 다시 하지 않고 "그대로 쓸까요?"만 묻는다.
+   (예전엔 서버 설정이 도착하기 전에 폰 저장본만 보고 처음 설정을 띄워, 설정을 했는데도 다시 떴다) */
+let PF_ASKED=false;
+function profileCheck(sp){
+  let pf=loadProfile();
+  if(!pf && sp && sp.set){ pf={age:sp.age, height_cm:sp.height_cm, mount:sp.mount}; try{ localStorage.setItem('sayeye-profile', JSON.stringify(pf)); }catch(e){} }
+  if(!pf){ if($('#setupView').hidden && !VS.on) showVoiceSetup(); return; }
+  if(PF_ASKED || S.running || VS.on) return;
+  PF_ASKED=true;
+  const msg=`지난 설정이에요. 만 ${pf.age}세, 키 ${pf.height_cm}센티미터, 카메라는 ${MOUNT_KO[pf.mount]||pf.mount}. 그대로 쓸까요? 바꾸려면 아니요라고 말해 주세요.`;
+  say(msg);
+  ask('profile', '지난 설정 그대로 쓸까요?', `만 ${pf.age}세 · 키 ${pf.height_cm} cm · 카메라 ${MOUNT_KO[pf.mount]||pf.mount}`, '네, 그대로', '바꿀게요',
+      ()=>{ say('그대로 쓸게요. 시작이라고 말하거나 화면을 두 번 누르면 안내를 시작해요.'); },
+      ()=>{ showVoiceSetup(); setTimeout(()=>{ if(VS.on && !VS.armed){ VS.armed=true; vsAsk(); } }, 3500); },
+      20, ()=>{});
+}
 function ask(kind, h, p, yesTxt, noTxt, onYes, onNo, timeoutS, onTimeout){
-  closeAsk(); Ask.kind=kind;
+  closeAsk(); Ask.kind=kind; $('#askView').dataset.kind=kind;   /* 설정 확인은 남색 (넘어짐 · 공유 허락은 빨강) */
   $('#askH').textContent=h; $('#askP').textContent=p; $('#askYes').textContent=yesTxt; $('#askNo').textContent=noTxt;
   $('#askView').hidden=false; $('#askYes').focus();
   Ask.yes=()=>{ closeAsk(); onYes(); }; Ask.no=()=>{ closeAsk(); onNo(); };
@@ -1375,7 +1400,7 @@ function draw(){
   if(ov.width!==pw || ov.height!==ph){ ov.width=pw; ov.height=ph; }
   octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
   const fresh=Math.min(2500,Math.max(700,S.fps>0?2500/S.fps:2500));
-  if(!(window.SayEyeTactile && window.SayEyeTactile.selected()) && r.width && r.height && S.running && S.prev && !S.saver && S.wsOk && S.dets && performance.now()-S.detsAt<fresh){
+  if(S.showBoxes && !(window.SayEyeTactile && window.SayEyeTactile.selected()) && r.width && r.height && S.running && S.prev && !S.saver && S.wsOk && S.dets && performance.now()-S.detsAt<fresh){
     const v=$('#cam'), im=$('#pv'), m=S.dets;
     const sw=(!v.hidden&&v.videoWidth)||(!im.hidden&&im.naturalWidth)||0;
     const sh=(!v.hidden&&v.videoHeight)||(!im.hidden&&im.naturalHeight)||0;
