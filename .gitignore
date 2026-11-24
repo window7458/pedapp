@@ -9,3 +9,8 @@ code/app/tts_cache/
 
 # 지하철(KRIC) 받아 둔 응답
 code/app/kric_cache/
+
+# ONNX 로 바꾼 팀 모델 · COCO · 점자블록 (공개 저장소에 안 올림, tools/export_onnx.py 로 만듦. 팀 저장소 final 에는 있음)
+code/app/weights/final_10class_best.onnx
+code/app/weights/yolo11n.onnx
+code/app/weights/yolo11n_tactile.onnx

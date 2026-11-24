@@ -37,6 +37,9 @@ APP = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR") or APP)   # 확인번호 · 보호자 연결 · 푸시 키 · 알림 기록. Cloud Run 에선 버킷을 붙여 재시작해도 남게
 sys.path.insert(0, str(APP))
 
+import lite_shims  # noqa: E402
+lite_shims.install()   # INFER=onnx 면 torch · ultralytics 대신 ONNX Runtime (가벼운 서버판)
+
 from alerts import AlertCenter  # noqa: E402
 from app_tts import AppTTS  # noqa: E402
 from bus import Bus  # noqa: E402

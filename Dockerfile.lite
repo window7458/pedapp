@@ -1,0 +1,13 @@
+# SayEye 가벼운 서버판 (lite) — PyTorch · ultralytics · Whisper 없이 ONNX Runtime GPU 로 YOLO 를 돌린다.
+# 일반판(Dockerfile)보다 이미지가 훨씬 작아 서버가 빨리 깨어난다. 결과는 같다 (tests/onnx_parity_test.py).
+# 빌드: deploy/cloudbuild-lite.yaml (deploy_lite.ps1 이 부름). 가중치 .onnx 는 python tools/export_onnx.py 로 미리 만든다.
+FROM python:3.11-slim
+ENV PYTHONUNBUFFERED=1 PYTHONUTF8=1 PIP_NO_CACHE_DIR=1 INFER=onnx STT=0
+RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+COPY code/app/requirements-lite.txt /tmp/req.txt
+RUN pip install -r /tmp/req.txt
+# pip 로 받은 CUDA · cuDNN 라이브러리를 시스템이 찾게 (onnx_yolo 의 preload_dlls 가 못 하는 경우 대비)
+RUN python -c "import glob,site; d=sorted(glob.glob(site.getsitepackages()[0]+'/nvidia/*/lib')); open('/etc/ld.so.conf.d/nvidia-pip.conf','w').write('\n'.join(d)+'\n'); print(d)" && ldconfig
+COPY code /srv/code
+WORKDIR /srv/code/app
+CMD ["python", "server.py", "--host", "0.0.0.0"]

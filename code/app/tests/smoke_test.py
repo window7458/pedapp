@@ -71,8 +71,18 @@ async def run(seconds: float, img: Path):
             while time.time() - t0 < seconds:
                 await ped.send(b"SEF1" + struct.pack("!d", time.time() * 1000) + next(gen))
                 await asyncio.sleep(0.12)
-        await asyncio.gather(pump(ped, "ped"), pump(gd, "guardian"), send())
-    return seen, classes
+        live = {}
+
+        async def watch_live():                 # 보호자 실시간 영상은 보행자가 영상을 보내는 동안 본다 (보낸 뒤면 새 장면이 없다)
+            await asyncio.sleep(seconds / 2)
+            def fetch():
+                r = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/live.mjpg?pin={PIN}", timeout=8)
+                c = r.fp.read1(200) if hasattr(r.fp, "read1") else r.read(200)
+                r.close()
+                return c
+            live["chunk"] = await asyncio.get_running_loop().run_in_executor(None, fetch)
+        await asyncio.gather(pump(ped, "ped"), pump(gd, "guardian"), send(), watch_live())
+    return seen, classes, live.get("chunk", b"")
 
 
 def main():
@@ -84,7 +94,7 @@ def main():
     w = a.weights or ("/tmp/yolo/yolov8n.pt" if not any((APP / "weights").glob("*.pt")) else "auto")
     env = dict(os.environ, HB_SURFACE="0", ALLOW_CPU="1")   # 노트북 CPU 로 도는 시험 (실서버는 CPU 면 연결 거절)
     p = subprocess.Popen([sys.executable, str(APP / "server.py"), "--port", str(PORT), "--weights", w,
-                          "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=APP, env=env)
+                          "--guardian-pin", PIN], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", cwd=APP, env=env)
     try:
         for _ in range(60):
             try:
@@ -92,13 +102,10 @@ def main():
                 break
             except Exception:
                 time.sleep(1)
-        seen, classes = asyncio.run(run(a.seconds, Path(a.image)))
+        seen, classes, chunk = asyncio.run(run(a.seconds, Path(a.image)))
         print("받은 메시지:", seen, "· 인식:", sorted(classes), flush=True)
         key = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/push/key").read())
         loc = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/location?pin={PIN}").read())
-        r = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/live.mjpg?pin={PIN}", timeout=5)
-        chunk = r.fp.read1(200) if hasattr(r.fp, "read1") else r.read(200)
-        r.close()
     finally:
         p.terminate()
         try:

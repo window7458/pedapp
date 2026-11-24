@@ -1,0 +1,11 @@
+# 가벼운 서버판 이미지 (Dockerfile.lite). deploy_lite.ps1 이 부른다. 지난 이미지 층을 다시 쓴다.
+steps:
+- name: gcr.io/cloud-builders/docker
+  entrypoint: bash
+  args: ['-c', 'docker pull $_IMAGE || echo "지난 이미지 없음 - 처음부터 만든다"']
+- name: gcr.io/cloud-builders/docker
+  args: [build, --cache-from, $_IMAGE, -f, Dockerfile.lite, -t, $_IMAGE, .]
+images: [$_IMAGE]
+timeout: 1800s
+options:
+  machineType: E2_HIGHCPU_8

@@ -1,0 +1,15 @@
+# 가벼운 서버판(lite, Dockerfile.lite): torch · ultralytics · transformers 없이 ONNX Runtime GPU 로 추론 (INFER=onnx, lite_shims.py)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+numpy
+opencv-python-headless
+cryptography
+scipy>=1.11
+pillow
+openai
+pywebpush
+segno==1.6.1
+httpx==0.28.1
+python-multipart==0.0.20
+onnxruntime-gpu[cuda,cudnn]==1.22.0
+nvidia-cublas-cu12~=12.0
