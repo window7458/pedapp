@@ -11,15 +11,16 @@ INIT = """
 window.__played=[];
 class FakeSR { start(){ window.__rec=this; } abort(){} stop(){} }
 Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:FakeSR}); Object.defineProperty(window,'SpeechRecognition',{configurable:true,value:FakeSR});
-Object.defineProperty(window,'Audio',{configurable:true,value:function(){ return {play:()=>Promise.reject(new Error('x')), pause(){}, set src(v){}, get src(){return ''}}; }});
-// 음성: /api/tts 대신 폰 음성으로 떨어지게 하고, 말한 문장을 기록 (1글자=30ms)
-Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{ getVoices:()=>[], cancel(){ if(window.__u){ clearTimeout(window.__u.t); window.__played.push('[끊김] '+window.__u.text); window.__u=null; } },
-  speak(u){ if(u.text.trim()==='') return; window.__u=u; u.t=setTimeout(()=>{ window.__played.push(u.text); window.__u=null; u.onend&&u.onend(); }, u.text.length*30); } }});
-window.fetch = ((f)=> (url, o)=> String(url).startsWith('/api/tts') ? Promise.resolve(new Response(null,{status:404})) : f(url,o))(window.fetch);
+// 음성: 구글 음성(/api/tts) 대신 문장 글자를 돌려주는 가짜 소리, 말한 문장을 기록 (1글자=30ms)
+Object.defineProperty(window,'Audio',{configurable:true,value:function(){ const a={_s:'',_t:null,_txt:null,onended:null,onerror:null,volume:1,playbackRate:1,preload:'',muted:false,
+ set src(v){a._s=v}, get src(){return a._s},
+ play(){ if(!String(a._s).startsWith('blob:')) return Promise.resolve(); const me=a._s; return fetch(me).then(r=>r.text()).then(t=>{ if(a._s!==me) return; a._txt=t;  a._t=setTimeout(()=>{ a._t=null; window.__played.push(a._txt); a._txt=null; a.onended&&a.onended(); }, t.length*30); }); },
+ pause(){ if(a._t){ clearTimeout(a._t); a._t=null; window.__played.push('[끊김] '+a._txt); } a._txt=null; } }; return a; }});
+window.fetch = ((f)=> (url, o)=> String(url).startsWith('/api/tts') ? Promise.resolve(new Response(new Blob([new URLSearchParams(String(url).split('?')[1]).get('t')||'']),{status:200})) : f(url,o))(window.fetch);
 """
 async def main():
   async with async_playwright() as p:
-    b=await p.chromium.launch(channel='chrome'); c=await b.new_context(user_agent=UA); pg=await c.new_page(); pg.on('pageerror', lambda e: print('PAGEERR', e)); None
+    b=await p.chromium.launch(channel='chrome', args=['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']); c=await b.new_context(user_agent=UA); pg=await c.new_page(); pg.on('pageerror', lambda e: print('PAGEERR', e)); None
     await c.grant_permissions(['geolocation']); await c.set_geolocation({'latitude':37.45,'longitude':126.65}); await pg.add_init_script(INIT); await pg.goto(f'http://127.0.0.1:{srv.server_port}/index.html', wait_until='domcontentloaded')
     await asyncio.sleep(1.5)
     r = await pg.evaluate("""()=>{ const P=window.__insight.parseCommand, out={};

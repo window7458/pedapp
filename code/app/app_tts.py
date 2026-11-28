@@ -119,7 +119,12 @@ class AppTTS:
     async def prewarm(self, sentences=None, gap_s: float = 0.25):
         """서버가 켜질 때 한 번: 경고 문장을 앞쪽 방향부터 미리 만들어 둔다. 이미 있으면 건너뛴다 (버킷이라 다음엔 바로 끝남).
         분당 요청 한도에 걸리지 않게 하나씩 천천히."""
-        sentences = sentences if sentences is not None else SHORT_SENTENCES + TRIGGER_SENTENCES   # 짧은 경고 먼저
+        if sentences is None:
+            try:
+                from tactile_scout import SENTENCES as TACTILE      # 점자블록 따라 안내 문장도 구글 음성으로 미리
+            except Exception:
+                TACTILE = []
+            sentences = TACTILE + SHORT_SENTENCES + TRIGGER_SENTENCES   # 짧은 경고 먼저
         made = 0
         for s in sentences:
             if not self.ok:

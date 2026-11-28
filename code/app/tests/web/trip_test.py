@@ -32,17 +32,18 @@ INIT = """
 window.__played=[];
 class FakeSR { start(){ window.__rec=this; } abort(){} stop(){} }
 Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:FakeSR}); Object.defineProperty(window,'SpeechRecognition',{configurable:true,value:FakeSR});
-Object.defineProperty(window,'Audio',{configurable:true,value:function(){ return {play:()=>Promise.reject(new Error('x')), pause(){}, set src(v){}, get src(){return ''}}; }});
-Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{ getVoices:()=>[], cancel(){ if(window.__u){ clearTimeout(window.__u.t); window.__u=null; } },
-  speak(u){ if(u.text.trim()==='') return; window.__u=u; window.__played.push(u.text); u.t=setTimeout(()=>{ window.__u=null; u.onend&&u.onend(); }, 60); } }});
+Object.defineProperty(window,'Audio',{configurable:true,value:function(){ const a={_s:'',_t:null,_txt:null,onended:null,onerror:null,volume:1,playbackRate:1,preload:'',muted:false,
+ set src(v){a._s=v}, get src(){return a._s},
+ play(){ if(!String(a._s).startsWith('blob:')) return Promise.resolve(); const me=a._s; return fetch(me).then(r=>r.text()).then(t=>{ if(a._s!==me) return; a._txt=t; window.__played.push(t); a._t=setTimeout(()=>{ a._t=null;  a._txt=null; a.onended&&a.onended(); }, 60); }); },
+ pause(){ if(a._t){ clearTimeout(a._t); a._t=null;  } a._txt=null; } }; return a; }});
 """
 
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(channel='chrome'); c = await b.new_context(permissions=['geolocation'], geolocation={'latitude': O[0], 'longitude': O[1], 'accuracy': 5})
+        b = await p.chromium.launch(channel='chrome', args=['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']); c = await b.new_context(permissions=['geolocation'], geolocation={'latitude': O[0], 'longitude': O[1], 'accuracy': 5})
         pg = await c.new_page(); pg.on('pageerror', lambda e: print('PAGEERR', e))
-        await pg.route('**/api/tts*', lambda r: r.fulfill(status=404, body=''))
+        await pg.route('**/api/tts*', lambda r: r.fulfill(status=200, content_type='audio/mpeg', body=__import__('urllib.parse').parse.parse_qs(__import__('urllib.parse').parse.urlparse(r.request.url).query).get('t',[''])[0].encode()))   # 구글 음성 대신: 문장 글자를 그대로 돌려줌
         await pg.route('**/api/nav/route*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(ROUTE, ensure_ascii=False)))
         await pg.route('**/api/nav?*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(PLAN, ensure_ascii=False)))
         await pg.route('**/api/bus*', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps(dict(sentence='511번은 3분 뒤에 와요.', min=3, left=2, stop='학산정류장'), ensure_ascii=False)))
@@ -66,7 +67,7 @@ async def main():
         await hear('다 왔어', 1.5)
         said = await pg.evaluate("window.__played")
         for x in said: print(' ·', x)
-        need = ['미터 앞에서 우회전이에요', '학산정류장에 다 왔어요', '오백십일번 버스를 기다릴게요', '다음 정류장 주안역정류장에서 내려요',
+        need = ['미터 뒤에 우회전이에요. 오른쪽으로 가야 해요', '지금 오른쪽으로 도세요. 그다음 앞으로', '학산정류장에 다 왔어요', '오백십일번 버스를 기다릴게요', '다음 정류장 주안역정류장에서 내려요',
                 '이번 정류장 주안역정류장에서 내리세요', '주안까지 약', '주안역에서 수도권1호선 도화 방향', '용산역에서 내려요', '용산역 광장에 도착했어요']
         miss = [n for n in need if not any(n in x for x in said)]
         print('MISSING', miss) if miss else print('trip ok')

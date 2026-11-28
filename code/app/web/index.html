@@ -13,7 +13,6 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>SayEye</title>
 <link rel="stylesheet" href="app.css">
-<link rel="stylesheet" href="tactile.css?v=6">
 <style>
 .agent{cursor:pointer}
 #stage{position:absolute;right:18px;top:64px;width:96px;height:128px;border-radius:16px;cursor:zoom-in;overflow:hidden;background:#0b1220;z-index:4;box-shadow:0 8px 20px rgba(10,20,60,.25)}
@@ -96,22 +95,6 @@
       <button class="gear" id="openSheet" aria-label="설정과 도움말" aria-haspopup="dialog"><svg><use href="#i-cog"/></svg></button>
     </header>
     <div id="stage" aria-hidden="true" hidden><video id="cam" playsinline muted hidden></video><img id="pv" alt="" hidden><canvas id="ov"></canvas></div>
-    <!-- SAYEYE_TACTILE_V2 -->
-    <section id="tactilePanel" hidden aria-label="점자블록 찾기">
-      <div class="tactile-top"><button class="btn" id="tactileBack">← 기본 안내</button><b>점자블록 찾기</b></div>
-      <p class="tactile-mode">점자블록 전용 · 휴대폰은 몸 정면 · 장애물 경고 일시 정지</p>
-      <!-- SAYEYE_TACTILE_AUTO_V6 -->
-      <p class="tactile-mode">한 번 시작하면 촬영과 안내가 자동으로 반복돼요.</p>
-      <div id="tactileCamera"></div>
-      <div class="tactile-result"><strong id="tactileHeading" tabindex="-1">점자블록 찾기</strong>
-        <p id="tactileText" role="status"></p><p id="tactilePhase" aria-live="off"></p><small id="tactileStats"></small></div>
-      <div class="tactile-actions">
-        <button class="btn" id="tactileStop">찾기 중지</button>
-        <button class="btn" id="tactileRestart" hidden>다시 찾기</button>
-        <button class="btn" id="tactileRepeat">지금 다시 확인</button>
-        <button class="btn" id="tactileConfirm" hidden>도착을 직접 확인했어요</button>
-      </div>
-    </section>
     <p id="notice" role="alert" hidden></p>
     <p id="pinBox" hidden style="margin:6px 2px 0;font-size:15px;font-weight:700">보호자 확인번호 <b id="pinNum" style="letter-spacing:.12em"></b><small style="display:block;font-weight:400;opacity:.75">보호자 화면에 이 번호를 넣으면 연결돼요</small></p>
     <div class="say" id="say" aria-live="off"><small id="sayLab">대기 중</small><h1 id="sayH">안녕하세요,<br>준비됐어요</h1><p id="sayP">"시작"이라고 말하거나 아래 버튼을 두 번 누르세요</p></div>
@@ -148,7 +131,7 @@
     <button class="btn mbtn" data-m="nav">🧭<b>길 안내</b><small>말로 목적지</small></button>
     <button class="btn mbtn" data-m="scene">👀<b>주변 설명</b></button>
     <button class="btn mbtn" id="menuIndoor" data-m="indoor">🏠<b>실내 모드</b><small>켜기</small></button>
-    <button class="btn mbtn" id="tactileStart">⬛<b>점자블록 찾기</b><small>점자블록 따라 걷기</small></button>
+    <button class="btn mbtn" id="menuTactile" data-m="tactile">⬛<b>점자블록 따라가기</b><small>같은 화면에서 안내</small></button>
     <button class="btn mbtn" data-m="ping">💬<b>보호자에게 알림</b><small>잘 가고 있어요</small></button>
   </div>
   <button class="btn" id="menuClose">닫기</button>
@@ -226,7 +209,7 @@
 const $ = (s) => document.querySelector(s);
 /* 이 폰의 사용자 번호: 처음 열 때 한 번 만들어 계속 쓴다 → 서버가 사람마다 판단 · 보호자 · 알림 · 설정을 따로 둔다 */
 const UID = (()=>{ try{ let u=localStorage.getItem('sayeye-uid'); if(!u){ u=(crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,''); localStorage.setItem('sayeye-uid',u); } return u; }catch(e){ return 'tmp'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } })();
-const S = {showBoxes:false /* 검출 상자 · 보행 통로 칸 (개발용, 기본 끔) */, showPath:false /* 걷는 방향 화살표 (11/24 사용자: 빼 달라고 함) */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
+const S = {showBoxes:true /* 검출 상자 (11/24 밤 사용자: 다시 넣어 달라) */, showCorridor:false /* 보행 통로 칸 (끔) */, showPath:false /* 걷는 방향 화살표 (11/24 사용자: 빼 달라고 함) */, ws:null, running:false, mode:'phone', stream:null, timer:null, rate:1.1, vol:1, guide:true, beep:true, vib:true, fall:true, indoor:false, saver:false, auto:true, autoIndoor:true, home:null, fix:null, lastFrame:0, lastTouch:0, shareOn:false, stallSaid:false,
            hc:false, prev:true, listen:true, gps:true, dets:null, detsAt:0, wake:null, seen:false, lastWarns:[], wsOk:false,
            spokeReady:false, pending:[], sleeping:false, lastAct:performance.now(),  t0:0, latest:'', flashT:null, geo:null, lastGeo:0, fps:0};
 
@@ -286,9 +269,9 @@ function beep(kind){
 function vibrate(prio){ if(!S.vib || !navigator.vibrate) return; navigator.vibrate({3:[300,100,300,100,300],2:[200,100,200],1:[120]}[prio]||[80]); }
 
 /* ── 말하기: 모든 말을 Zephyr(구글 04번 여자 목소리)로. 자주 하는 말과 트리거 경고 206문장은 미리 만들어 두어 바로 나온다.
-   폰 기본 음성은 서버에 아예 닿지 않을 때(2.5초 안에 음성을 못 받음)만 비상용으로 쓴다 — 아무 말도 못 하는 것보다는 낫기 때문. ──
+   11/24 밤: 폰 기본 음성은 아예 쓰지 않는다 (사용자: 목소리가 중구난방 → 구글 음성으로 통일). 구글 음성을 끝내 못 받으면 말 없이 화면 글자만. ──
    자주 하는 말(FIXED)은 앱을 열 때 미리 받아 두므로 바로 나온다. 경고처럼 처음 나오는 문장은 한 번 받은 뒤로 바로 나온다. */
-const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 길게 누르면 버스, 지하철, 점자블록 찾기 같은 기능 메뉴가 열려요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 탈 버스가 있으면 511번 탈게라고 말하면 오는 순간 알려 드려요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
+const FIXED = ["거절했어요.", "저장했어요.", "소리를 키웠어요.", "소리를 줄였어요.", "안내를 중지했어요.", "주변을 보고 있어요.", "말을 빠르게 할게요.", "말을 천천히 할게요.", "보호자가 연결됐어요.", "이미 안내 중이에요.", "조금만 기다려 주세요.", "서버와 다시 연결됐어요.", "안내가 다시 시작됐어요.", "지금은 안내 중이 아니에요.", "주변 설명을 받지 못했어요.", "위치와 화면 공유가 끝났어요.", "보호자에게 도움을 요청했어요.", "위치와 화면 공유를 멈췄어요.", "준비됐어요. 안내를 시작합니다.", "다행이에요. 안내를 계속할게요.", "보호자가 지금 화면을 보고 있어요.", "지금은 버스 정보를 받을 수 없어요.", "보호자에게 잘 가고 있다고 알렸어요.", "안내가 잠시 멈췄어요. 주변을 조심하세요.", "만 13세 미만이라 보호자가 계속 볼 수 있어요.", "서버와 연결이 끊겼어요. 다시 연결하는 중이에요.", "설정이에요. 아래로 내리거나 닫기를 누르면 돌아가요.", "카메라를 켤 수 없어요. 화면의 안내를 확인해 주세요.", "만 13세 미만이라 보호자가 위치와 화면을 볼 수 있어요.", "지금 사용하는 사람이 많아요. 잠시 뒤에 다시 열어 주세요.", "아이폰에서는 크롬이 아니라 사파리로 열어야 카메라가 켜져요.", "연결 링크를 복사했어요. 보호자에게 붙여 넣어 보내 주세요.", "터치 안내를 껐어요. 이제 버튼을 한 번 누르면 바로 실행돼요.", "이 브라우저에서는 링크를 보낼 수 없어요. QR로 연결해 주세요.", "네, 말씀하세요. 시작, 그만, 다시 말해줘, 도와줘라고 하면 돼요.", "위치를 알 수 없어서 버스를 찾지 못했어요. 위치 권한을 확인해 주세요.", "대답이 없어서 보호자에게 알렸어요. 위치와 화면을 30분 동안 보여 줘요.", "안내를 시작합니다. 휴대폰을 세로로, 가슴 높이에서 앞을 향하게 들어 주세요.", "연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.", "터치 안내를 켰어요. 버튼을 한 번 누르면 이름을 읽고, 두 번 누르면 실행돼요.", "보호자 연결 화면을 띄웠어요. 보호자에게 화면을 보여 주고, 보호자 폰 카메라로 찍게 해 주세요.", "보호자가 지금 위치와 화면을 보려고 해요. 10분 동안 보여 주려면 허락, 싫으면 거절이라고 말하세요.", "처음 설정이에요. 만 나이, 키, 카메라를 다는 위치를 골라 주세요. 도와주는 분과 함께 해도 좋아요.", "넘어지셨나요? 괜찮으면 괜찮아라고 말하거나 화면 위쪽 버튼을 누르세요. 30초 동안 대답이 없으면 보호자에게 알릴게요.", "세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 길게 누르면 버스, 지하철, 점자블록 따라가기 같은 기능 메뉴가 열려요. 카메라에 점자블록이 보이면 같은 화면에서 이어서 안내해요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 탈 버스가 있으면 511번 탈게라고 말하면 오는 순간 알려 드려요. 버스가 오면 이 버스 몇 번이야, 길을 건널 때는 건널게라고 말하면 방향을 봐 드려요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와, 지하철은 인하대역 지하철 언제 와, 인하대역 엘리베이터 어디야, 인하대역 1번 출구에서 송도 방면 가는 길처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요."];
 /* ── 번호 읽기: 버스 · 출구 번호는 한자어로 ("511번" → "오백십일번", "9-1번" → "구다시일번").
      음성 합성이 "오백열한번"처럼 읽던 문제. 화면 글자는 그대로 숫자. ── */
 function sinoNum(n){
@@ -314,11 +297,9 @@ function digitsFromKo(t){
 }
 const speech = (() => {
   let q=[], cur=null, voice=null;
-  const PRI={warn:0,ui:1,tactile:2,desc:3,scene:4}, TTL={warn:2500,ui:9000,tactile:1800,desc:6500,scene:14000};
-  const synth = window.speechSynthesis, aud = new Audio(), clips = new Map(), WAIT = 2500;
+  const PRI={warn:0,ui:1,tactile:2,desc:3,scene:4}, TTL={warn:2500,ui:9000,tactile:4000,desc:6500,scene:14000};
+  const aud = new Audio(), clips = new Map(), WAIT = 2500;
   aud.preload = 'auto';
-  function pickVoice(){ if(!synth) return; voice = synth.getVoices().find(v => (v.lang||'').toLowerCase().startsWith('ko')) || null; }
-  if(synth){ synth.onvoiceschanged = pickVoice; pickVoice(); }
   const norm = (t) => spokenNums(String(t||'').replace(/\s+/g,' ').trim());
   function fetchClip(text){
     const k=norm(text); if(clips.has(k)) return clips.get(k);
@@ -339,10 +320,10 @@ const speech = (() => {
         cur=null; cancelNow(); wait=60; }
     }else if(kind==='ui' && cur && (cur.kind==='desc'||cur.kind==='scene')){ cur=null; cancelNow(); wait=60; }
     q.push({kind,text,prio,at:performance.now(),...(kind==='tactile' && hooks ? {hooks} : {})});
-    if(kind!=='tactile') fetchClip(text);            // 순서를 기다리는 동안 미리 받아 둔다
+    fetchClip(text);                                 // 순서를 기다리는 동안 미리 받아 둔다
     setTimeout(pump, wait);
   }
-  function cancelNow(){ try{ aud.pause(); }catch(e){} if(synth) synth.cancel(); }
+  function cancelNow(){ try{ aud.pause(); }catch(e){} }
   async function pump(){
     if(cur) return;
     const now=performance.now();
@@ -361,29 +342,19 @@ const speech = (() => {
     const done=(ok=true)=>{ if(cur===it){ lastSaid={text:it.text, at:performance.now()}; cur=null; setTimeout(pump,40);
       if(it.hooks && it.hooks.onDone)it.hooks.onDone(ok);
     } };
-    if(it.kind==='tactile'){ speakSynth(it,done); return; }
-    const url = await Promise.race([fetchClip(it.text), new Promise(r=>setTimeout(()=>r(null), it.kind==='desc' ? 7000 : WAIT))]);   /* 긴 묘사는 합성이 오래 걸려 더 기다림 */
+    /* 경고는 늦으면 의미가 없어 2.5초까지만 (효과음 · 진동은 이미 나감), 나머지는 구글 음성이 올 때까지 10초(묘사 15초) 기다린다 */
+    let url = await Promise.race([fetchClip(it.text), new Promise(r=>setTimeout(()=>r(null), it.kind==='warn' ? WAIT : it.kind==='desc'||it.kind==='scene' ? 15000 : 10000))]);
+    if(!url && cur===it && it.kind!=='warn'){ clips.delete(norm(it.text)); url = await Promise.race([fetchClip(it.text), new Promise(r=>setTimeout(()=>r(null), 6000))]); }   /* 한 번 더 */
     if(cur!==it) return;                            // 기다리는 사이 더 급한 경고가 끼어듦
     if(url){
       aud.src=url; aud.playbackRate=Math.max(.6, Math.min(1.8, S.rate/1.1)); aud.volume=S.vol;
-      let fell=false; const fb=()=>{ if(fell) return; fell=true; speakSynth(it, done); };   /* 재생 실패가 두 번 잡혀 같은 말을 두 번 하던 문제 */
+      let fell=false; const fb=()=>{ if(fell) return; fell=true; done(false); };   /* 재생 실패 → 폰 기본 음성으로 바꾸지 않고 건너뜀 (화면 글자는 남음) */
       aud.onended=done; aud.onerror=fb;
       aud.play().catch(fb);
-    } else speakSynth(it, done);
-  }
-  function speakSynth(it, done){
-    if(!synth){ done(false); return; }
-    const u=new SpeechSynthesisUtterance(norm(it.text)); u.lang='ko-KR'; if(voice) u.voice=voice; u.rate=S.rate; u.volume=S.vol;
-    u.onstart=()=>{
-      if(cur!==it)return;
-      if(it.hooks && it.hooks.onStart && it.hooks.onStart()===false){ done(false); synth.cancel(); }
-    };
-    u.onend=()=>done(true); u.onerror=()=>done(false);
-    try{ synth.speak(u); }catch(e){ done(false); }
+    } else done(false);                              /* 구글 음성을 못 받음: 다른 목소리로 말하지 않는다 */
   }
   function unlock(){
     try{ aud.muted=true; aud.src='data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK////9bP/6XCykxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'; aud.play().then(()=>{ aud.pause(); aud.muted=false; }).catch(()=>{ aud.muted=false; }); }catch(e){}
-    if(!synth) return; try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u); }catch(e){}
   }
   function stop(){ q=[]; cur=null; cancelNow(); }
   function stopDesc(){ q=q.filter(i=>i.kind!=='desc'); if(cur && cur.kind==='desc'){ cur=null; cancelNow(); setTimeout(pump,40); } }
@@ -666,16 +637,15 @@ async function infoMode(fn){
 function runCommand(cmd){
   S.lastAct=performance.now();
   switch(cmd){
-    case 'start': if(window.SayEyeTactile && window.SayEyeTactile.selected()){window.SayEyeTactile.begin();break;} if(Ask.kind==='auto') closeAsk(); if(S.running) say('이미 안내 중이에요.'); else start(); break;
+    case 'start': if(Ask.kind==='auto') closeAsk(); if(S.running) say('이미 안내 중이에요.'); else start(); break;
     case 'home_here': homeFrom('여기').then(h=>{ if(h){ S.home=h; save(); say('지금 자리를 집으로 정했어요. 집 근처에서는 걸어도 안내를 켤지 묻지 않아요.'); } else say('지금 위치를 몰라서 집으로 정하지 못했어요.'); }); break;
     case 'home_addr': homeFrom(S.homeQuery).then(h=>{ if(h){ S.home=h; save(); say(`집을 ${h.name}로 정했어요.`); } else say('그 주소를 찾지 못했어요.'); }); break;
     case 'auto_on': case 'auto_off': S.auto=(cmd==='auto_on'); save(); say(S.auto ? '걷기 시작하면 안내를 켤지 여쭤볼게요. 집 근처에서는 묻지 않아요.' : '걸어도 자동으로 묻지 않을게요.'); break;
-    case 'stop': if(Ask.kind==='tactile'){ Ask.no(); break; }   /* 점자블록 알림 창에서 '그만' = 시작 안 함 */
-                 if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
+    case 'stop':                  if(speech.kind()==='desc'){ speech.stopDesc(); S.sceneUntil=0; break; } if(S.running) stop(); else say('지금은 안내 중이 아니에요.'); break;
     case 'scene': sceneAsk('주변 설명해줘', true); break;
     case 'menu': openMenu(); break;
-    case 'tactile_start': if(window.SayEyeTactile){ closeMenu(); window.SayEyeTactile.begin(); } break;
-    case 'tactile_stop': if(window.SayEyeTactile && window.SayEyeTactile.selected()) window.SayEyeTactile.back(); else say('지금은 점자블록 찾기 중이 아니에요.'); break;
+    case 'tactile_start': closeMenu(); tactileStart(); break;
+    case 'tactile_stop': if(TF.on) sendCmd({type:'tactile_follow', action:'stop'}); else say('지금은 점자블록 안내 중이 아니에요.'); break;
     case 'bus': infoMode(()=>busAsk(S.busRoute)); break;
     case 'setup': showVoiceSetup(); setTimeout(()=>{ if(VS.on && !VS.armed){ VS.armed=true; vsAsk(); } }, 3500); break;
     case 'bus_wait': busWait(S.busWaitRoute); break;
@@ -828,7 +798,6 @@ addEventListener('pointerdown', ()=>wake(), {capture:true});
 SayEyeSensors.start(o => { if(S.ws && S.ws.readyState===1){ S.ws.send(JSON.stringify(o)); return true; } return false; });
 
 function handle(m){
-  if(window.SayEyeTactile && window.SayEyeTactile.selected() && ['warn','dets'].includes(m.type)) return;
   switch(m.type){
     case 'server_cpu': if(!S.cpuBlocked){ S.cpuBlocked=true; S.running=false;
                          notice('지금 연결된 서버가 GPU 서버가 아니라서 안내할 수 없어요. 관리자에게 알려 주세요.');
@@ -848,8 +817,7 @@ function handle(m){
     case 'paired': S.paired=m.count||1; closePair(); beep('ok'); say('보호자가 연결됐어요.'); break;
     case 'unpaired': S.paired=0; say('연결된 보호자를 모두 끊었어요. 다시 연결하려면 보호자 연결해줘라고 말하세요.'); break;
     case 'dets': S.dets=m; S.detsAt=performance.now(); busSeen(m); if(S.stallSaid){ S.stallSaid=false; notice(''); say('안내가 다시 시작됐어요.'); } if(!S.spokeReady){ S.spokeReady=true; say('준비됐어요. 안내를 시작합니다.'); beep('ok'); } break;
-    case 'tactile': if(window.SayEyeTactile) window.SayEyeTactile.handle(m); break;
-    case 'tactile_seen': tactileSeen(); break;
+    case 'tactile_follow': tactileFollow(m); break;
     case 'warn': {
       const prio=m.prio||1;
       { const w=shortWarn(m.text, prio); if(w){ m.text=w.say; m.head=w.head; m.sub=w.sub; } }
@@ -896,7 +864,7 @@ async function start(){
   startGeo();
 }
 function stop(){
-  if(window.SayEyeTactile) window.SayEyeTactile.stop();
+  if(TF.on){ sendCmd({type:'tactile_follow', action:'reset'}); tactileFollow({state:'off'}); }   /* 안내를 멈추면 점자블록 안내도 조용히 끔 */
   S.running=false; clearInterval(S.timer);
   if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
   $('#cam').hidden=true; $('#pv').hidden=true; $('#pv').removeAttribute('src');
@@ -1300,6 +1268,9 @@ function offRoute(lat,lon){ let m=1e9; for(const p of NAV.line) m=Math.min(m, di
    걷는 구간은 네이버 AR 도보 길찾기처럼: 갈림길 50 m 앞에서 미리 · 25 m 안에서 다시, 걷는 방향(나침반)이 다음 지점과 40° 넘게 다르면
    "2시 방향으로 가세요", 3분마다 남은 거리. 화면엔 '다음 갈림길까지 m · 할 일'을 큰 글씨로. */
 const TRIP={on:false, legs:[], i:0, dest:null, riding:false, rideWatch:null, rideT:[], lastIdx:-1, view:null, nextSaid:false, thisSaid:false};
+/* 갈림길 말 → 왼쪽 · 오른쪽 ("좌회전" · "8시 방향 좌회전" · "왼쪽 길") */
+function navSide(tw){ tw=String(tw||''); return /좌회전|좌측|왼쪽|(?:^|\D)(?:8|9|10|11)시/.test(tw) ? '왼쪽' : /우회전|우측|오른쪽|(?:^|\D)[1-4]시/.test(tw) ? '오른쪽' : ''; }
+function navSay(t){ NAV.saidAt=performance.now(); S.latest=t; speech.push('ui', t); }
 function turnWord(t){ const m=String(t||'').match(/^(.*?)(한 뒤|한 후| 후|하세요|,)/); return (m && m[1].length<=12) ? m[1] : ''; }
 async function navStart(q){
   if(!q){ say('어디로 갈지 말해 주세요. 예를 들어 인하대역 가자.'); return; }
@@ -1428,10 +1399,23 @@ async function navTick(c){
       say(`${NAV.dest ? NAV.dest.name+'에 ' : ''}도착했어요.`); beep('ok');
       if(NAV.dest && /역(\[|\s|$|\d)/.test(NAV.dest.name)) say('엘리베이터 위치가 궁금하면 엘리베이터 어디야라고 말하세요.');
       sendCmd({type:'client_event', kind:'arrived', dest:NAV.dest ? NAV.dest.name : ''}); navStop(false); return; }
-    const tw=turnWord(st.text);
-    if(st.kind!=='arrive' && d<60 && d>=32 && !st.pre && tw){ st.pre=true; speech.push('ui', `${Math.round(d/10)*10}미터 앞에서 ${tw}이에요.`); }   /* 미리 */
+    const tw=turnWord(st.text), side=navSide(tw);
+    /* 내비처럼 (11/24 사용자): 갈림길 100 · 50 · 30 m 전에 "50미터 뒤에 좌회전이에요. 왼쪽으로 가야 해요." 한 번씩.
+       GPS 가 건너뛰면 지난 거리는 말하지 않고 가장 가까운 것 하나만. */
+    if(d>=27){
+      const marks=[100,50,30].filter(mk=>d<=mk+6 && !(st.marks||[]).includes(mk));
+      if(marks.length){ st.marks=[...(st.marks||[]), 100,50,30].filter(mk=>mk>=Math.min(...marks)); const mk=Math.min(...marks);
+        const what = st.kind==='arrive' ? '도착이에요.' : st.kind==='crosswalk' ? '횡단보도예요.' : tw ? `${tw}이에요.${side?` ${side}으로 가야 해요.`:''}` : '';
+        if(what && (st.kind==='arrive' || mk<=50 || tw)){ navSay(`${mk}미터 뒤에 ${what}`); } } }
+    /* 곧게 가는 길이 길면 40초마다 "앞으로 120미터 쭉 가세요. 그다음 좌회전이에요." (방향이 맞을 때만) */
+    if(d>=60 && now-(NAV.saidAt||0)>40000 && !NAV.offAt){
+      navSay(`앞으로 ${Math.round(d/10)*10}미터 쭉 가세요.${st.kind==='arrive' ? ' 그다음 도착이에요.' : tw ? ` 그다음 ${tw}이에요.` : ''}`); }
     if(st.kind!=='arrive' && d<25){
-      const t = st.kind==='crosswalk' ? `횡단보도예요. 신호를 확인하세요. ${st.text}` : st.text;
+      const nx=NAV.steps[NAV.idx+1], nd=nx ? dist(st.lat,st.lon,nx.lat,nx.lon) : 0;
+      const then = nd>=20 ? ` 그다음 앞으로 ${Math.round(nd/10)*10}미터 쭉 가세요.` : '';
+      const t = st.kind==='crosswalk' ? `횡단보도예요. 신호를 확인하세요. ${st.text}`
+              : side ? `지금 ${side}으로 도세요.${then}` : st.text;
+      NAV.saidAt=now;
       if(st.kind==='crosswalk'){ const b=crossBearingFromRoute(st); if(b!=null) setTimeout(()=>crossStart(b, false), 8000); }   /* 신호 기다린 뒤 건너는 동안 방향 지키기 */
       S.latest=t; speech.push('ui', t); NAV.idx++; NAV.off=0;
       { const nx=NAV.steps[NAV.idx]; if(nx && st.kind==='turn') NAV.turnCheck={bear:bearing(st.lat,st.lon,nx.lat,nx.lon), at:now}; }
@@ -1443,8 +1427,8 @@ async function navTick(c){
       const rel=angDiff(bearing(lat,lon,st.lat,st.lon), hd);
       if(Math.abs(rel)>40){ NAV.offAt=(NAV.offAt||0)+1;
         if(NAV.offAt>=2 && now-(NAV.dirSaidAt||0)>12000){ NAV.dirSaidAt=now; NAV.offAt=0;
-          const clock=Math.round(((rel+360)%360)/30)||12;
-          speech.push('ui', clock===6 ? '뒤로 돌아서 가세요.' : `${clock}시 방향으로 가세요.`); } }
+          /* 시계 방향 대신 왼쪽 · 오른쪽 (11/24 사용자: "왼쪽으로 가야 해요" 처럼) */
+          navSay(Math.abs(rel)>=150 ? '반대 방향이에요. 뒤로 돌아서 가세요.' : rel<0 ? `왼쪽으로 가야 해요.${Math.abs(rel)>=75?' 크게 왼쪽으로 도세요.':''}` : `오른쪽으로 가야 해요.${Math.abs(rel)>=75?' 크게 오른쪽으로 도세요.':''}`); } }
       else NAV.offAt=0;
     }
     /* 화면 · 3분마다 남은 거리 */
@@ -1512,7 +1496,7 @@ if(navigator.getBattery) navigator.getBattery().then(b=>{
     if(!b.charging && pct<=20 && pct<said-9){ said=pct; sendCmd({type:'client_event', kind:'battery', pct}); if(S.running) say(`배터리가 ${pct}퍼센트 남았어요.`); } };
   b.addEventListener('levelchange', chk); chk(); }).catch(()=>{});
 
-function repeatLast(){ if(window.SayEyeTactile && window.SayEyeTactile.selected()){window.SayEyeTactile.repeat();return;} speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
+function repeatLast(){ speech.unlock(); if(!S.lastWarns.length){ say(S.latest || '아직 들려드린 안내가 없어요.'); return; } say(S.lastWarns[0]); }
 function speakHelp(){
   say('세이아이 사용법이에요. 화면 아래 큰 버튼이 시작과 중지예요. 그 아래 왼쪽은 다시 듣기, 오른쪽은 보호자 호출이에요. 화면 아무 데나 두 번 연속 누르면 안내를 시작해요. 길게 누르면 버스, 지하철, 점자블록 찾기 같은 기능 메뉴가 열려요. 집 밖에서 15초 넘게 걸으면 안내를 시작할지 여쭤봐요. 집은 집 주소는 다음에 주소를 붙여 말하거나, 집에서 여기가 집이야라고 말하면 바꿀 수 있어요. 묻지 않게 하려면 자동 시작 꺼라고 말하세요. 화면 위쪽을 한 번 누르면 방금 안내를 다시 들려드려요. 버튼 없이 시작, 그만, 다시 말해줘, 도와줘, 소리 키워, 천천히라고 말해도 돼요. 보호자를 처음 연결할 때는 보호자 연결해줘라고 말하면 화면에 QR이 떠요. 보호자 폰으로 찍으면 연결돼요. 보호자에게 잘 가고 있다고 알리려면 알림 보내줘라고 말하세요. 길 안내는 인하대역 가자처럼 말하고, 버스는 511번 버스 언제 와처럼 물어보세요. 주변이 궁금하면 주변 설명해줘라고 말하세요. 이어서 더 자세히, 또는 궁금한 것을 물어봐도 돼요. 보호자는 평소에 위치를 볼 수 없고, 도와줘라고 하거나 넘어졌을 때, 또는 보행자가 허락했을 때만 볼 수 있어요. 주변이 시끄러우면 세이아이, 하고 부른 뒤 말해 주세요. 스크린리더를 쓰면 설정에서 터치 안내를 꺼 주세요.');
 }
@@ -1555,8 +1539,8 @@ document.querySelectorAll('#menuView .mbtn[data-m]').forEach(b=>b.addEventListen
   else if(k==='scene') runCommand('scene');
   else if(k==='indoor') runCommand(S.indoor ? 'indoor_off' : 'indoor_on');
   else if(k==='ping') runCommand('ping');
+  else if(k==='tactile') runCommand(TF.on ? 'tactile_stop' : 'tactile_start');
 }));
-$('#tactileStart').addEventListener('click', closeMenu);
 $('#menuClose').addEventListener('click', ()=>{ closeMenu(); say('메뉴를 닫았어요.'); });
 /* 화면 아무 데나 0.6초 길게 누르면 메뉴 (버튼 · 입력칸 위 제외). 누른 뒤 손을 떼며 생기는 클릭은 버림 */
 let lpT=null, lpXY=null, lpFired=false;
@@ -1568,16 +1552,26 @@ document.addEventListener('pointerdown', (e)=>{
 document.addEventListener('pointermove', (e)=>{ if(lpT && lpXY && Math.hypot(e.clientX-lpXY[0], e.clientY-lpXY[1])>18){ clearTimeout(lpT); lpT=null; } });
 ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev, ()=>{ clearTimeout(lpT); lpT=null; }));
 document.addEventListener('contextmenu', (e)=>{ if(!tapIgnored(e.target)) e.preventDefault(); });
-/* 평소 안내 중 카메라에 점자블록이 담기면 (서버 tactile_scout): 알리고 점자블록 찾기를 시작. "그만" · 그만 버튼이면 3분 동안 다시 안 함 */
-let tsCool=0;
-function tactileSeen(){
-  if(!window.SayEyeTactile || window.SayEyeTactile.selected() || !S.running || Ask.kind || performance.now()<tsCool) return;
-  if(TRIP.on && TRIP.riding) return;
-  say('점자블록이 있어요. 탐색을 시작할게요. 원하지 않으면 그만이라고 말하세요.');
-  ask('tactile', '점자블록이 있어요', '탐색을 시작할게요', '지금 시작', '그만',
-      ()=>window.SayEyeTactile.begin(),
-      ()=>{ tsCool=performance.now()+180000; say('알겠어요. 평소 안내를 계속할게요.'); },
-      6, ()=>window.SayEyeTactile.begin());
+/* 점자블록 따라 안내 (11/24 밤): 따로 화면을 열지 않는다. 평소 안내 화면에서 서버(tactile_scout)가 점자블록을 보면
+   이어서 계속 추론해 "앞으로 쭉 가세요" · "앞에서 왼쪽으로 꺾여요" · "점자블록이 오른쪽이에요" 를 말한다. 장애물 경고는 그대로 (경고가 먼저).
+   카메라 화면에는 점자블록 영역을 노랗게 칠한다. "점자블록 찾아줘" = 바로 찾기, "점자블록 그만" = 끄기(3분 동안 자동 시작 안 함). */
+const TF={on:false, dir:null, mask:null, W:0, H:0, at:0, text:''};
+const TF_HEAD={straight:'앞으로 쭉', center:'점자블록 위', left:'왼쪽으로 조금', right:'오른쪽으로 조금', curve_left:'앞에서 왼쪽으로', curve_right:'앞에서 오른쪽으로'};
+function tactileStart(){ speech.unlock(); sendCmd({type:'tactile_follow', action:'start'}); if(!S.running) start(); }
+function tactileFollow(m){
+  const was=TF.on; TF.on=m.state!=='off';
+  if(m.dir!==undefined) TF.dir=m.dir;
+  if(!TF.on){ TF.mask=null; TF.dir=null; }
+  if(m.mask_png && m.mask_png.startsWith('data:image/png;base64,')){ const img=new Image(); img.onload=()=>{ TF.mask=img; TF.W=m.W; TF.H=m.H; TF.at=performance.now(); }; img.src=m.mask_png; }
+  else if(m.W) TF.mask=null;
+  const mi=$('#menuTactile'); if(mi) mi.querySelector('small').textContent=TF.on?'끄기':'같은 화면에서 안내';
+  if(m.say){
+    if(TRIP.on && TRIP.riding) return;                 /* 버스 · 지하철 안에서는 말하지 않음 */
+    TF.text=m.say; speech.push('tactile', m.say); S.latest=m.say;
+    if(!document.body.classList.contains('warn') && !document.body.classList.contains('caut')){
+      if(TF.on && TF.dir && TF_HEAD[TF.dir]) say3('점자블록 따라가는 중', TF_HEAD[TF.dir], m.say); else calmView();
+    }
+  } else if(was!==TF.on) calmView();
 }
 const TAP2_MS=330; let tapAt=0, tapTimer=null;
 function tapIgnored(t){ return !!t.closest('button,a,select,input,textarea,label,#stage,#voiceSetup,#setupView,.sheet,[role="dialog"],[role="alertdialog"]'); }
@@ -1661,7 +1655,7 @@ function draw(){
         octx.restore();
       }
       let pathShown=false;
-      if(S.showBoxes && path){
+      if(S.showCorridor && path){
         pathShown=polygon(path.polygon,true,!path.valid);
         if(path.obstacle_polygon) polygon(path.obstacle_polygon,false,true);
       }
@@ -1686,7 +1680,20 @@ function draw(){
       octx.restore();
     }
   }
-  if(window.SayEyeTactile) window.SayEyeTactile.draw(ov,octx,r);
+  /* 점검 표시 (11/24 밤): 미리보기 왼쪽 위에 서버가 받은 장수 · 지금 잡은 물체 수. "하나도 못 잡음"이 서버 문제인지 폰 문제인지 바로 보이게 */
+  if(S.showBoxes && S.running && S.prev && !S.saver && r.width){
+    const age=performance.now()-S.detsAt, n=(S.dets && age<2500) ? (S.dets.d||[]).length : 0;
+    const label=!S.wsOk ? '서버 연결 안 됨' : !S.detsAt ? '인식 결과 아직 없음' : age>4000 ? `인식 결과 끊김 ${Math.round(age/1000)}초` : `물체 ${n}개 · 초당 ${(S.fps||0).toFixed(1)}장`;
+    octx.save(); octx.font='600 11px system-ui'; octx.textBaseline='top'; const tw=octx.measureText(label).width+8;
+    octx.fillStyle='rgba(11,18,32,.8)'; octx.fillRect(2,2,tw,16); octx.fillStyle=n?'#48F2D0':'#FFD438'; octx.fillText(label,6,4); octx.restore();
+  }
+  if(TF.on && TF.mask && S.running && S.prev && !S.saver && performance.now()-TF.at<2500 && r.width && r.height){
+    const v=$('#cam'), sw=(!v.hidden&&v.videoWidth)||0, sh=(!v.hidden&&v.videoHeight)||0;
+    if(sw && sh && TF.W>0 && Math.abs((sw/sh)/(TF.W/TF.H)-1)<.02){
+      const k=Math.max(r.width/sw,r.height/sh), fw=sw*k, fh=sh*k, ox=(r.width-fw)/2, oy=(r.height-fh)/2;
+      octx.save(); octx.globalAlpha=.85; octx.drawImage(TF.mask,ox,oy,fw,fh); octx.restore();
+    }
+  }
   requestAnimationFrame(draw);
 }
 
@@ -1704,7 +1711,23 @@ function escapeInApp(){
                        : '앱 안의 브라우저예요. 메뉴에서 "다른 브라우저로 열기(크롬)"를 눌러 주세요. 그래야 카메라 · 마이크 허락을 한 번만 해요.');
   else if(ios && /CriOS|FxiOS|EdgiOS/.test(ua)) notice('아이폰에서는 사파리로 열어 주세요. 크롬에서는 음성 명령과 음성 설정이 안 돼요.');
 }
-function boot(){ load(); applySettings(); calmView(); connect(); requestAnimationFrame(draw); }
+/* 앱을 열면 무조건 카메라 · 마이크 허락부터 묻는다 (11/24 밤 사용자). 허락받으면 바로 끄고(안내 시작 때 다시 켬),
+   거절 · 실패면 화면에 알리고 다음에 화면을 누를 때 다시 묻는다. */
+let permOk=false, permAsking=false;
+async function askPerms(again){
+  if(permOk || permAsking || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;
+  permAsking=true;
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}, audio:true});
+    st.getTracks().forEach(t=>t.stop()); permOk=true; notice('');
+    if(again) say('카메라와 마이크를 허락했어요.');
+  }catch(e){
+    notice('카메라와 마이크를 허락해 주세요. 화면을 누르면 다시 물어봐요.');
+    say('카메라와 마이크를 허락해야 안내할 수 있어요. 화면을 누르면 다시 물어볼게요.');
+    addEventListener('pointerdown', ()=>askPerms(true), {once:true});
+  }finally{ permAsking=false; }
+}
+function boot(){ load(); applySettings(); calmView(); connect(); requestAnimationFrame(draw); askPerms(false); }
 if(escapeInApp()) setTimeout(()=>{ if(document.visibilityState==='visible'){ escapeInApp(); boot(); } }, 2500);   /* 넘기기가 안 됐으면(크롬 없음 등) 여기서 그대로 */
 else boot();
 window.__insight = {parseCommand, S, handleSpeech, flash, handle};
@@ -1719,6 +1742,5 @@ addEventListener('keydown',e=>{ if(e.key==='Escape') openSheet(false); });
   sheet.addEventListener('touchmove',e=>{ if(y0!==null){ const d=e.touches[0].clientY-y0; if(d>0){ sheet.style.transition='none'; sheet.style.transform=`translateY(${d}px)`; } } },{passive:true});
   sheet.addEventListener('touchend',e=>{ if(y0===null) return; const d=e.changedTouches[0].clientY-y0; sheet.style.transition=''; sheet.style.transform=''; y0=null; if(d>90) openSheet(false); }); })();
 </script>
-<script src="tactile.js?v=6"></script>
 </body>
 </html>

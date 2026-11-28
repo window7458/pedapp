@@ -214,7 +214,7 @@ class LivePipeline:
         # SAYEYE_TACTILE_V2: exclusive mode; navigation resumes only on exit.
         from tactile_feature.runtime import TactileMode
         self.tactile = TactileMode(cfg.device, self.emit, self.log)
-        from tactile_scout import TactileScout      # 평소 안내 중 점자블록이 보이면 폰에 알림 (11/24)
+        from tactile_scout import TactileScout      # 평소 안내 화면에서 점자블록이 보이면 이어서 따라 안내 (11/24)
         self.scout = TactileScout(cfg.device, self.emit, self.log)
         self._tactile_generation = -1
         self._nav_generation = 0
@@ -315,7 +315,7 @@ class LivePipeline:
                        "overlay": getattr(self.perception, "preview_overlay", None),
                        "d": [[d.track_id, d.cls, round(d.box[0] / W, 4), round(d.box[1] / H, 4),
                               round(d.box[2] / W, 4), round(d.box[3] / H, 4)] for d in dets]})
-        self.scout.offer(im)
+        self.scout.offer(im, (meta or {}).get("c"))   # 점자블록 찾기 · 따라 안내 (평소 안내와 함께)
 
     def _make_preview(self, im, dets=()):
         s = min(1.0, 640 / max(im.shape[:2]))

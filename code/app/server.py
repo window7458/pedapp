@@ -958,6 +958,12 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                             user.state.pop("pending_tactile", None)
                             await ws.send_text(json.dumps({"type":"tactile", "session":session, "control":True,
                                 "state":"off" if action == "stop" else "paused", "text":"찾기를 중지했어요."}, ensure_ascii=False))
+                    elif t == "tactile_follow" and role == "pedestrian":
+                        # 점자블록 따라 안내: 평소 안내 화면 그대로 (따로 화면 없음). start = "점자블록 찾아줘", stop = "그만"
+                        if user.pipe is not None and cmd.get("action") in ("start", "stop"):
+                            user.pipe.scout.command(cmd["action"])
+                        elif user.pipe is not None and cmd.get("action") == "reset":   # 안내를 멈출 때: 말 없이 끔
+                            user.pipe.scout.reset()
                     elif t == "indoor" and role == "pedestrian":
                         user.state["indoor"] = bool(cmd.get("on"))
                         if user.pipe is not None and hasattr(user.pipe.perception, "indoor"):
@@ -978,6 +984,8 @@ def build_app(cfg: Config, source: str | None = None, pin: str = "000000", alert
                     # 보호자 실시간 영상도 멈췄다 (smoke_test 로 확인, 11/24)
                     if user.pipe is not None and user.pipe.tactile.snapshot()[1]:
                         user.pipe.tactile.cancel()
+                    if user.pipe is not None:
+                        user.pipe.scout.reset()
                 user.last_ped = time.time()
 
     @app.get("/")
